@@ -1,0 +1,157 @@
+// Collaborative Cookbook — Phase 1 schema
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// A member's permission level within a single cookbook.
+/// OWNER  – can delete the cookbook and manage members
+/// EDITOR – can add/edit their own recipes
+/// VIEWER – read-only
+enum CookbookRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+// ---------------------------------------------------------------------------
+// Identity — mirror of the Clerk user, keyed by clerkId.
+// Synced from Clerk (via webhook); everything else foreign-keys to this.
+// ---------------------------------------------------------------------------
+
+model User {
+  id          String   @id @default(cuid())
+  clerkId     String   @unique
+  email       String   @unique
+  displayName String?
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownedCookbooks Cookbook[]       @relation("CookbookOwner")
+  memberships    CookbookMember[]
+  recipes        Recipe[]         @relation("RecipeAuthor")
+  sentInvites    CookbookInvite[] @relation("InviteSender")
+}
+
+// ---------------------------------------------------------------------------
+// Cookbooks & collaboration
+// ---------------------------------------------------------------------------
+
+model Cookbook {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  coverImageUrl String?
+  ownerId       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner   User             @relation("CookbookOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members CookbookMember[]
+  recipes Recipe[]
+  invites CookbookInvite[]
+
+  @@index([ownerId])
+}
+
+model CookbookMember {
+  id         String       @id @default(cuid())
+  cookbookId String
+  userId     String
+  role       CookbookRole
+  createdAt  DateTime     @default(now())
+
+  cookbook Cookbook @relation(fields: [cookbookId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cookbookId, userId])
+  @@index([userId])
+  @@index([cookbookId])
+}
+
+model CookbookInvite {
+  id          String       @id @default(cuid())
+  cookbookId  String
+  email       String
+  role        CookbookRole @default(VIEWER)
+  invitedById String
+  token       String       @unique
+  status      InviteStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+
+  cookbook  Cookbook @relation(fields: [cookbookId], references: [id], onDelete: Cascade)
+  invitedBy User     @relation("InviteSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([cookbookId])
+  @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// Recipes — structured (ordered ingredients + steps)
+// ---------------------------------------------------------------------------
+
+model Recipe {
+  id              String   @id @default(cuid())
+  cookbookId      String
+  authorId        String
+  title           String
+  description     String?
+  servings        Int?
+  prepTimeMinutes Int?
+  cookTimeMinutes Int?
+  coverImageUrl   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  cookbook    Cookbook     @relation(fields: [cookbookId], references: [id], onDelete: Cascade)
+  author      User         @relation("RecipeAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  ingredients Ingredient[]
+  steps       Step[]
+
+  @@index([cookbookId])
+  @@index([authorId])
+}
+
+model Ingredient {
+  id       String  @id @default(cuid())
+  recipeId String
+  position Int
+  name     String
+  quantity Float?
+  unit     String?
+  note     String?
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+}
+
+model Step {
+  id          String @id @default(cuid())
+  recipeId    String
+  position    Int
+  instruction String
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+}
