@@ -32,18 +32,24 @@ enum InviteStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Identity — mirror of the Clerk user, keyed by clerkId.
-// Synced from Clerk (via webhook); everything else foreign-keys to this.
+// Identity — keyed by clerkId. email/avatar are lazily synced from Clerk
+// (see ensureUser); username/firstName/lastName are owned by our onboarding
+// step. Everything else foreign-keys to this.
 // ---------------------------------------------------------------------------
 
 model User {
-  id          String   @id @default(cuid())
-  clerkId     String   @unique
-  email       String   @unique
-  displayName String?
-  avatarUrl   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String  @id @default(cuid())
+  clerkId   String  @unique
+  email     String  @unique
+  // Profile — collected in our own onboarding step, NOT synced from Clerk.
+  // `username` is null until onboarding completes; that null is the signal we
+  // gate on to send a user through onboarding. (@unique allows many NULLs.)
+  username  String? @unique
+  firstName String?
+  lastName  String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   ownedCookbooks Cookbook[]       @relation("CookbookOwner")
   memberships    CookbookMember[]
