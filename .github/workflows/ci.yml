@@ -29,7 +29,17 @@ jobs:
           node-version: 24
           cache: npm
 
-      - run: npm ci
+      # `npm install`, not `npm ci` — deliberately. `npm ci` demands the lockfile
+      # match exactly, and it can't here: @tailwindcss/oxide-wasm32-wasi is an
+      # optional wasm32-cpu package whose @emnapi/runtime dependency npm only
+      # resolves on Linux. A lockfile written on macOS never records it, and no
+      # combination of --os/--cpu flags makes macOS generate the entry, so
+      # `npm ci` fails with "Missing: @emnapi/runtime from lock file".
+      #
+      # `npm install` still honours the lockfile for everything it does contain;
+      # it just resolves the gaps instead of refusing. Switch back to `npm ci`
+      # if the lockfile ever gets regenerated on Linux.
+      - run: npm install
 
       # src/generated/prisma is gitignored, and both the typecheck and the tests
       # import from it — so this has to run before either.
