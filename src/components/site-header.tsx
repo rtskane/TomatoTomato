@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import UserMenu from "@/components/user-menu";
 
 // Server component: reads auth state directly instead of using client
 // <SignedIn>/<SignedOut> control components (not exported in this SDK version).
@@ -20,7 +21,7 @@ export default async function SiteHeader() {
               <Link href="/dashboard" className="hover:underline">
                 Dashboard
               </Link>
-              <UserButton />
+              <UserMenu />
             </>
           ) : (
             <>
