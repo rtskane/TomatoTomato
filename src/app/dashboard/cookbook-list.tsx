@@ -1,3 +1,5 @@
+import Link from "next/link";
+import LinkPending from "@/components/link-pending";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 
 // Presentational: props in, markup out. Owns no data and does no fetching —
@@ -41,12 +43,30 @@ export default function CookbookList({
   return (
     <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {cookbooks.map((cookbook) => (
+        // `relative` anchors the stretched link below, which is what makes the
+        // whole card a click target.
         <li
           key={cookbook.id}
-          className="rounded-lg border border-black/10 p-4 dark:border-white/15"
+          className="group relative rounded-lg border border-black/10 p-4 transition-colors hover:border-black/25 hover:bg-black/[0.02] focus-within:ring-2 focus-within:ring-red-500 dark:border-white/15 dark:hover:border-white/30 dark:hover:bg-white/[0.03]"
         >
-          {/* Not a link yet — the /cookbooks/[id] detail page doesn't exist. */}
-          <h2 className="font-medium">{cookbook.title}</h2>
+          {/*
+            Stretched-link pattern: one real anchor on the title, with an
+            invisible ::after overlaying the entire card. The whole box is
+            clickable, but assistive tech still sees a single link named after
+            the cookbook — rather than one giant link that reads out the
+            description and counts too. It also leaves room to add real buttons
+            to the card later, which nesting everything inside an <a> would
+            make invalid.
+          */}
+          <Link
+            href={`/cookbooks/${cookbook.id}`}
+            className="outline-none after:absolute after:inset-0 after:rounded-lg"
+          >
+            <h2 className="font-medium group-hover:underline">
+              {cookbook.title}
+            </h2>
+            <LinkPending />
+          </Link>
           {cookbook.description ? (
             <p className="mt-1 line-clamp-2 text-sm text-black/60 dark:text-white/60">
               {cookbook.description}

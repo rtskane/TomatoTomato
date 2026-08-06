@@ -91,3 +91,53 @@ describe("CookbookList — populated", () => {
     expect(screen.queryByText(/owner/i)).not.toBeInTheDocument();
   });
 });
+
+describe("CookbookList — whole card is clickable", () => {
+  it("links to the cookbook", () => {
+    render(<CookbookList cookbooks={[summary()]} />);
+
+    expect(
+      screen.getByRole("link", { name: "Weeknight Dinners" }),
+    ).toHaveAttribute("href", "/cookbooks/cb1");
+  });
+
+  // The stretched-link pattern: the card is one click target, but assistive
+  // tech still sees a single link named for the cookbook, not a giant link
+  // that reads out the description and counts as well.
+  it("exposes exactly one link per card, named for the cookbook", () => {
+    render(
+      <CookbookList
+        cookbooks={[summary(), summary({ id: "cb2", title: "Baking" })]}
+      />,
+    );
+
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(2);
+    expect(links.map((a) => a.textContent)).toEqual([
+      "Weeknight Dinners",
+      "Baking",
+    ]);
+  });
+
+  it("overlays the link across the card, anchored to a positioned item", () => {
+    render(<CookbookList cookbooks={[summary()]} />);
+
+    const link = screen.getByRole("link", { name: "Weeknight Dinners" });
+    expect(link.className).toContain("after:absolute");
+    expect(link.className).toContain("after:inset-0");
+    // Without a positioned ancestor the overlay would escape the card.
+    expect(screen.getByRole("listitem").className).toContain("relative");
+    // Pending feedback while navigation is in flight (useLinkStatus).
+    expect(link.querySelector(".link-pending-overlay")).not.toBeNull();
+  });
+
+  // Removing the link's own outline is only acceptable because the card shows
+  // a focus ring instead — otherwise keyboard users lose their place.
+  it("keeps a visible focus indicator on the card", () => {
+    render(<CookbookList cookbooks={[summary()]} />);
+
+    expect(screen.getByRole("listitem").className).toContain(
+      "focus-within:ring-2",
+    );
+  });
+});
