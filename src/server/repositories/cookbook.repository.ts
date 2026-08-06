@@ -59,4 +59,56 @@ export const cookbookRepository = {
       },
     });
   },
+
+  /**
+   * One cookbook with its recipes, as seen by this user — or `null` if they
+   * aren't a member.
+   *
+   * Unlike `listForUser`, here the cookbook id DOES come from the URL, so it
+   * could be forged. The defense is the composite key: we look up the
+   * membership `(cookbookId, userId)` rather than the cookbook, so a
+   * non-member's request finds nothing instead of leaking a title. Auth and
+   * data come back in one query.
+   */
+  findDetailForUser(cookbookId: string, userId: string) {
+    return prisma.cookbookMember.findUnique({
+      where: { cookbookId_userId: { cookbookId, userId } },
+      select: {
+        role: true,
+        cookbook: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            recipes: {
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                servings: true,
+                prepTimeMinutes: true,
+                cookTimeMinutes: true,
+                author: {
+                  select: { username: true, firstName: true, lastName: true },
+                },
+                _count: { select: { ingredients: true, steps: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+  },
+
+  /**
+   * Just the viewer's role in a cookbook, for permission checks that don't need
+   * the cookbook itself. `null` means "not a member".
+   */
+  findMembership(cookbookId: string, userId: string) {
+    return prisma.cookbookMember.findUnique({
+      where: { cookbookId_userId: { cookbookId, userId } },
+      select: { role: true },
+    });
+  },
 };

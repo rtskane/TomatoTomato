@@ -1,6 +1,7 @@
 import { createCookbookSchema } from "@/lib/cookbook";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { ok, err, type Result } from "@/server/result";
+import { canAddRecipes } from "@/server/permissions";
 import type { CookbookRole } from "@/generated/prisma/enums";
 
 // Business logic for cookbooks. Framework-free — no next/*, no @clerk/* — so it
@@ -73,4 +74,75 @@ export async function listUserCookbooks(
     recipeCount: cookbook._count.recipes,
     memberCount: cookbook._count.members,
   }));
+}
+
+export type RecipeSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  servings: number | null;
+  prepTimeMinutes: number | null;
+  cookTimeMinutes: number | null;
+  authorName: string;
+  ingredientCount: number;
+  stepCount: number;
+};
+
+export type CookbookDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  role: CookbookRole;
+  canAddRecipes: boolean;
+  recipes: RecipeSummary[];
+};
+
+// Prefer the handle, fall back to a real name, then to something neutral —
+// username is nullable until onboarding completes, so none of these is
+// guaranteed on its own.
+function displayAuthor(author: {
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+}): string {
+  if (author.username) return author.username;
+  const name = [author.firstName, author.lastName].filter(Boolean).join(" ");
+  return name || "Unknown";
+}
+
+/**
+ * One cookbook and its recipes, or `null` when the user isn't a member — which
+ * the caller should surface as a 404, not a 403: whether a cookbook exists is
+ * itself information a non-member shouldn't get.
+ */
+export async function getCookbookDetail(
+  userId: string,
+  cookbookId: string,
+): Promise<CookbookDetail | null> {
+  const membership = await cookbookRepository.findDetailForUser(
+    cookbookId,
+    userId,
+  );
+  if (!membership) return null;
+
+  const { role, cookbook } = membership;
+
+  return {
+    id: cookbook.id,
+    title: cookbook.title,
+    description: cookbook.description,
+    role,
+    canAddRecipes: canAddRecipes(role),
+    recipes: cookbook.recipes.map((recipe) => ({
+      id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      servings: recipe.servings,
+      prepTimeMinutes: recipe.prepTimeMinutes,
+      cookTimeMinutes: recipe.cookTimeMinutes,
+      authorName: displayAuthor(recipe.author),
+      ingredientCount: recipe._count.ingredients,
+      stepCount: recipe._count.steps,
+    })),
+  };
 }

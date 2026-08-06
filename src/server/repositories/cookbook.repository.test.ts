@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // a database. vi.hoisted lets the mock factory reference these safely.
 const { cookbook, cookbookMember } = vi.hoisted(() => ({
   cookbook: { create: vi.fn() },
-  cookbookMember: { findMany: vi.fn() },
+  cookbookMember: { findMany: vi.fn(), findUnique: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: { cookbook, cookbookMember } }));
 
@@ -123,5 +123,72 @@ describe("cookbookRepository.listForUser", () => {
 
   it("returns an empty array when the user has no memberships", async () => {
     await expect(cookbookRepository.listForUser("u1")).resolves.toEqual([]);
+  });
+});
+
+describe("cookbookRepository.findDetailForUser", () => {
+  beforeEach(() => {
+    cookbookMember.findUnique.mockResolvedValue(null);
+  });
+
+  // The cookbook id comes from the URL here, so it's attacker-controlled. The
+  // composite-key lookup is what makes a forged id find nothing.
+  it("looks up the membership composite key, not the cookbook", async () => {
+    await cookbookRepository.findDetailForUser("cb1", "u1");
+
+    expect(cookbookMember.findUnique.mock.calls[0][0].where).toEqual({
+      cookbookId_userId: { cookbookId: "cb1", userId: "u1" },
+    });
+  });
+
+  it("returns null for a non-member rather than leaking the cookbook", async () => {
+    await expect(
+      cookbookRepository.findDetailForUser("cb1", "stranger"),
+    ).resolves.toBeNull();
+  });
+
+  it("selects the role and the recipe fields the page renders", async () => {
+    await cookbookRepository.findDetailForUser("cb1", "u1");
+
+    const select = cookbookMember.findUnique.mock.calls[0][0].select;
+    expect(select.role).toBe(true);
+    expect(select.cookbook.select).toMatchObject({ id: true, title: true });
+
+    const recipes = select.cookbook.select.recipes;
+    expect(recipes.orderBy).toEqual({ createdAt: "desc" });
+    expect(recipes.select._count).toEqual({
+      select: { ingredients: true, steps: true },
+    });
+    expect(recipes.select.author.select).toMatchObject({ username: true });
+  });
+});
+
+describe("cookbookRepository.findMembership", () => {
+  beforeEach(() => {
+    cookbookMember.findUnique.mockResolvedValue({ role: "EDITOR" });
+  });
+
+  it("looks up by the composite key", async () => {
+    await cookbookRepository.findMembership("cb1", "u1");
+
+    expect(cookbookMember.findUnique.mock.calls[0][0].where).toEqual({
+      cookbookId_userId: { cookbookId: "cb1", userId: "u1" },
+    });
+  });
+
+  it("selects only the role", async () => {
+    await cookbookRepository.findMembership("cb1", "u1");
+
+    expect(cookbookMember.findUnique.mock.calls[0][0].select).toEqual({
+      role: true,
+    });
+  });
+
+  it("returns null when there is no membership", async () => {
+    cookbookMember.findUnique.mockResolvedValue(null);
+
+    await expect(
+      cookbookRepository.findMembership("cb1", "stranger"),
+    ).resolves.toBeNull();
   });
 });
