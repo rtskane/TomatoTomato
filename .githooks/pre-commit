@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# Runs the same checks CI does, minus the production build (too slow to sit in
+# front of every commit — CI covers it).
+#
+# Enabled by `core.hooksPath=.githooks`, which the package.json `prepare` script
+# sets on npm install. That keeps the hook version-controlled and shared, unlike
+# anything dropped in .git/hooks.
+#
+# Note this validates the working tree, not the staged snapshot. If you stage
+# only part of your changes, it checks everything you have on disk.
+#
+# Bypass with: git commit --no-verify
+
+set -e
+
+echo "pre-commit: typecheck, lint, tests (~6s) — skip with --no-verify"
+npm run check

@@ -7,8 +7,11 @@
     "build": "next build",
     "start": "next start --port 8000",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.17",

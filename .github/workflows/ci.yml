@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    env:
+      # Placeholders, not secrets. `next build` evaluates modules that require
+      # these to be defined (src/lib/prisma.ts throws on a missing DATABASE_URL),
+      # but nothing connects: every route is dynamic, so no page queries the
+      # database at build time. Verified locally by building with these exact
+      # values.
+      DATABASE_URL: postgresql://user:pass@localhost:5432/db
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+      CLERK_SECRET_KEY: sk_test_dummy
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+      NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # src/generated/prisma is gitignored, and both the typecheck and the tests
+      # import from it — so this has to run before either.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # Catches what unit tests can't: server/client boundary violations, bad
+      # route exports, and anything that only fails when Next compiles for real.
+      - name: Build
+        run: npm run build
