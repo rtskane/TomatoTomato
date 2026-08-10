@@ -111,4 +111,61 @@ export const cookbookRepository = {
       select: { role: true },
     });
   },
+
+  /**
+   * The cookbook's own row — currently just `ownerId`, which the member
+   * management guards need in order to refuse demoting or removing the owner.
+   */
+  findById(cookbookId: string) {
+    return prisma.cookbook.findUnique({
+      where: { id: cookbookId },
+      select: { id: true, title: true, ownerId: true },
+    });
+  },
+
+  /** Everyone in a cookbook, owner first, then by when they joined. */
+  listMembers(cookbookId: string) {
+    return prisma.cookbookMember.findMany({
+      where: { cookbookId },
+      orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+      select: {
+        role: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+  },
+
+  /**
+   * Which of these users are already members. Used by the batch invite path to
+   * skip people who are in the cookbook already, in one query rather than N.
+   */
+  findMembershipsForUsers(cookbookId: string, userIds: string[]) {
+    return prisma.cookbookMember.findMany({
+      where: { cookbookId, userId: { in: userIds } },
+      select: { userId: true },
+    });
+  },
+
+  updateMemberRole(cookbookId: string, userId: string, role: CookbookRole) {
+    return prisma.cookbookMember.update({
+      where: { cookbookId_userId: { cookbookId, userId } },
+      data: { role },
+      select: { role: true },
+    });
+  },
+
+  removeMember(cookbookId: string, userId: string) {
+    return prisma.cookbookMember.delete({
+      where: { cookbookId_userId: { cookbookId, userId } },
+    });
+  },
 };

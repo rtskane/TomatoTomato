@@ -1,14 +1,20 @@
 import Link from "next/link";
 import { requireOnboardedUser } from "@/lib/user";
 import { listUserCookbooks } from "@/server/services/cookbook.service";
+import { listPendingInvites } from "@/server/services/member.service";
 import CookbookList from "./cookbook-list";
+import PendingInvites from "./pending-invites";
+import { acceptInviteAction, declineInviteAction } from "./actions";
 
 // Container: owns auth + data, hands rows to the presentational list.
 // requireOnboardedUser redirects signed-out visitors to sign-in and
 // un-onboarded users to /onboarding.
 export default async function DashboardPage() {
   const user = await requireOnboardedUser();
-  const cookbooks = await listUserCookbooks(user.id);
+  const [cookbooks, invites] = await Promise.all([
+    listUserCookbooks(user.id),
+    listPendingInvites(user.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -21,6 +27,14 @@ export default async function DashboardPage() {
           New cookbook
         </Link>
       </div>
+
+      {/* Above the library on purpose: an invite is a thing to act on, and it
+          renders nothing when there's nothing pending. */}
+      <PendingInvites
+        invites={invites}
+        acceptAction={acceptInviteAction}
+        declineAction={declineInviteAction}
+      />
 
       <CookbookList cookbooks={cookbooks} />
     </div>

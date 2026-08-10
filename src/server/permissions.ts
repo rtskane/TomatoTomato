@@ -10,3 +10,14 @@ import type { CookbookRole } from "@/generated/prisma/enums";
 export function canAddRecipes(role: CookbookRole): boolean {
   return role === "OWNER" || role === "EDITOR";
 }
+
+/**
+ * Invite people, change their role, and remove them.
+ *
+ * Owner-only on purpose: an EDITOR can write recipes, but widening who can see
+ * a cookbook is the owner's call. Note this is about *managing* membership —
+ * every member can still see who else is in the cookbook.
+ */
+export function canManageMembers(role: CookbookRole): boolean {
+  return role === "OWNER";
+}

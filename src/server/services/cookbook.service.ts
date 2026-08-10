@@ -2,6 +2,7 @@ import { createCookbookSchema } from "@/lib/cookbook";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { ok, err, type Result } from "@/server/result";
 import { canAddRecipes } from "@/server/permissions";
+import { displayName } from "@/lib/display-name";
 import type { CookbookRole } from "@/generated/prisma/enums";
 
 // Business logic for cookbooks. Framework-free — no next/*, no @clerk/* — so it
@@ -97,19 +98,6 @@ export type CookbookDetail = {
   recipes: RecipeSummary[];
 };
 
-// Prefer the handle, fall back to a real name, then to something neutral —
-// username is nullable until onboarding completes, so none of these is
-// guaranteed on its own.
-function displayAuthor(author: {
-  username: string | null;
-  firstName: string | null;
-  lastName: string | null;
-}): string {
-  if (author.username) return author.username;
-  const name = [author.firstName, author.lastName].filter(Boolean).join(" ");
-  return name || "Unknown";
-}
-
 /**
  * One cookbook and its recipes, or `null` when the user isn't a member — which
  * the caller should surface as a 404, not a 403: whether a cookbook exists is
@@ -140,7 +128,7 @@ export async function getCookbookDetail(
       servings: recipe.servings,
       prepTimeMinutes: recipe.prepTimeMinutes,
       cookTimeMinutes: recipe.cookTimeMinutes,
-      authorName: displayAuthor(recipe.author),
+      authorName: displayName(recipe.author),
       ingredientCount: recipe._count.ingredients,
       stepCount: recipe._count.steps,
     })),
