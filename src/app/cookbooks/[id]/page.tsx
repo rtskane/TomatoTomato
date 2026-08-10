@@ -2,7 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getCookbookDetail } from "@/server/services/cookbook.service";
+import { getCookbookMembers } from "@/server/services/member.service";
 import RecipeList from "./recipe-list";
+import ShareDialog from "./share-dialog";
+import MembersPanel from "./members/members-panel";
+import {
+  inviteMembersAction,
+  changeMemberRoleAction,
+  removeMemberAction,
+  changeInviteRoleAction,
+  cancelInviteAction,
+} from "./members/actions";
 
 // Container: owns auth + data, hands rows to the presentational list.
 export default async function CookbookPage({
@@ -12,11 +22,29 @@ export default async function CookbookPage({
 }) {
   const { id } = await params;
   const user = await requireOnboardedUser();
-  const cookbook = await getCookbookDetail(user.id, id);
+
+  // The share dialog's contents are rendered up front rather than fetched when
+  // it opens, which is what makes opening instant. Both queries are
+  // membership-scoped and indexed, and running them together costs about one
+  // round trip rather than two.
+  const [cookbook, members] = await Promise.all([
+    getCookbookDetail(user.id, id),
+    getCookbookMembers(user.id, id),
+  ]);
 
   // Non-members get a 404 rather than a 403 — whether a cookbook exists is
   // itself something they shouldn't learn.
-  if (!cookbook) notFound();
+  if (!cookbook || !members) notFound();
+
+  // Binding the id server-side means it never rides along in the form, so a
+  // crafted POST can't retarget these at a different cookbook.
+  const actions = {
+    invite: inviteMembersAction.bind(null, cookbook.id),
+    changeMemberRole: changeMemberRoleAction.bind(null, cookbook.id),
+    removeMember: removeMemberAction.bind(null, cookbook.id),
+    changeInviteRole: changeInviteRoleAction.bind(null, cookbook.id),
+    cancelInvite: cancelInviteAction.bind(null, cookbook.id),
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -37,14 +65,26 @@ export default async function CookbookPage({
           ) : null}
         </div>
 
-        {cookbook.canAddRecipes ? (
-          <Link
-            href={`/cookbooks/${cookbook.id}/recipes/new`}
-            className="shrink-0 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Open to every member: a viewer can't invite anyone, but seeing who
+              else is in a cookbook they're part of is reasonable. The panel
+              itself decides which controls they get. */}
+          <ShareDialog
+            cookbookTitle={cookbook.title}
+            memberCount={members.members.length}
           >
-            New recipe
-          </Link>
-        ) : null}
+            <MembersPanel view={members} actions={actions} />
+          </ShareDialog>
+
+          {cookbook.canAddRecipes ? (
+            <Link
+              href={`/cookbooks/${cookbook.id}/recipes/new`}
+              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            >
+              New recipe
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <RecipeList

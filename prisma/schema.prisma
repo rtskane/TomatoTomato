@@ -51,10 +51,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ownedCookbooks Cookbook[]       @relation("CookbookOwner")
-  memberships    CookbookMember[]
-  recipes        Recipe[]         @relation("RecipeAuthor")
-  sentInvites    CookbookInvite[] @relation("InviteSender")
+  ownedCookbooks  Cookbook[]       @relation("CookbookOwner")
+  memberships     CookbookMember[]
+  recipes         Recipe[]         @relation("RecipeAuthor")
+  sentInvites     CookbookInvite[] @relation("InviteSender")
+  receivedInvites CookbookInvite[] @relation("InviteRecipient")
 }
 
 // ---------------------------------------------------------------------------
@@ -93,22 +94,61 @@ model CookbookMember {
   @@index([cookbookId])
 }
 
+/// An invitation to join a cookbook. **No membership exists until the invitee
+/// accepts** — that's what stops an unwanted invite from putting a cookbook in
+/// someone's library.
+///
+/// ## Two ways to address one
+///
+/// `invitedUserId` is set when the invitee already has an account (they're
+/// found by username, and see the invite in-app). `email` is set when they
+/// don't yet (a link is sent to them). **Exactly one of the two is non-null** —
+/// Prisma can't express a CHECK constraint, so `inviteRepository` is the
+/// chokepoint that enforces it, via a discriminated union on its input.
+///
+/// ## One row per (cookbook, person)
+///
+/// Re-inviting someone *upserts* rather than inserting, so a second invite can
+/// never stack a second notification — and a DECLINED row stays behind as the
+/// record a future blocking feature can read. "One pending invite per person
+/// per cookbook" would otherwise need a partial unique index (`WHERE status =
+/// 'PENDING'`), which Prisma can't declare and which would drift on the next
+/// `migrate dev`.
+///
+/// Postgres treats NULLs as distinct in unique indexes, so the two `@@unique`
+/// rules below coexist: account-invites (email NULL) can only collide on the
+/// first, email-invites (invitedUserId NULL) only on the second.
 model CookbookInvite {
-  id          String       @id @default(cuid())
-  cookbookId  String
-  email       String
+  id String @id @default(cuid())
+
+  cookbookId String
+  /// Set when the invitee has an account. Mutually exclusive with `email`.
+  invitedUserId String?
+  /// Set when they don't. Mutually exclusive with `invitedUserId`.
+  email       String?
   role        CookbookRole @default(VIEWER)
   invitedById String
-  token       String       @unique
-  status      InviteStatus @default(PENDING)
-  expiresAt   DateTime
-  createdAt   DateTime     @default(now())
+  /// Generated for every invite, including in-app ones. Costs nothing now and
+  /// means any invite can become a shareable link once email delivery exists.
+  token     String       @unique
+  status    InviteStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  // @default(now()) as well as @updatedAt: the column was added to a table that
+  // could already have rows, so it needed a database-level default to backfill.
+  // Declaring it here keeps schema and database in agreement instead of leaving
+  // that default looking like drift.
+  updatedAt DateTime     @default(now()) @updatedAt
 
-  cookbook  Cookbook @relation(fields: [cookbookId], references: [id], onDelete: Cascade)
-  invitedBy User     @relation("InviteSender", fields: [invitedById], references: [id], onDelete: Cascade)
+  cookbook    Cookbook @relation(fields: [cookbookId], references: [id], onDelete: Cascade)
+  invitedBy   User     @relation("InviteSender", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitedUser User?    @relation("InviteRecipient", fields: [invitedUserId], references: [id], onDelete: Cascade)
 
+  @@unique([cookbookId, invitedUserId])
+  @@unique([cookbookId, email])
   @@index([cookbookId])
   @@index([email])
+  @@index([invitedUserId])
 }
 
 // ---------------------------------------------------------------------------
