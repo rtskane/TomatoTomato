@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Git worktrees checked out inside the repo. A worktree is a second checkout of
+# this same repository, so committing one would embed the project in itself —
+# and tsc/eslint/vitest would otherwise scan it as if it were source.
+/vercel-fix
