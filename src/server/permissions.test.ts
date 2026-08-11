@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { canAddRecipes, canManageMembers } from "./permissions";
+import {
+  canAddRecipes,
+  canManageMembers,
+  canModifyRecipe,
+  canEditCookbook,
+} from "./permissions";
 
 describe("canAddRecipes", () => {
   it("allows an OWNER", () => {
@@ -28,5 +33,47 @@ describe("canManageMembers", () => {
 
   it("refuses a VIEWER", () => {
     expect(canManageMembers("VIEWER")).toBe(false);
+  });
+});
+
+describe("canModifyRecipe", () => {
+  it("lets an EDITOR change a recipe they wrote", () => {
+    expect(canModifyRecipe("EDITOR", true)).toBe(true);
+  });
+
+  // The distinction canAddRecipes alone could never draw.
+  it("stops an EDITOR changing someone else's", () => {
+    expect(canModifyRecipe("EDITOR", false)).toBe(false);
+  });
+
+  it("lets an OWNER change any recipe, authored or not", () => {
+    expect(canModifyRecipe("OWNER", true)).toBe(true);
+    expect(canModifyRecipe("OWNER", false)).toBe(true);
+  });
+
+  // Read-only means read-only, even for something you wrote before being
+  // demoted.
+  it("stops a VIEWER changing even their own", () => {
+    expect(canModifyRecipe("VIEWER", true)).toBe(false);
+  });
+
+  it("is narrower than canAddRecipes", () => {
+    expect(canAddRecipes("EDITOR")).toBe(true);
+    expect(canModifyRecipe("EDITOR", false)).toBe(false);
+  });
+});
+
+describe("canEditCookbook", () => {
+  it("allows an OWNER", () => {
+    expect(canEditCookbook("OWNER")).toBe(true);
+  });
+
+  // Renaming or archiving changes the thing everyone else agreed to join.
+  it("refuses an EDITOR", () => {
+    expect(canEditCookbook("EDITOR")).toBe(false);
+  });
+
+  it("refuses a VIEWER", () => {
+    expect(canEditCookbook("VIEWER")).toBe(false);
   });
 });

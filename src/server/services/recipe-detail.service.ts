@@ -1,5 +1,8 @@
 import { cache } from "react";
 import { recipeRepository } from "@/server/repositories/recipe.repository";
+import { cookbookRepository } from "@/server/repositories/cookbook.repository";
+import { canModifyRecipe } from "@/server/permissions";
+import { displayName } from "@/lib/display-name";
 import { totalMinutes } from "@/lib/recipe-display";
 
 // Read side for a single recipe. Kept apart from recipe.service.ts, which owns
@@ -23,22 +26,12 @@ export type RecipeDetail = {
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
   authorName: string;
+  /** Whether this viewer may edit or delete it — author, or cookbook owner. */
+  canModify: boolean;
   cookbook: { id: string; title: string };
   ingredients: RecipeDetailIngredient[];
   steps: { id: string; instruction: string }[];
 };
-
-// Prefer the handle, fall back to a real name, then to something neutral —
-// username is nullable until onboarding completes.
-function displayAuthor(author: {
-  username: string | null;
-  firstName: string | null;
-  lastName: string | null;
-}): string {
-  if (author.username) return author.username;
-  const name = [author.firstName, author.lastName].filter(Boolean).join(" ");
-  return name || "Unknown";
-}
 
 /**
  * Quantities are stored as Float, so 2 arrives as `2` and half a teaspoon as
@@ -69,7 +62,16 @@ export const getRecipeDetail = cache(async function getRecipeDetail(
   );
   if (!recipe) return null;
 
+  // The recipe query already proved membership — this second lookup is only to
+  // learn *which* role, which decides whether the edit and delete controls
+  // render. It's the same rule the write path enforces, so the buttons can't
+  // offer something the action would refuse.
+  const membership = await cookbookRepository.findMembership(cookbookId, userId);
+
   return {
+    canModify: membership
+      ? canModifyRecipe(membership.role, recipe.authorId === userId)
+      : false,
     id: recipe.id,
     title: recipe.title,
     description: recipe.description,
@@ -80,7 +82,7 @@ export const getRecipeDetail = cache(async function getRecipeDetail(
       recipe.prepTimeMinutes,
       recipe.cookTimeMinutes,
     ),
-    authorName: displayAuthor(recipe.author),
+    authorName: displayName(recipe.author),
     cookbook: recipe.cookbook,
     ingredients: recipe.ingredients.map((i) => ({
       id: i.id,

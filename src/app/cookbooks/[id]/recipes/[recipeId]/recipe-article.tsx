@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatIngredient, formatMinutes } from "@/lib/recipe-display";
 import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 
@@ -45,9 +46,23 @@ export default function RecipeArticle({ recipe }: { recipe: RecipeDetail }) {
   return (
     <article className="mx-auto max-w-3xl px-4 py-10">
       <header>
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">
-          {recipe.title}
-        </h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">
+            {recipe.title}
+          </h1>
+
+          {/* Only for the author or the cookbook's owner — `canModify` is the
+              same rule the update and delete actions enforce, so this link can
+              never offer something the server would refuse. */}
+          {recipe.canModify ? (
+            <Link
+              href={`/cookbooks/${recipe.cookbook.id}/recipes/${recipe.id}/edit`}
+              className="mt-2 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
+            >
+              Edit
+            </Link>
+          ) : null}
+        </div>
         <p className="mt-4 text-sm text-black/50 dark:text-white/50">
           By {recipe.authorName}
         </p>

@@ -16,6 +16,7 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     cookTimeMinutes: 30,
     totalTimeMinutes: 45,
     authorName: "chef_ryan",
+    canModify: false,
     cookbook: { id: "cb1", title: "Weeknight Dinners" },
     ingredients: [
       { id: "i1", name: "spaghetti", quantity: "200", unit: "g", note: null },

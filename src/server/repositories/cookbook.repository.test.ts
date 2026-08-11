@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // a database. vi.hoisted lets the mock factory reference these safely.
 const { cookbook, cookbookMember } = vi.hoisted(() => ({
   cookbook: { create: vi.fn() },
-  cookbookMember: { findMany: vi.fn(), findUnique: vi.fn() },
+  cookbookMember: { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: { cookbook, cookbookMember } }));
 
@@ -93,8 +93,11 @@ describe("cookbookRepository.listForUser", () => {
   it("scopes the query to the given user", async () => {
     await cookbookRepository.listForUser("u1");
 
+    // The archived filter rides along on every membership read — an archived
+    // cookbook must vanish from its members' libraries.
     expect(cookbookMember.findMany.mock.calls[0][0].where).toEqual({
       userId: "u1",
+      cookbook: { archivedAt: null },
     });
   });
 
@@ -128,7 +131,7 @@ describe("cookbookRepository.listForUser", () => {
 
 describe("cookbookRepository.findDetailForUser", () => {
   beforeEach(() => {
-    cookbookMember.findUnique.mockResolvedValue(null);
+    cookbookMember.findFirst.mockResolvedValue(null);
   });
 
   // The cookbook id comes from the URL here, so it's attacker-controlled. The
@@ -136,8 +139,10 @@ describe("cookbookRepository.findDetailForUser", () => {
   it("looks up the membership composite key, not the cookbook", async () => {
     await cookbookRepository.findDetailForUser("cb1", "u1");
 
-    expect(cookbookMember.findUnique.mock.calls[0][0].where).toEqual({
-      cookbookId_userId: { cookbookId: "cb1", userId: "u1" },
+    expect(cookbookMember.findFirst.mock.calls[0][0].where).toEqual({
+      cookbookId: "cb1",
+      userId: "u1",
+      cookbook: { archivedAt: null },
     });
   });
 
@@ -150,7 +155,7 @@ describe("cookbookRepository.findDetailForUser", () => {
   it("selects the role and the recipe fields the page renders", async () => {
     await cookbookRepository.findDetailForUser("cb1", "u1");
 
-    const select = cookbookMember.findUnique.mock.calls[0][0].select;
+    const select = cookbookMember.findFirst.mock.calls[0][0].select;
     expect(select.role).toBe(true);
     expect(select.cookbook.select).toMatchObject({ id: true, title: true });
 
@@ -165,27 +170,29 @@ describe("cookbookRepository.findDetailForUser", () => {
 
 describe("cookbookRepository.findMembership", () => {
   beforeEach(() => {
-    cookbookMember.findUnique.mockResolvedValue({ role: "EDITOR" });
+    cookbookMember.findFirst.mockResolvedValue({ role: "EDITOR" });
   });
 
   it("looks up by the composite key", async () => {
     await cookbookRepository.findMembership("cb1", "u1");
 
-    expect(cookbookMember.findUnique.mock.calls[0][0].where).toEqual({
-      cookbookId_userId: { cookbookId: "cb1", userId: "u1" },
+    expect(cookbookMember.findFirst.mock.calls[0][0].where).toEqual({
+      cookbookId: "cb1",
+      userId: "u1",
+      cookbook: { archivedAt: null },
     });
   });
 
   it("selects only the role", async () => {
     await cookbookRepository.findMembership("cb1", "u1");
 
-    expect(cookbookMember.findUnique.mock.calls[0][0].select).toEqual({
+    expect(cookbookMember.findFirst.mock.calls[0][0].select).toEqual({
       role: true,
     });
   });
 
   it("returns null when there is no membership", async () => {
-    cookbookMember.findUnique.mockResolvedValue(null);
+    cookbookMember.findFirst.mockResolvedValue(null);
 
     await expect(
       cookbookRepository.findMembership("cb1", "stranger"),

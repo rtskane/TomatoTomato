@@ -2,9 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getCookbookDetail } from "@/server/services/cookbook.service";
+import { getArchiveImpact } from "@/server/services/cookbook.service";
 import { getCookbookMembers } from "@/server/services/member.service";
 import RecipeList from "./recipe-list";
 import ShareDialog from "./share-dialog";
+import SettingsDialog from "./settings-dialog";
+import {
+  updateCookbookAction,
+  archiveCookbookAction,
+} from "./settings-actions";
 import MembersPanel from "./members/members-panel";
 import {
   inviteMembersAction,
@@ -35,6 +41,12 @@ export default async function CookbookPage({
   // Non-members get a 404 rather than a 403 — whether a cookbook exists is
   // itself something they shouldn't learn.
   if (!cookbook || !members) notFound();
+
+  // Only the owner gets the settings dialog, and only the owner's request pays
+  // for the counts behind its archive warning.
+  const impact = cookbook.canEditCookbook
+    ? await getArchiveImpact(user.id, cookbook.id)
+    : null;
 
   // Binding the id server-side means it never rides along in the form, so a
   // crafted POST can't retarget these at a different cookbook.
@@ -75,6 +87,20 @@ export default async function CookbookPage({
           >
             <MembersPanel view={members} actions={actions} />
           </ShareDialog>
+
+          {cookbook.canEditCookbook && impact?.ok ? (
+            <SettingsDialog
+              title={cookbook.title}
+              description={cookbook.description}
+              impact={impact.value}
+              updateAction={updateCookbookAction.bind(null, cookbook.id)}
+              archiveAction={archiveCookbookAction.bind(
+                null,
+                cookbook.id,
+                cookbook.title,
+              )}
+            />
+          ) : null}
 
           {cookbook.canAddRecipes ? (
             <Link
