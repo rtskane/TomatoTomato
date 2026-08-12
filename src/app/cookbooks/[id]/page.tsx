@@ -62,16 +62,16 @@ export default async function CookbookPage({
     <div className="mx-auto max-w-5xl px-4 py-10">
       <Link
         href="/dashboard"
-        className="text-sm text-black/60 hover:underline dark:text-white/60"
+        className="text-subheadline text-foreground-secondary hover:underline"
       >
         ← Your library
       </Link>
 
       <div className="mt-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold">{cookbook.title}</h1>
+          <h1 className="text-title-1">{cookbook.title}</h1>
           {cookbook.description ? (
-            <p className="mt-2 text-black/70 dark:text-white/70">
+            <p className="mt-2 text-foreground-secondary">
               {cookbook.description}
             </p>
           ) : null}
@@ -105,7 +105,7 @@ export default async function CookbookPage({
           {cookbook.canAddRecipes ? (
             <Link
               href={`/cookbooks/${cookbook.id}/recipes/new`}
-              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              className="rounded-md bg-accent px-4 py-2 text-subheadline font-medium text-on-accent hover:bg-accent-hover"
             >
               New recipe
             </Link>

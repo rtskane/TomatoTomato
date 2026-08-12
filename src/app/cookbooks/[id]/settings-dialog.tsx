@@ -19,9 +19,8 @@ type ArchiveAction = (
 ) => Promise<ArchiveCookbookState>;
 
 const fieldClass =
-  "mt-1 w-full rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-sm " +
-  "outline-none placeholder:text-black/30 focus:border-red-500 focus:bg-transparent " +
-  "dark:border-white/15 dark:bg-white/[0.04] dark:placeholder:text-white/30";
+  "mt-1 w-full rounded-lg border border-border bg-background-control px-3 py-2 text-subheadline " +
+  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
 
 /** Wording that stays honest whether the cookbook is empty or holds five people's work. */
 function impactSentence(impact: ArchiveImpact): string {
@@ -57,7 +56,7 @@ function ArchiveSection({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="text-sm text-red-600 hover:underline"
+        className="text-subheadline text-error hover:underline"
       >
         Archive this cookbook
       </button>
@@ -67,10 +66,10 @@ function ArchiveSection({
   return (
     <form
       action={submit}
-      className="rounded-lg border border-red-500/30 bg-red-50/50 p-4 dark:bg-red-950/20"
+      className="rounded-lg border border-border-error/40 bg-error/5 p-4"
     >
-      <p className="text-sm font-medium">Archive “{impact.title}”?</p>
-      <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+      <p className="text-subheadline font-medium">Archive “{impact.title}”?</p>
+      <p className="mt-1 text-subheadline text-foreground-secondary">
         It leaves everyone&rsquo;s library
         {impact.memberCount > 1
           ? ` — all ${impact.memberCount} members`
@@ -79,7 +78,7 @@ function ArchiveSection({
         from your library.
       </p>
 
-      <label htmlFor="confirmTitle" className="mt-3 block text-sm">
+      <label htmlFor="confirmTitle" className="mt-3 block text-subheadline">
         Type <span className="font-medium">{impact.title}</span> to confirm
       </label>
       <input
@@ -92,7 +91,7 @@ function ArchiveSection({
       />
 
       {state.error ? (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-subheadline text-error">
           {state.error}
         </p>
       ) : null}
@@ -104,7 +103,7 @@ function ArchiveSection({
           // server-side — a confirmation only the client enforces is no
           // confirmation at all, since the action accepts direct POSTs.
           disabled={pending || !matches}
-          className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-40"
+          className="rounded-md bg-error px-3 py-1.5 text-subheadline font-medium text-foreground-inverse hover:bg-error-hover disabled:opacity-40"
         >
           {pending ? "Archiving…" : "Archive"}
         </button>
@@ -112,7 +111,7 @@ function ArchiveSection({
           type="button"
           onClick={() => setConfirming(false)}
           disabled={pending}
-          className="rounded-md px-3 py-1.5 text-sm text-black/60 hover:bg-black/5 disabled:opacity-60 dark:text-white/60 dark:hover:bg-white/10"
+          className="rounded-md px-3 py-1.5 text-subheadline text-foreground-secondary hover:bg-background-secondary disabled:opacity-60"
         >
           Cancel
         </button>
@@ -140,7 +139,7 @@ export default function SettingsDialog({
     <ModalDialog
       title="Cookbook settings"
       closeLabel="Close"
-      triggerClassName="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
+      triggerClassName="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-subheadline font-medium text-foreground-secondary hover:bg-background-secondary"
       triggerContent={
         <>
           <svg
@@ -163,7 +162,7 @@ export default function SettingsDialog({
       <div className="space-y-8">
         <form action={submit} className="space-y-4" noValidate>
           <div>
-            <label htmlFor="title" className="block text-sm font-medium">
+            <label htmlFor="title" className="block text-subheadline font-medium">
               Title
             </label>
             <input
@@ -176,9 +175,9 @@ export default function SettingsDialog({
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium">
+            <label htmlFor="description" className="block text-subheadline font-medium">
               Description{" "}
-              <span className="font-normal text-black/40 dark:text-white/40">
+              <span className="font-normal text-foreground-muted">
                 optional
               </span>
             </label>
@@ -192,7 +191,7 @@ export default function SettingsDialog({
           </div>
 
           {state.error ? (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-subheadline text-error">
               {state.error}
             </p>
           ) : null}
@@ -200,13 +199,13 @@ export default function SettingsDialog({
           <button
             type="submit"
             disabled={pending}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+            className="rounded-md bg-accent px-4 py-2 text-subheadline font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
           >
             {pending ? "Saving…" : "Save changes"}
           </button>
         </form>
 
-        <div className="border-t border-black/10 pt-6 dark:border-white/15">
+        <div className="border-t border-border pt-6">
           <ArchiveSection action={archiveAction} impact={impact} />
         </div>
       </div>

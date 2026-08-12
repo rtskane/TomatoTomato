@@ -65,17 +65,17 @@ export default function ModalDialog({
           if (e.target === dialogRef.current) setOpen(false);
         }}
         aria-labelledby={titleId}
-        className="m-auto w-[min(32rem,calc(100vw_-_2rem))] rounded-xl border border-black/10 bg-[var(--background)] p-0 text-[var(--foreground)] shadow-xl backdrop:bg-black/40 dark:border-white/15"
+        className="m-auto w-[min(32rem,calc(100vw_-_2rem))] rounded-xl border border-border bg-background p-0 text-foreground shadow-xl backdrop:bg-scrim"
       >
         <div className="flex items-start justify-between gap-4 px-5 pt-5">
-          <h2 id={titleId} className="text-lg font-semibold">
+          <h2 id={titleId} className="text-headline font-semibold">
             {title}
           </h2>
           <button
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="-mt-1 -mr-1 rounded-md p-1 text-black/40 hover:bg-black/5 hover:text-black/70 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-white/70"
+            className="-mt-1 -mr-1 rounded-md p-1 text-foreground-muted hover:bg-background-secondary hover:text-foreground-secondary"
           >
             <svg
               aria-hidden
@@ -95,11 +95,11 @@ export default function ModalDialog({
             rather than pushing it off screen. */}
         <div className="max-h-[70vh] overflow-y-auto px-5 py-5">{children}</div>
 
-        <div className="flex justify-end border-t border-black/10 px-5 py-3 dark:border-white/15">
+        <div className="flex justify-end border-t border-border px-5 py-3">
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded-md bg-black/5 px-4 py-2 text-sm font-medium hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20"
+            className="rounded-md bg-background-secondary px-4 py-2 text-subheadline font-medium hover:bg-background-tertiary"
           >
             {closeLabel}
           </button>

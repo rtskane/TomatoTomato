@@ -23,7 +23,7 @@ export default function ShareDialog({
   return (
     <ModalDialog
       title={`Share “${cookbookTitle}”`}
-      triggerClassName="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
+      triggerClassName="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-subheadline font-medium text-foreground-secondary hover:bg-background-secondary"
       triggerContent={
         <>
           <svg
@@ -42,7 +42,7 @@ export default function ShareDialog({
           </svg>
           Share
           {memberCount > 1 ? (
-            <span className="text-black/40 dark:text-white/40">
+            <span className="text-foreground-muted">
               {memberCount}
             </span>
           ) : null}

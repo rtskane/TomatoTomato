@@ -30,12 +30,12 @@ export default function DeleteRecipe({
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="text-sm text-red-600 hover:underline"
+          className="text-subheadline text-error hover:underline"
         >
           Delete this recipe
         </button>
         {state.error ? (
-          <p role="alert" className="mt-2 text-sm text-red-600">
+          <p role="alert" className="mt-2 text-subheadline text-error">
             {state.error}
           </p>
         ) : null}
@@ -44,16 +44,16 @@ export default function DeleteRecipe({
   }
 
   return (
-    <div className="rounded-lg border border-red-500/30 bg-red-50/50 p-4 dark:bg-red-950/20">
-      <p className="text-sm font-medium">
+    <div className="rounded-lg border border-border-error/40 bg-error/5 p-4">
+      <p className="text-subheadline font-medium">
         Delete &ldquo;{recipeTitle}&rdquo;?
       </p>
-      <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+      <p className="mt-1 text-subheadline text-foreground-secondary">
         Its ingredients and steps go with it. This can&rsquo;t be undone.
       </p>
 
       {state.error ? (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-subheadline text-error">
           {state.error}
         </p>
       ) : null}
@@ -63,7 +63,7 @@ export default function DeleteRecipe({
           <button
             type="submit"
             disabled={pending}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+            className="rounded-md bg-error px-3 py-1.5 text-subheadline font-medium text-foreground-inverse hover:bg-error-hover disabled:opacity-60"
           >
             {pending ? "Deleting…" : "Delete recipe"}
           </button>
@@ -72,7 +72,7 @@ export default function DeleteRecipe({
           type="button"
           onClick={() => setConfirming(false)}
           disabled={pending}
-          className="rounded-md px-3 py-1.5 text-sm text-black/60 hover:bg-black/5 disabled:opacity-60 dark:text-white/60 dark:hover:bg-white/10"
+          className="rounded-md px-3 py-1.5 text-subheadline text-foreground-secondary hover:bg-background-secondary disabled:opacity-60"
         >
           Keep it
         </button>

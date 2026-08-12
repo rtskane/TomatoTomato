@@ -27,13 +27,13 @@ export default async function NewRecipePage({
     <div className="mx-auto max-w-2xl px-4 py-10">
       <Link
         href={`/cookbooks/${cookbook.id}`}
-        className="text-sm text-black/60 hover:underline dark:text-white/60"
+        className="text-subheadline text-foreground-secondary hover:underline"
       >
         ← {cookbook.title}
       </Link>
 
-      <h1 className="mt-4 text-2xl font-semibold">New recipe</h1>
-      <p className="mt-2 text-sm text-black/70 dark:text-white/70">
+      <h1 className="mt-4 text-title-1">New recipe</h1>
+      <p className="mt-2 text-subheadline text-foreground-secondary">
         Adding to <span className="font-medium">{cookbook.title}</span>.
       </p>
 

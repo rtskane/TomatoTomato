@@ -49,13 +49,13 @@ export default async function EditRecipePage({
     <div className="mx-auto max-w-2xl px-4 py-10">
       <Link
         href={`/cookbooks/${id}/recipes/${recipeId}`}
-        className="text-sm text-black/60 hover:underline dark:text-white/60"
+        className="text-subheadline text-foreground-secondary hover:underline"
       >
         ← {recipe.title}
       </Link>
 
-      <h1 className="mt-4 text-2xl font-semibold">Edit recipe</h1>
-      <p className="mt-2 text-sm text-black/70 dark:text-white/70">
+      <h1 className="mt-4 text-title-1">Edit recipe</h1>
+      <p className="mt-2 text-subheadline text-foreground-secondary">
         In <span className="font-medium">{recipe.cookbook.title}</span>.
       </p>
 
@@ -71,7 +71,7 @@ export default async function EditRecipePage({
 
       {/* Below the form and visually separated: deleting is not one of the
           choices you're weighing while editing, and it can't be undone. */}
-      <div className="mt-12 border-t border-black/10 pt-6 dark:border-white/15">
+      <div className="mt-12 border-t border-border pt-6">
         <DeleteRecipe action={remove} recipeTitle={recipe.title} />
       </div>
     </div>

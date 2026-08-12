@@ -37,13 +37,13 @@ function ArchivedRow({
   return (
     <li className="flex items-center gap-3 py-2">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{cookbook.title}</p>
-        <p className="text-xs text-black/50 dark:text-white/50">
+        <p className="truncate text-subheadline font-medium">{cookbook.title}</p>
+        <p className="text-caption-1 text-foreground-tertiary">
           {cookbook.recipeCount}{" "}
           {cookbook.recipeCount === 1 ? "recipe" : "recipes"}, kept
         </p>
         {state.error ? (
-          <p role="alert" className="text-xs text-red-600">
+          <p role="alert" className="text-caption-1 text-error">
             {state.error}
           </p>
         ) : null}
@@ -53,7 +53,7 @@ function ArchivedRow({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-black/70 hover:bg-black/5 disabled:opacity-60 dark:text-white/70 dark:hover:bg-white/10"
+          className="rounded-md px-3 py-1.5 text-subheadline font-medium text-foreground-secondary hover:bg-background-secondary disabled:opacity-60"
         >
           {pending ? "Restoring…" : "Restore"}
         </button>
@@ -70,14 +70,14 @@ export default function ArchivedCookbooks({
   if (cookbooks.length === 0) return null;
 
   return (
-    <details className="mt-10 border-t border-black/10 pt-6 dark:border-white/15">
-      <summary className="cursor-pointer text-sm font-medium text-black/60 dark:text-white/60">
+    <details className="mt-10 border-t border-border pt-6">
+      <summary className="cursor-pointer text-subheadline font-medium text-foreground-secondary">
         Archived ({cookbooks.length})
       </summary>
-      <p className="mt-2 text-xs text-black/50 dark:text-white/50">
+      <p className="mt-2 text-caption-1 text-foreground-tertiary">
         Hidden from everyone, including members. Nothing was deleted.
       </p>
-      <ul className="mt-2 divide-y divide-black/5 dark:divide-white/10">
+      <ul className="mt-2 divide-y divide-border-faint">
         {cookbooks.map((cookbook) => (
           <ArchivedRow
             key={cookbook.id}

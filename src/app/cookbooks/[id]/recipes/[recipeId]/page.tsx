@@ -26,7 +26,7 @@ export default async function RecipePage({
       <div className="mx-auto max-w-3xl px-4 pt-8">
         <Link
           href={`/cookbooks/${recipe.cookbook.id}`}
-          className="text-sm text-black/60 hover:underline dark:text-white/60"
+          className="text-subheadline text-foreground-secondary hover:underline"
         >
           ← {recipe.cookbook.title}
         </Link>

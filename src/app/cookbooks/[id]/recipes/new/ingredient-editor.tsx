@@ -17,14 +17,12 @@ const blankDraft = { quantity: "", unit: "", name: "", note: "" };
 type Draft = typeof blankDraft;
 
 const inputClass =
-  "w-full rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-sm " +
-  "outline-none placeholder:text-black/30 focus:border-red-500 focus:bg-transparent " +
-  "dark:border-white/15 dark:bg-white/[0.04] dark:placeholder:text-white/30";
+  "w-full rounded-lg border border-border bg-background-control px-3 py-2 text-subheadline " +
+  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
 
 const iconButtonClass =
-  "rounded-md p-1 text-black/30 hover:bg-black/5 hover:text-black/70 " +
-  "disabled:pointer-events-none disabled:opacity-25 " +
-  "dark:text-white/30 dark:hover:bg-white/10 dark:hover:text-white/70";
+  "rounded-md p-1 text-foreground-disabled hover:bg-background-secondary hover:text-foreground-secondary " +
+  "disabled:pointer-events-none disabled:opacity-25";
 
 export default function IngredientEditor({
   items,
@@ -68,7 +66,7 @@ export default function IngredientEditor({
 
   return (
     <section>
-      <h2 className="text-sm font-medium">Ingredients</h2>
+      <h2 className="text-subheadline font-medium">Ingredients</h2>
 
       {items.length > 0 ? (
         <ul {...drag.listProps} className="mt-3 space-y-1">
@@ -83,7 +81,7 @@ export default function IngredientEditor({
                 className={[
                   "group flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors",
                   isDragging ? "opacity-40" : "",
-                  isOver ? "bg-red-50 dark:bg-red-950/30" : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+                  isOver ? "bg-background-accent" : "hover:bg-background-secondary",
                 ].join(" ")}
               >
                 {isEditing ? (
@@ -130,7 +128,7 @@ export default function IngredientEditor({
                     <button
                       type="button"
                       onClick={commitEdit}
-                      className="shrink-0 rounded-md px-2 py-1 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+                      className="shrink-0 rounded-md px-2 py-1 text-subheadline font-medium text-error hover:bg-error/10"
                     >
                       Done
                     </button>
@@ -140,7 +138,7 @@ export default function IngredientEditor({
                     <span
                       {...drag.handleProps(index)}
                       aria-label={`Reorder ${item.name}`}
-                      className="shrink-0 select-none px-1 text-black/20 dark:text-white/20"
+                      className="shrink-0 select-none px-1 text-foreground-disabled"
                     >
                       ⠿
                     </span>
@@ -150,9 +148,9 @@ export default function IngredientEditor({
                       onClick={() => startEditing(item)}
                       className="min-w-0 flex-1 text-left"
                     >
-                      <span className="text-sm">{formatIngredient(item)}</span>
+                      <span className="text-subheadline">{formatIngredient(item)}</span>
                       {item.note ? (
-                        <span className="ml-2 text-xs text-black/40 dark:text-white/40">
+                        <span className="ml-2 text-caption-1 text-foreground-muted">
                           {item.note}
                         </span>
                       ) : null}
@@ -247,7 +245,7 @@ export default function IngredientEditor({
           type="button"
           onClick={commitDraft}
           disabled={draft.name.trim() === ""}
-          className="shrink-0 rounded-lg bg-black/5 px-4 py-2 text-sm font-medium hover:bg-black/10 disabled:opacity-40 dark:bg-white/10 dark:hover:bg-white/20"
+          className="shrink-0 rounded-lg bg-background-secondary px-4 py-2 text-subheadline font-medium hover:bg-background-tertiary disabled:opacity-40"
         >
           Add
         </button>

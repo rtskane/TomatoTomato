@@ -27,15 +27,15 @@ export default function CookbookForm({
   }, [state]);
 
   const fieldClass =
-    "mt-1 w-full rounded-md border border-black/15 bg-transparent px-3 py-2 " +
-    "outline-none focus:border-red-500 dark:border-white/20";
+    "mt-1 w-full rounded-md border border-border-strong bg-transparent px-3 py-2 " +
+    "outline-none focus:border-border-input-strong";
 
   const hasError = Boolean(state.error);
 
   return (
     <form action={formAction} className="space-y-6" noValidate>
       <div>
-        <label htmlFor="title" className="block text-sm font-medium">
+        <label htmlFor="title" className="block text-subheadline font-medium">
           Title
         </label>
         <input
@@ -52,8 +52,8 @@ export default function CookbookForm({
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium">
-          Description <span className="font-normal text-black/50 dark:text-white/50">(optional)</span>
+        <label htmlFor="description" className="block text-subheadline font-medium">
+          Description <span className="font-normal text-foreground-tertiary">(optional)</span>
         </label>
         <textarea
           id="description"
@@ -66,14 +66,14 @@ export default function CookbookForm({
         />
         <p
           id="description-hint"
-          className="mt-1 text-xs text-black/50 dark:text-white/50"
+          className="mt-1 text-caption-1 text-foreground-tertiary"
         >
           500 characters or fewer.
         </p>
       </div>
 
       {hasError ? (
-        <p id="title-error" role="alert" className="text-sm text-red-600">
+        <p id="title-error" role="alert" className="text-subheadline text-error">
           {state.error}
         </p>
       ) : null}
@@ -82,13 +82,13 @@ export default function CookbookForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          className="rounded-md bg-accent px-4 py-2 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
         >
           {pending ? "Creating…" : "Create cookbook"}
         </button>
         <Link
           href="/dashboard"
-          className="text-sm text-black/60 hover:underline dark:text-white/60"
+          className="text-subheadline text-foreground-secondary hover:underline"
         >
           Cancel
         </Link>

@@ -49,8 +49,8 @@ export default function MembersPanel({
       ) : null}
 
       <section>
-        <h3 className="text-sm font-medium">People with access</h3>
-        <ul className="mt-1 divide-y divide-black/5 dark:divide-white/10">
+        <h3 className="text-subheadline font-medium">People with access</h3>
+        <ul className="mt-1 divide-y divide-border-faint">
           {view.members.map((member) => (
             <RoleRow
               key={member.userId}
@@ -75,11 +75,11 @@ export default function MembersPanel({
 
       {view.outstandingInvites.length > 0 ? (
         <section>
-          <h3 className="text-sm font-medium">Waiting to accept</h3>
-          <p className="mt-0.5 text-xs text-black/50 dark:text-white/50">
+          <h3 className="text-subheadline font-medium">Waiting to accept</h3>
+          <p className="mt-0.5 text-caption-1 text-foreground-tertiary">
             They don&rsquo;t have access yet.
           </p>
-          <ul className="mt-1 divide-y divide-black/5 dark:divide-white/10">
+          <ul className="mt-1 divide-y divide-border-faint">
             {view.outstandingInvites.map((invite) => (
               <RoleRow
                 key={invite.id}

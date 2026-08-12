@@ -36,20 +36,20 @@ function InviteCard({
   const error = acceptState.error ?? declineState.error;
 
   return (
-    <li className="rounded-lg border border-black/10 p-4 dark:border-white/15">
+    <li className="rounded-lg border border-border p-4">
       <p className="font-medium">{invite.cookbookTitle}</p>
-      <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+      <p className="mt-1 text-subheadline text-foreground-secondary">
         {invite.invitedByName} invited you as{" "}
         {invite.role === "EDITOR" ? "an editor" : "a viewer"}.
       </p>
       {invite.cookbookDescription ? (
-        <p className="mt-1 line-clamp-2 text-sm text-black/50 dark:text-white/50">
+        <p className="mt-1 line-clamp-2 text-subheadline text-foreground-tertiary">
           {invite.cookbookDescription}
         </p>
       ) : null}
 
       {error ? (
-        <p role="alert" className="mt-2 text-sm text-red-600">
+        <p role="alert" className="mt-2 text-subheadline text-error">
           {error}
         </p>
       ) : null}
@@ -60,7 +60,7 @@ function InviteCard({
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+            className="rounded-md bg-accent px-3 py-1.5 text-subheadline font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
           >
             {accepting ? "Joining…" : "Accept"}
           </button>
@@ -70,7 +70,7 @@ function InviteCard({
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md px-3 py-1.5 text-sm text-black/60 hover:bg-black/5 disabled:opacity-60 dark:text-white/60 dark:hover:bg-white/10"
+            className="rounded-md px-3 py-1.5 text-subheadline text-foreground-secondary hover:bg-background-secondary disabled:opacity-60"
           >
             Decline
           </button>
@@ -93,7 +93,7 @@ export default function PendingInvites({
 
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-medium">You&rsquo;ve been invited</h2>
+      <h2 className="text-subheadline font-medium">You&rsquo;ve been invited</h2>
       <ul className="mt-3 grid gap-3 sm:grid-cols-2">
         {invites.map((invite) => (
           <InviteCard

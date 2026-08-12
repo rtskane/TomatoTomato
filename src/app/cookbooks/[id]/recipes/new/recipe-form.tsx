@@ -20,9 +20,8 @@ let nextKey = 0;
 const takeKey = () => nextKey++;
 
 const fieldClass =
-  "w-full rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 " +
-  "outline-none placeholder:text-black/30 focus:border-red-500 focus:bg-transparent " +
-  "dark:border-white/15 dark:bg-white/[0.04] dark:placeholder:text-white/30";
+  "w-full rounded-lg border border-border bg-background-control px-3 py-2 " +
+  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
 
 export default function RecipeForm({
   action,
@@ -96,7 +95,7 @@ export default function RecipeForm({
     <form action={formAction} className="space-y-10" noValidate>
       <section className="space-y-4">
         <div>
-          <label htmlFor="title" className="block text-sm font-medium">
+          <label htmlFor="title" className="block text-subheadline font-medium">
             Title
           </label>
           <input
@@ -113,9 +112,9 @@ export default function RecipeForm({
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-sm font-medium">
+          <label htmlFor="description" className="block text-subheadline font-medium">
             Description{" "}
-            <span className="font-normal text-black/40 dark:text-white/40">
+            <span className="font-normal text-foreground-muted">
               optional
             </span>
           </label>
@@ -130,7 +129,7 @@ export default function RecipeForm({
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label htmlFor="servings" className="block text-sm font-medium">
+            <label htmlFor="servings" className="block text-subheadline font-medium">
               Serves
             </label>
             <input
@@ -145,7 +144,7 @@ export default function RecipeForm({
           <div>
             <label
               htmlFor="prepTimeMinutes"
-              className="block text-sm font-medium"
+              className="block text-subheadline font-medium"
             >
               Prep (min)
             </label>
@@ -161,7 +160,7 @@ export default function RecipeForm({
           <div>
             <label
               htmlFor="cookTimeMinutes"
-              className="block text-sm font-medium"
+              className="block text-subheadline font-medium"
             >
               Cook (min)
             </label>
@@ -181,7 +180,7 @@ export default function RecipeForm({
       <StepEditor items={steps} onChange={setSteps} />
 
       {hasError ? (
-        <p id="recipe-error" role="alert" className="text-sm text-red-600">
+        <p id="recipe-error" role="alert" className="text-subheadline text-error">
           {state.error}
         </p>
       ) : null}
@@ -190,13 +189,13 @@ export default function RecipeForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-red-600 px-5 py-2.5 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          className="rounded-lg bg-accent px-5 py-2.5 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
         >
           {pending ? pendingLabel : submitLabel}
         </button>
         <Link
           href={`/cookbooks/${cookbookId}`}
-          className="text-sm text-black/60 hover:underline dark:text-white/60"
+          className="text-subheadline text-foreground-secondary hover:underline"
         >
           Cancel
         </Link>
