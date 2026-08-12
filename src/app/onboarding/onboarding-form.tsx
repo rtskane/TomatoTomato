@@ -30,15 +30,15 @@ export default function OnboardingForm({
   }, [state]);
 
   const inputClass =
-    "mt-1 w-full rounded-md border border-black/15 bg-transparent px-3 py-2 " +
-    "outline-none focus:border-red-500 dark:border-white/20";
+    "mt-1 w-full rounded-md border border-border-strong bg-transparent px-3 py-2 " +
+    "outline-none focus:border-border-input-strong";
 
   const hasError = Boolean(state.error);
 
   return (
     <form action={formAction} className="space-y-6" noValidate>
       <div>
-        <label htmlFor="username" className="block text-sm font-medium">
+        <label htmlFor="username" className="block text-subheadline font-medium">
           Username
         </label>
         <input
@@ -60,7 +60,7 @@ export default function OnboardingForm({
         />
         <p
           id="username-hint"
-          className="mt-1 text-xs text-black/50 dark:text-white/50"
+          className="mt-1 text-caption-1 text-foreground-tertiary"
         >
           3–20 characters. Letters, numbers, and underscores; starts with a
           letter.
@@ -68,7 +68,7 @@ export default function OnboardingForm({
       </div>
 
       <fieldset className="min-w-0">
-        <legend className="text-sm font-medium">Your name (optional)</legend>
+        <legend className="text-subheadline font-medium">Your name (optional)</legend>
         <div className="mt-2 grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="firstName" className="sr-only">
@@ -100,7 +100,7 @@ export default function OnboardingForm({
       </fieldset>
 
       {hasError ? (
-        <p id="username-error" role="alert" className="text-sm text-red-600">
+        <p id="username-error" role="alert" className="text-subheadline text-error">
           {state.error}
         </p>
       ) : null}
@@ -108,7 +108,7 @@ export default function OnboardingForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-red-600 px-3 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+        className="w-full rounded-md bg-accent px-3 py-2 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
       >
         {pending ? "Saving…" : "Continue"}
       </button>

@@ -9,9 +9,7 @@ type IngredientInput = {
   note: string | null;
 };
 
-type CreateRecipeInput = {
-  cookbookId: string;
-  authorId: string;
+type RecipeFields = {
   title: string;
   description: string | null;
   servings: number | null;
@@ -20,6 +18,15 @@ type CreateRecipeInput = {
   ingredients: IngredientInput[];
   steps: string[];
 };
+
+type CreateRecipeInput = RecipeFields & {
+  cookbookId: string;
+  authorId: string;
+};
+
+// Editing can't move a recipe between cookbooks or reassign its author, so
+// neither id appears here — the shape itself rules those out.
+type UpdateRecipeInput = RecipeFields & { recipeId: string };
 
 export const recipeRepository = {
   /**
@@ -99,6 +106,8 @@ export const recipeRepository = {
         prepTimeMinutes: true,
         cookTimeMinutes: true,
         createdAt: true,
+        // Needed to decide whether the viewer may edit it, not just to name it.
+        authorId: true,
         author: {
           select: { username: true, firstName: true, lastName: true },
         },
@@ -118,6 +127,83 @@ export const recipeRepository = {
           select: { id: true, instruction: true },
         },
       },
+    });
+  },
+
+  /**
+   * The recipe's own row plus who wrote it and which cookbook it's in — the
+   * three facts a permission check needs, without loading ingredients or steps.
+   *
+   * `cookbookId` is included in the lookup for the same reason as
+   * `findDetailForUser`: both ids come from the URL, and a recipe must never be
+   * acted on under a cookbook it doesn't belong to.
+   */
+  findForPermissionCheck(cookbookId: string, recipeId: string) {
+    return prisma.recipe.findFirst({
+      where: { id: recipeId, cookbookId },
+      select: { id: true, authorId: true, cookbookId: true, title: true },
+    });
+  },
+
+  /**
+   * Replace a recipe wholesale.
+   *
+   * Ingredients and steps are deleted and re-created rather than diffed. They
+   * are ordered, positional, and have no identity the user cares about — a
+   * diff would have to match rows to form fields that carry no id, and get
+   * `position` right afterwards anyway. Recreating is exact and, in one
+   * transaction, atomic: no window exists where the recipe has the old steps
+   * and the new ingredients.
+   */
+  update({
+    recipeId,
+    title,
+    description,
+    servings,
+    prepTimeMinutes,
+    cookTimeMinutes,
+    ingredients,
+    steps,
+  }: UpdateRecipeInput) {
+    return prisma.recipe.update({
+      where: { id: recipeId },
+      data: {
+        title,
+        description,
+        servings,
+        prepTimeMinutes,
+        cookTimeMinutes,
+        ingredients: {
+          deleteMany: {},
+          create: ingredients.map((ingredient, position) => ({
+            position,
+            name: ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            note: ingredient.note,
+          })),
+        },
+        steps: {
+          deleteMany: {},
+          create: steps.map((instruction, position) => ({
+            position,
+            instruction,
+          })),
+        },
+      },
+      select: { id: true },
+    });
+  },
+
+  /** Ingredients and steps go with it — both are `onDelete: Cascade`. */
+  delete(recipeId: string) {
+    return prisma.recipe.delete({ where: { id: recipeId } });
+  },
+
+  /** How many recipes in this cookbook someone other than `ownerId` wrote. */
+  countByOtherAuthors(cookbookId: string, ownerId: string) {
+    return prisma.recipe.count({
+      where: { cookbookId, authorId: { not: ownerId } },
     });
   },
 };

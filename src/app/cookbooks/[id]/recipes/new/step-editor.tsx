@@ -7,14 +7,12 @@ import { useDragReorder } from "./use-drag-reorder";
 export type StepItem = { key: number; instruction: string };
 
 const inputClass =
-  "w-full resize-none rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-sm " +
-  "outline-none placeholder:text-black/30 focus:border-red-500 focus:bg-transparent " +
-  "dark:border-white/15 dark:bg-white/[0.04] dark:placeholder:text-white/30";
+  "w-full resize-none rounded-lg border border-border bg-background-control px-3 py-2 text-subheadline " +
+  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
 
 const iconButtonClass =
-  "rounded-md p-1 text-black/30 hover:bg-black/5 hover:text-black/70 " +
-  "disabled:pointer-events-none disabled:opacity-25 " +
-  "dark:text-white/30 dark:hover:bg-white/10 dark:hover:text-white/70";
+  "rounded-md p-1 text-foreground-disabled hover:bg-background-secondary hover:text-foreground-secondary " +
+  "disabled:pointer-events-none disabled:opacity-25";
 
 export default function StepEditor({
   items,
@@ -50,7 +48,7 @@ export default function StepEditor({
 
   return (
     <section>
-      <h2 className="text-sm font-medium">Steps</h2>
+      <h2 className="text-subheadline font-medium">Steps</h2>
 
       {items.length > 0 ? (
         <ol {...drag.listProps} className="mt-3 space-y-1">
@@ -66,7 +64,7 @@ export default function StepEditor({
                 className={[
                   "group flex items-start gap-2 rounded-lg px-2 py-2 transition-colors",
                   isDragging ? "opacity-40" : "",
-                  isOver ? "bg-red-50 dark:bg-red-950/30" : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+                  isOver ? "bg-background-accent" : "hover:bg-background-secondary",
                 ].join(" ")}
               >
                 {isEditing ? (
@@ -90,7 +88,7 @@ export default function StepEditor({
                     <button
                       type="button"
                       onClick={commitEdit}
-                      className="shrink-0 rounded-md px-2 py-1 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+                      className="shrink-0 rounded-md px-2 py-1 text-subheadline font-medium text-error hover:bg-error/10"
                     >
                       Done
                     </button>
@@ -100,11 +98,11 @@ export default function StepEditor({
                     <span
                       {...drag.handleProps(index)}
                       aria-label={`Reorder ${label}`}
-                      className="mt-0.5 shrink-0 select-none px-1 text-black/20 dark:text-white/20"
+                      className="mt-0.5 shrink-0 select-none px-1 text-foreground-disabled"
                     >
                       ⠿
                     </span>
-                    <span className="mt-0.5 w-5 shrink-0 text-sm tabular-nums text-black/35 dark:text-white/35">
+                    <span className="mt-0.5 w-5 shrink-0 text-subheadline tabular-nums text-foreground-muted">
                       {index + 1}.
                     </span>
 
@@ -114,7 +112,7 @@ export default function StepEditor({
                         setEditingKey(item.key);
                         setEditDraft(item.instruction);
                       }}
-                      className="min-w-0 flex-1 whitespace-pre-wrap text-left text-sm"
+                      className="min-w-0 flex-1 whitespace-pre-wrap text-left text-subheadline"
                     >
                       {item.instruction}
                     </button>
@@ -177,7 +175,7 @@ export default function StepEditor({
           type="button"
           onClick={commitDraft}
           disabled={draft.trim() === ""}
-          className="shrink-0 rounded-lg bg-black/5 px-4 py-2 text-sm font-medium hover:bg-black/10 disabled:opacity-40 dark:bg-white/10 dark:hover:bg-white/20"
+          className="shrink-0 rounded-lg bg-background-secondary px-4 py-2 text-subheadline font-medium hover:bg-background-tertiary disabled:opacity-40"
         >
           Add
         </button>

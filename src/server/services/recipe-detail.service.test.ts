@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { findDetailForUser } = vi.hoisted(() => ({
+const { findDetailForUser, findMembership } = vi.hoisted(() => ({
   findDetailForUser: vi.fn(),
+  findMembership: vi.fn(),
 }));
 vi.mock("@/server/repositories/recipe.repository", () => ({
   recipeRepository: { findDetailForUser },
+}));
+vi.mock("@/server/repositories/cookbook.repository", () => ({
+  cookbookRepository: { findMembership },
 }));
 
 import { getRecipeDetail } from "./recipe-detail.service";
@@ -17,6 +21,7 @@ const row = {
   prepTimeMinutes: 15,
   cookTimeMinutes: 30,
   createdAt: new Date("2026-08-01"),
+  authorId: "u_author",
   author: { username: "chef_ryan", firstName: "Ryan", lastName: "K" },
   cookbook: { id: "cb1", title: "Weeknight Dinners" },
   ingredients: [
@@ -32,6 +37,7 @@ const row = {
 beforeEach(() => {
   vi.clearAllMocks();
   findDetailForUser.mockResolvedValue(row);
+  findMembership.mockResolvedValue({ role: "VIEWER" });
 });
 
 describe("getRecipeDetail", () => {
@@ -143,5 +149,42 @@ describe("getRecipeDetail", () => {
     const detail = await getRecipeDetail("u1", "cb1", "r1");
 
     expect(detail?.authorName).toBe("Unknown");
+  });
+});
+
+// canModify decides whether the Edit control renders, and it has to agree with
+// what the write path enforces — otherwise the page offers something the
+// action refuses.
+describe("getRecipeDetail — canModify", () => {
+  it("lets the author modify their own recipe", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    const detail = await getRecipeDetail("u_author", "cb1", "r1");
+
+    expect(detail?.canModify).toBe(true);
+  });
+
+  it("refuses an EDITOR who didn't write it", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    const detail = await getRecipeDetail("someone_else", "cb1", "r1");
+
+    expect(detail?.canModify).toBe(false);
+  });
+
+  it("lets the cookbook's OWNER modify anyone's recipe", async () => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+
+    const detail = await getRecipeDetail("owner1", "cb1", "r1");
+
+    expect(detail?.canModify).toBe(true);
+  });
+
+  it("refuses a VIEWER even for their own recipe", async () => {
+    findMembership.mockResolvedValue({ role: "VIEWER" });
+
+    const detail = await getRecipeDetail("u_author", "cb1", "r1");
+
+    expect(detail?.canModify).toBe(false);
   });
 });

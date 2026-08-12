@@ -71,12 +71,30 @@ model Cookbook {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  /// Set when the owner archives the cookbook; null means live.
+  ///
+  /// Archiving is a *soft* delete, chosen over a real one because deleting a
+  /// cookbook cascades to every recipe in it — including recipes other members
+  /// wrote. Destroying someone else's work irreversibly, on one click, is not a
+  /// thing this app should be able to do.
+  ///
+  /// The cost is that **every read of a cookbook has to exclude archived rows**,
+  /// and missing one leaks a cookbook that its members believe is gone. The
+  /// defence is architectural rather than vigilant: access is always resolved
+  /// through `CookbookMember` (see cookbookRepository.create), so the filter
+  /// lives on the membership lookups in one repository, not scattered across
+  /// call sites. `archivedCookbook` in cookbook.repository is the single
+  /// definition every one of those queries reuses.
+  archivedAt DateTime?
+
   owner   User             @relation("CookbookOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members CookbookMember[]
   recipes Recipe[]
   invites CookbookInvite[]
 
   @@index([ownerId])
+  // Archived cookbooks are read only by their owner, on the dashboard.
+  @@index([ownerId, archivedAt])
 }
 
 model CookbookMember {

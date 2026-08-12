@@ -8,9 +8,9 @@ import type { RecipeSummary } from "@/server/services/cookbook.service";
 
 function EmptyState({ canAdd }: { canAdd: boolean }) {
   return (
-    <div className="mt-6 rounded-lg border border-dashed border-black/15 px-6 py-12 text-center dark:border-white/20">
+    <div className="mt-6 rounded-lg border border-dashed border-border-strong px-6 py-12 text-center">
       <p className="font-medium">No recipes yet.</p>
-      <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+      <p className="mt-1 text-subheadline text-foreground-secondary">
         {canAdd
           ? "Add the first one to get this cookbook started."
           : "Nothing has been added to this cookbook yet."}
@@ -36,7 +36,7 @@ function RecipeMeta({ recipe }: { recipe: RecipeSummary }) {
   parts.push(`${recipe.stepCount} ${recipe.stepCount === 1 ? "step" : "steps"}`);
 
   return (
-    <p className="mt-3 text-xs text-black/50 dark:text-white/50">
+    <p className="mt-3 text-caption-1 text-foreground-tertiary">
       {parts.join(" · ")}
     </p>
   );
@@ -61,7 +61,7 @@ export default function RecipeList({
         // the link's own outline is suppressed.
         <li
           key={recipe.id}
-          className="group relative rounded-lg border border-black/10 p-4 transition-colors hover:border-black/25 hover:bg-black/[0.02] focus-within:ring-2 focus-within:ring-red-500 dark:border-white/15 dark:hover:border-white/30 dark:hover:bg-white/[0.03]"
+          className="group relative rounded-lg border border-border p-4 transition-colors hover:border-border-input hover:bg-background-control focus-within:ring-2 focus-within:ring-border-input-strong"
         >
           {/* Stretched-link pattern, as on the dashboard cards: one anchor on
               the title with an invisible ::after over the card, so assistive
@@ -75,12 +75,12 @@ export default function RecipeList({
             <LinkPending />
           </Link>
           {recipe.description ? (
-            <p className="mt-1 line-clamp-2 text-sm text-black/60 dark:text-white/60">
+            <p className="mt-1 line-clamp-2 text-subheadline text-foreground-secondary">
               {recipe.description}
             </p>
           ) : null}
           <RecipeMeta recipe={recipe} />
-          <p className="mt-1 text-xs text-black/40 dark:text-white/40">
+          <p className="mt-1 text-caption-1 text-foreground-muted">
             by {recipe.authorName}
           </p>
         </li>

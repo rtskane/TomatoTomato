@@ -18,9 +18,8 @@ type RowAction = (
 const initialState: MemberActionState = {};
 
 const selectClass =
-  "rounded-lg border border-black/10 bg-black/[0.02] px-2 py-1 text-sm " +
-  "outline-none focus:border-red-500 disabled:opacity-50 " +
-  "dark:border-white/15 dark:bg-white/[0.04]";
+  "rounded-lg border border-border bg-background-control px-2 py-1 text-subheadline " +
+  "outline-none focus:border-border-input-strong disabled:opacity-50";
 
 function Avatar({ url, name }: { url: string | null; name: string }) {
   // A plain <img>, not next/image: `avatarUrl` is whatever host Clerk hands us
@@ -40,7 +39,7 @@ function Avatar({ url, name }: { url: string | null; name: string }) {
   return (
     <span
       aria-hidden
-      className="flex size-8 shrink-0 items-center justify-center rounded-full bg-black/5 text-xs font-medium text-black/50 dark:bg-white/10 dark:text-white/50"
+      className="flex size-8 shrink-0 items-center justify-center rounded-full bg-background-secondary text-caption-1 font-medium text-foreground-tertiary"
     >
       {name.charAt(0).toUpperCase()}
     </span>
@@ -121,14 +120,14 @@ export default function RoleRow({
       <Avatar url={avatarUrl} name={name} />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{name}</p>
+        <p className="truncate text-subheadline font-medium">{name}</p>
         {sublabel ? (
-          <p className="truncate text-xs text-black/50 dark:text-white/50">
+          <p className="truncate text-caption-1 text-foreground-tertiary">
             {sublabel}
           </p>
         ) : null}
         {error ? (
-          <p role="alert" className="text-xs text-red-600">
+          <p role="alert" className="text-caption-1 text-error">
             {error}
           </p>
         ) : null}
@@ -157,14 +156,14 @@ export default function RoleRow({
               type="submit"
               disabled={rolePending || removePending}
               aria-label={`${removeLabel} ${name}`}
-              className="rounded-md px-2 py-1 text-sm text-black/40 hover:bg-black/5 hover:text-red-600 disabled:opacity-40 dark:text-white/40 dark:hover:bg-white/10"
+              className="rounded-md px-2 py-1 text-subheadline text-foreground-muted hover:bg-background-secondary hover:text-error disabled:opacity-40"
             >
               {removePending ? "…" : removeLabel}
             </button>
           </form>
         </>
       ) : (
-        <span className="text-xs text-black/50 dark:text-white/50">
+        <span className="text-caption-1 text-foreground-tertiary">
           {role.charAt(0) + role.slice(1).toLowerCase()}
         </span>
       )}

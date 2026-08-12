@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RecipeForm from "./recipe-form";
-import type { CreateRecipeState } from "./actions";
+import type { CreateRecipeState } from "../recipe-form-data";
 
 afterEach(cleanup);
 

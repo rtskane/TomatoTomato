@@ -30,9 +30,8 @@ const blankRow = (role: Row["role"] = "VIEWER"): Row => ({
 // a `w-full` baked in here would beat the `w-28` and `flex-1` added per field
 // and collapse the row. Each field sets its own width.
 const fieldClass =
-  "rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-sm " +
-  "outline-none placeholder:text-black/30 focus:border-red-500 focus:bg-transparent " +
-  "dark:border-white/15 dark:bg-white/[0.04] dark:placeholder:text-white/30";
+  "rounded-lg border border-border bg-background-control px-3 py-2 text-subheadline " +
+  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
 
 // How each per-row result reads. Keeping the wording here rather than in the
 // service keeps the service free of UI copy.
@@ -142,7 +141,7 @@ export default function InviteForm({ action }: { action: InviteAction }) {
               }
               disabled={rows.length === 1}
               aria-label={`Remove person ${index + 1}`}
-              className="shrink-0 rounded-md p-1 text-black/30 hover:bg-black/5 hover:text-black/70 disabled:pointer-events-none disabled:opacity-25 dark:text-white/30 dark:hover:bg-white/10 dark:hover:text-white/70"
+              className="shrink-0 rounded-md p-1 text-foreground-disabled hover:bg-background-secondary hover:text-foreground-secondary disabled:pointer-events-none disabled:opacity-25"
             >
               ×
             </button>
@@ -153,18 +152,18 @@ export default function InviteForm({ action }: { action: InviteAction }) {
       <button
         type="button"
         onClick={addRow}
-        className="text-sm text-black/60 hover:underline dark:text-white/60"
+        className="text-subheadline text-foreground-secondary hover:underline"
       >
         + Add another
       </button>
 
-      <p className="text-xs text-black/50 dark:text-white/50">
+      <p className="text-caption-1 text-foreground-tertiary">
         Viewers can read recipes. Editors can add and edit their own. Nobody
         joins until they accept.
       </p>
 
       {state.error ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-subheadline text-error">
           {state.error}
         </p>
       ) : null}
@@ -172,14 +171,14 @@ export default function InviteForm({ action }: { action: InviteAction }) {
       {/* Per-person results. A batch can half-succeed, so this reports each
           name rather than collapsing to one message. */}
       {state.outcomes && state.outcomes.length > 0 ? (
-        <ul role="status" className="space-y-1 text-sm">
+        <ul role="status" className="space-y-1 text-subheadline">
           {state.outcomes.map((outcome, i) => (
             <li
               key={`${outcome.username}-${i}`}
               className={
                 outcome.status === "invited"
-                  ? "text-green-700 dark:text-green-400"
-                  : "text-amber-700 dark:text-amber-400"
+                  ? "text-success-ink"
+                  : "text-warning-ink"
               }
             >
               <span className="font-medium">{outcome.username}</span>{" "}
@@ -192,7 +191,7 @@ export default function InviteForm({ action }: { action: InviteAction }) {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+        className="rounded-md bg-accent px-4 py-2 text-subheadline font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
       >
         {pending ? "Sending…" : rows.length > 1 ? "Send invites" : "Send invite"}
       </button>

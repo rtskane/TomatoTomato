@@ -1,7 +1,8 @@
 import { createCookbookSchema } from "@/lib/cookbook";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { ok, err, type Result } from "@/server/result";
-import { canAddRecipes } from "@/server/permissions";
+import { recipeRepository } from "@/server/repositories/recipe.repository";
+import { canAddRecipes, canEditCookbook } from "@/server/permissions";
 import { displayName } from "@/lib/display-name";
 import type { CookbookRole } from "@/generated/prisma/enums";
 
@@ -95,6 +96,7 @@ export type CookbookDetail = {
   description: string | null;
   role: CookbookRole;
   canAddRecipes: boolean;
+  canEditCookbook: boolean;
   recipes: RecipeSummary[];
 };
 
@@ -121,6 +123,7 @@ export async function getCookbookDetail(
     description: cookbook.description,
     role,
     canAddRecipes: canAddRecipes(role),
+    canEditCookbook: canEditCookbook(role),
     recipes: cookbook.recipes.map((recipe) => ({
       id: recipe.id,
       title: recipe.title,
@@ -133,4 +136,143 @@ export async function getCookbookDetail(
       stepCount: recipe._count.steps,
     })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Editing, archiving, restoring
+// ---------------------------------------------------------------------------
+
+export type CookbookAdminError =
+  | { kind: "forbidden"; message: string }
+  | { kind: "validation"; message: string };
+
+const NOT_YOURS: CookbookAdminError = {
+  kind: "forbidden",
+  message: "Only the owner can change this cookbook.",
+};
+
+/** Confirm the caller owns this cookbook (and that it's still live). */
+async function requireOwner(
+  userId: string,
+  cookbookId: string,
+): Promise<Result<true, CookbookAdminError>> {
+  const membership = await cookbookRepository.findMembership(cookbookId, userId);
+  if (!membership || !canEditCookbook(membership.role)) return err(NOT_YOURS);
+  return ok(true);
+}
+
+/** Rename a cookbook or change its description. Reuses the create validation. */
+export async function updateCookbook(
+  userId: string,
+  cookbookId: string,
+  input: CreateCookbookInput,
+): Promise<Result<{ id: string }, CookbookAdminError>> {
+  const allowed = await requireOwner(userId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  const parsed = createCookbookSchema.safeParse(input);
+  if (!parsed.success) {
+    const message =
+      parsed.error.issues[0]?.message ?? "Please check your input.";
+    return err({ kind: "validation", message });
+  }
+
+  await cookbookRepository.update(cookbookId, {
+    title: parsed.data.title,
+    description: parsed.data.description ?? null,
+  });
+
+  return ok({ id: cookbookId });
+}
+
+/**
+ * What an archive confirmation needs to say out loud.
+ *
+ * `recipesByOthers` is the number that matters: archiving your own scratch
+ * cookbook is nothing, archiving one holding five people's recipes is not, and
+ * the dialog shouldn't flatten the difference.
+ */
+export type ArchiveImpact = {
+  title: string;
+  recipeCount: number;
+  recipesByOthers: number;
+  memberCount: number;
+};
+
+export async function getArchiveImpact(
+  userId: string,
+  cookbookId: string,
+): Promise<Result<ArchiveImpact, CookbookAdminError>> {
+  const allowed = await requireOwner(userId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  // Counts, not rows: this dialog needs four numbers, and loading every recipe
+  // with its author (and every member) to call `.length` on them would be a lot
+  // of data fetched to be thrown away.
+  const [cookbook, byOthers] = await Promise.all([
+    cookbookRepository.findWithCounts(cookbookId),
+    recipeRepository.countByOtherAuthors(cookbookId, userId),
+  ]);
+  if (!cookbook) return err(NOT_YOURS);
+
+  return ok({
+    title: cookbook.title,
+    recipeCount: cookbook._count.recipes,
+    recipesByOthers: byOthers,
+    memberCount: cookbook._count.members,
+  });
+}
+
+/**
+ * Archive a cookbook: it leaves every member's library, including the owner's
+ * main list, and only the owner can bring it back.
+ *
+ * Nothing is deleted, so nobody's recipes are destroyed — that's the entire
+ * reason this isn't a delete.
+ */
+export async function archiveCookbook(
+  userId: string,
+  cookbookId: string,
+): Promise<Result<true, CookbookAdminError>> {
+  const allowed = await requireOwner(userId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  const { count } = await cookbookRepository.archive(cookbookId, userId);
+  if (count === 0) return err(NOT_YOURS);
+  return ok(true);
+}
+
+/**
+ * Restore an archived cookbook. Deliberately does NOT go through
+ * `requireOwner`: that reads `findMembership`, which filters archived
+ * cookbooks out — so the only operation that must see an archived row can't
+ * use the guard built to hide them. Ownership is enforced in the write instead.
+ */
+export async function restoreCookbook(
+  userId: string,
+  cookbookId: string,
+): Promise<Result<true, CookbookAdminError>> {
+  const { count } = await cookbookRepository.restore(cookbookId, userId);
+  if (count === 0) return err(NOT_YOURS);
+  return ok(true);
+}
+
+export type ArchivedCookbook = {
+  id: string;
+  title: string;
+  description: string | null;
+  recipeCount: number;
+};
+
+/** The owner's archived cookbooks. Nobody else can see these. */
+export async function listArchivedCookbooks(
+  userId: string,
+): Promise<ArchivedCookbook[]> {
+  const rows = await cookbookRepository.listArchivedForOwner(userId);
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    recipeCount: row._count.recipes,
+  }));
 }

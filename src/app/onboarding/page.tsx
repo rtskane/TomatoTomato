@@ -13,8 +13,8 @@ export default async function OnboardingPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-semibold">Finish setting up your account</h1>
-      <p className="mt-2 text-sm text-black/70 dark:text-white/70">
+      <h1 className="text-title-1">Finish setting up your account</h1>
+      <p className="mt-2 text-subheadline text-foreground-secondary">
         Pick a username so collaborators can find you. You can add your name too.
       </p>
 

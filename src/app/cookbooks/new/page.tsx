@@ -10,8 +10,8 @@ export default async function NewCookbookPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-semibold">New cookbook</h1>
-      <p className="mt-2 text-sm text-black/70 dark:text-white/70">
+      <h1 className="text-title-1">New cookbook</h1>
+      <p className="mt-2 text-subheadline text-foreground-secondary">
         Start a collection. You can invite collaborators once it exists.
       </p>
 

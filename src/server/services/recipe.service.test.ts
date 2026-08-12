@@ -1,22 +1,48 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { findMembership, create } = vi.hoisted(() => ({
+const {
+  findMembership,
+  create,
+  update,
+  deleteRecipeRow,
+  findForPermissionCheck,
+} = vi.hoisted(() => ({
   findMembership: vi.fn(),
   create: vi.fn(),
+  update: vi.fn(),
+  deleteRecipeRow: vi.fn(),
+  findForPermissionCheck: vi.fn(),
 }));
 vi.mock("@/server/repositories/cookbook.repository", () => ({
   cookbookRepository: { findMembership },
 }));
 vi.mock("@/server/repositories/recipe.repository", () => ({
-  recipeRepository: { create },
+  recipeRepository: {
+    create,
+    update,
+    delete: deleteRecipeRow,
+    findForPermissionCheck,
+  },
 }));
 
-import { createRecipe, type CreateRecipeInput } from "./recipe.service";
+import {
+  createRecipe,
+  updateRecipe,
+  deleteRecipe,
+  type CreateRecipeInput,
+} from "./recipe.service";
 
 beforeEach(() => {
   vi.clearAllMocks();
   findMembership.mockResolvedValue({ role: "EDITOR" });
   create.mockResolvedValue({ id: "r1" });
+  update.mockResolvedValue({ id: "r1" });
+  findForPermissionCheck.mockResolvedValue({
+    id: "r1",
+    authorId: "u1",
+    cookbookId: "cb1",
+    title: "Carbonara",
+  });
 });
 
 function input(overrides: Partial<CreateRecipeInput> = {}): CreateRecipeInput {
@@ -214,5 +240,175 @@ describe("createRecipe — persistence", () => {
     await expect(createRecipe("u1", "cb1", input())).rejects.toThrow(
       "connection lost",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Editing and deleting share one rule: your own recipe, or you own the cookbook.
+// ---------------------------------------------------------------------------
+
+describe("updateRecipe", () => {
+  it("lets an author edit their own recipe", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+    findForPermissionCheck.mockResolvedValue({
+      id: "r1",
+      authorId: "u1",
+      cookbookId: "cb1",
+      title: "Carbonara",
+    });
+
+    const result = await updateRecipe("u1", "cb1", "r1", input());
+
+    expect(result.ok).toBe(true);
+    expect(update).toHaveBeenCalled();
+  });
+
+  // The distinction the old permission model couldn't draw: an EDITOR who can
+  // add recipes still can't rewrite someone else's.
+  it("refuses an EDITOR editing someone else's recipe", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+    findForPermissionCheck.mockResolvedValue({
+      id: "r1",
+      authorId: "someone_else",
+      cookbookId: "cb1",
+      title: "Carbonara",
+    });
+
+    const result = await updateRecipe("u1", "cb1", "r1", input());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("forbidden");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("lets the OWNER edit a recipe they didn't write", async () => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    findForPermissionCheck.mockResolvedValue({
+      id: "r1",
+      authorId: "someone_else",
+      cookbookId: "cb1",
+      title: "Carbonara",
+    });
+
+    const result = await updateRecipe("owner1", "cb1", "r1", input());
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses a VIEWER editing even their own recipe", async () => {
+    findMembership.mockResolvedValue({ role: "VIEWER" });
+
+    const result = await updateRecipe("u1", "cb1", "r1", input());
+
+    expect(result.ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-member", async () => {
+    findMembership.mockResolvedValue(null);
+
+    const result = await updateRecipe("u1", "cb1", "r1", input());
+
+    expect(result.ok).toBe(false);
+    expect(findForPermissionCheck).not.toHaveBeenCalled();
+  });
+
+  // Both ids come from the URL; the repository scopes by cookbook so a recipe
+  // can't be edited through a cookbook it doesn't belong to.
+  it("looks the recipe up scoped to its cookbook", async () => {
+    await updateRecipe("u1", "cb1", "r1", input());
+
+    expect(findForPermissionCheck).toHaveBeenCalledWith("cb1", "r1");
+  });
+
+  it("reads as forbidden when the recipe doesn't exist", async () => {
+    findForPermissionCheck.mockResolvedValue(null);
+
+    const result = await updateRecipe("u1", "cb1", "nope", input());
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("forbidden");
+  });
+
+  it("still validates the input", async () => {
+    const result = await updateRecipe("u1", "cb1", "r1", input({ title: "" }));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("validation");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  // Editing must not let a recipe change hands or move cookbooks.
+  it("never sends an author or cookbook to the repository", async () => {
+    // "u1" is the author in the default mock, so this is an allowed edit.
+    await updateRecipe("u1", "cb1", "r1", input());
+
+    const payload = update.mock.calls[0][0];
+    expect(payload).not.toHaveProperty("authorId");
+    expect(payload).not.toHaveProperty("cookbookId");
+    expect(payload.recipeId).toBe("r1");
+  });
+
+  it("drops blank ingredient rows the same way create does", async () => {
+    await updateRecipe(
+      "u1",
+      "cb1",
+      "r1",
+      input({
+        ingredients: [
+          { name: "spaghetti", quantity: "200", unit: "g", note: "" },
+          { name: "", quantity: "", unit: "", note: "" },
+        ],
+      }),
+    );
+
+    expect(update.mock.calls[0][0].ingredients).toHaveLength(1);
+  });
+});
+
+describe("deleteRecipe", () => {
+  it("lets an author delete their own recipe", async () => {
+    const result = await deleteRecipe("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.title).toBe("Carbonara");
+    expect(deleteRecipeRow).toHaveBeenCalledWith("r1");
+  });
+
+  it("refuses an EDITOR deleting someone else's recipe", async () => {
+    findForPermissionCheck.mockResolvedValue({
+      id: "r1",
+      authorId: "someone_else",
+      cookbookId: "cb1",
+      title: "Carbonara",
+    });
+
+    const result = await deleteRecipe("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(false);
+    expect(deleteRecipeRow).not.toHaveBeenCalled();
+  });
+
+  it("lets the OWNER delete any recipe", async () => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    findForPermissionCheck.mockResolvedValue({
+      id: "r1",
+      authorId: "someone_else",
+      cookbookId: "cb1",
+      title: "Carbonara",
+    });
+
+    const result = await deleteRecipe("owner1", "cb1", "r1");
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses a VIEWER", async () => {
+    findMembership.mockResolvedValue({ role: "VIEWER" });
+
+    const result = await deleteRecipe("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(false);
+    expect(deleteRecipeRow).not.toHaveBeenCalled();
   });
 });

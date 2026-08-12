@@ -8,9 +8,9 @@ import type { CookbookSummary } from "@/server/services/cookbook.service";
 
 function EmptyState() {
   return (
-    <div className="mt-6 rounded-lg border border-dashed border-black/15 px-6 py-12 text-center dark:border-white/20">
+    <div className="mt-6 rounded-lg border border-dashed border-border-strong px-6 py-12 text-center">
       <p className="font-medium">No cookbooks yet.</p>
-      <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+      <p className="mt-1 text-subheadline text-foreground-secondary">
         Create one to start collecting recipes.
       </p>
     </div>
@@ -27,7 +27,7 @@ function CookbookMeta({ cookbook }: { cookbook: CookbookSummary }) {
   if (cookbook.role !== "OWNER") parts.push(cookbook.role.toLowerCase());
 
   return (
-    <p className="mt-3 text-xs text-black/50 dark:text-white/50">
+    <p className="mt-3 text-caption-1 text-foreground-tertiary">
       {parts.join(" · ")}
     </p>
   );
@@ -47,7 +47,7 @@ export default function CookbookList({
         // whole card a click target.
         <li
           key={cookbook.id}
-          className="group relative rounded-lg border border-black/10 p-4 transition-colors hover:border-black/25 hover:bg-black/[0.02] focus-within:ring-2 focus-within:ring-red-500 dark:border-white/15 dark:hover:border-white/30 dark:hover:bg-white/[0.03]"
+          className="group relative rounded-lg border border-border p-4 transition-colors hover:border-border-input hover:bg-background-control focus-within:ring-2 focus-within:ring-border-input-strong"
         >
           {/*
             Stretched-link pattern: one real anchor on the title, with an
@@ -68,7 +68,7 @@ export default function CookbookList({
             <LinkPending />
           </Link>
           {cookbook.description ? (
-            <p className="mt-1 line-clamp-2 text-sm text-black/60 dark:text-white/60">
+            <p className="mt-1 line-clamp-2 text-subheadline text-foreground-secondary">
               {cookbook.description}
             </p>
           ) : null}

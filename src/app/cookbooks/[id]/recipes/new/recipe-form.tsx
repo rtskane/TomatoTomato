@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import type { CreateRecipeState, CreateRecipeValues } from "./actions";
+import type { CreateRecipeState, CreateRecipeValues } from "../recipe-form-data";
 import IngredientEditor, { type IngredientItem } from "./ingredient-editor";
 import StepEditor, { type StepItem } from "./step-editor";
 
@@ -20,22 +20,39 @@ let nextKey = 0;
 const takeKey = () => nextKey++;
 
 const fieldClass =
-  "w-full rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 " +
-  "outline-none placeholder:text-black/30 focus:border-red-500 focus:bg-transparent " +
-  "dark:border-white/15 dark:bg-white/[0.04] dark:placeholder:text-white/30";
+  "w-full rounded-lg border border-border bg-background-control px-3 py-2 " +
+  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
 
 export default function RecipeForm({
   action,
   cookbookId,
+  /**
+   * Seeds the form when editing. Absent when creating, which is what makes the
+   * two uses the same component: an empty recipe and an existing one differ
+   * only in what the fields start out holding.
+   */
+  initialValues,
+  submitLabel = "Save recipe",
+  pendingLabel = "Saving…",
 }: {
   action: RecipeFormAction;
   cookbookId: string;
+  initialValues?: CreateRecipeValues;
+  submitLabel?: string;
+  pendingLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  const [ingredients, setIngredients] = useState<IngredientItem[]>([]);
-  const [steps, setSteps] = useState<StepItem[]>([]);
+  const [ingredients, setIngredients] = useState<IngredientItem[]>(() =>
+    (initialValues?.ingredients ?? []).map((i) => ({ ...i, key: takeKey() })),
+  );
+  const [steps, setSteps] = useState<StepItem[]>(() =>
+    (initialValues?.steps ?? []).map((instruction) => ({
+      key: takeKey(),
+      instruction,
+    })),
+  );
 
   // When the server rejects, it echoes back everything the user typed. Rebuild
   // the lists from that echo so a validation error never costs someone their
@@ -63,10 +80,14 @@ export default function RecipeForm({
     if (state.error) titleRef.current?.focus();
   }, [state]);
 
-  const v = (field: keyof CreateRecipeValues) =>
-    typeof state.values?.[field] === "string"
-      ? (state.values[field] as string)
-      : undefined;
+  // The server's echo wins when there is one (it holds what the user just
+  // typed); otherwise fall back to what we were seeded with.
+  const v = (field: keyof CreateRecipeValues) => {
+    const echo = state.values?.[field];
+    if (typeof echo === "string") return echo;
+    const seed = initialValues?.[field];
+    return typeof seed === "string" ? seed : undefined;
+  };
 
   const hasError = Boolean(state.error);
 
@@ -74,7 +95,7 @@ export default function RecipeForm({
     <form action={formAction} className="space-y-10" noValidate>
       <section className="space-y-4">
         <div>
-          <label htmlFor="title" className="block text-sm font-medium">
+          <label htmlFor="title" className="block text-subheadline font-medium">
             Title
           </label>
           <input
@@ -91,9 +112,9 @@ export default function RecipeForm({
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-sm font-medium">
+          <label htmlFor="description" className="block text-subheadline font-medium">
             Description{" "}
-            <span className="font-normal text-black/40 dark:text-white/40">
+            <span className="font-normal text-foreground-muted">
               optional
             </span>
           </label>
@@ -108,7 +129,7 @@ export default function RecipeForm({
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label htmlFor="servings" className="block text-sm font-medium">
+            <label htmlFor="servings" className="block text-subheadline font-medium">
               Serves
             </label>
             <input
@@ -123,7 +144,7 @@ export default function RecipeForm({
           <div>
             <label
               htmlFor="prepTimeMinutes"
-              className="block text-sm font-medium"
+              className="block text-subheadline font-medium"
             >
               Prep (min)
             </label>
@@ -139,7 +160,7 @@ export default function RecipeForm({
           <div>
             <label
               htmlFor="cookTimeMinutes"
-              className="block text-sm font-medium"
+              className="block text-subheadline font-medium"
             >
               Cook (min)
             </label>
@@ -159,7 +180,7 @@ export default function RecipeForm({
       <StepEditor items={steps} onChange={setSteps} />
 
       {hasError ? (
-        <p id="recipe-error" role="alert" className="text-sm text-red-600">
+        <p id="recipe-error" role="alert" className="text-subheadline text-error">
           {state.error}
         </p>
       ) : null}
@@ -168,13 +189,13 @@ export default function RecipeForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-red-600 px-5 py-2.5 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          className="rounded-lg bg-accent px-5 py-2.5 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
         >
-          {pending ? "Saving…" : "Save recipe"}
+          {pending ? pendingLabel : submitLabel}
         </button>
         <Link
           href={`/cookbooks/${cookbookId}`}
-          className="text-sm text-black/60 hover:underline dark:text-white/60"
+          className="text-subheadline text-foreground-secondary hover:underline"
         >
           Cancel
         </Link>

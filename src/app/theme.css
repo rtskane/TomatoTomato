@@ -1,0 +1,295 @@
+/* =============================================================================
+   Design tokens
+
+   STRUCTURE — roles, type scale, spacing and radius — comes from the "Theme"
+   Figma file: https://www.figma.com/design/LuceDVjPFelVh03BfgxUbB/Theme
+   COLOUR VALUES no longer do. The palette below is the Worn Ruby / Garnet
+   Crystal / Dusty Bronze / Alpine Amber / Forest Ochre set, which supersedes
+   the Figma file's lime-and-beige palette. Re-read Figma before changing the
+   scale or the role names; do not re-read it for colours.
+
+   Three layers, and the direction only ever flows downward:
+
+     1. PRIMITIVES  raw values. The only place a literal hex or px may appear.
+     2. SEMANTIC    roles ("what is this for") pointing at primitives.
+     3. @theme      the Tailwind utility surface, pointing at semantics.
+
+   Components consume layer 3 (or layer 2 via var()) and never layer 1. That is
+   what makes the palette swappable: re-point layer 1 and everything downstream
+   follows. It is also what would make a dark mode cheap later — a dark theme is
+   a second copy of layer 2, with layer 1 and every component untouched.
+   If you ever find yourself writing a hex outside layer 1, the token you need
+   is missing — add it here instead.
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   Layer 1 · Primitives — THE SWAP ZONE
+   To try a different palette, change the values in this block and nothing else.
+   -------------------------------------------------------------------------- */
+:root {
+  /* Accent ramp — Garnet Crystal.
+     Only -500 is a given colour; the tints and shades around it are
+     extrapolated so the accent has hover, wash and text variants. */
+  --accent-200: #f7d5d4;
+  --accent-300: #ee9e9c;
+  --accent-400: #e56b68;
+  --accent-500: #dd423e; /* GIVEN — Garnet Crystal */
+  --accent-600: #c1332f; /* hover/pressed: white on it is 5.6:1 */
+  /* "Ink" = the accent darkened until it is legible as *text or an icon* on a
+     light surface. Garnet itself is 4.3:1 on white, just under the 4.5:1
+     minimum, so accent-coloured type uses this instead. 7.7:1. */
+  --accent-800: #9c2723;
+  --accent-contrast: #ffffff; /* text on an accent fill — 4.3:1, see note below */
+
+  /* The rest of the given palette, in supporting roles. */
+  --amber-100: #fbeed7; /* extrapolated wash of Alpine Amber, kept deep
+                          enough to read against the cream page */
+  --amber-300: #eac388; /* GIVEN — Alpine Amber. A fill, never text (1.7:1). */
+  --ochre-500: #c5ad4b; /* GIVEN — Forest Ochre. A fill, never text (2.2:1). */
+  --ochre-800: #7d6a1f; /* extrapolated: ochre as text, 5.3:1 */
+  --bronze-400: #a2a384; /* GIVEN — Dusty Bronze. 2.6:1, so muted text at most. */
+  --bronze-800: #5c5e42; /* extrapolated: bronze as text, 6.7:1 */
+
+  /* Neutral ramp, warmed toward Worn Ruby so the greys belong to the palette
+     rather than sitting under it as cold slate. 900 is the given colour and
+     carries all primary text at 13.1:1; the rest are extrapolated.
+     300 is Dusty Bronze — note it is sage where its neighbours are brown, so
+     it reads slightly off-ramp. That is deliberate: it keeps the given colour
+     in play at the one step whose only job is muted, low-contrast text. */
+  --neutral-000: #ffffff; /* true white — only for text on dark surfaces */
+  --neutral-050: #fcf8f3; /* the page itself: warm cream, not white */
+  --neutral-100: #f6efe5; /* secondary surface — hover fills */
+  --neutral-150: #f1e8db; /* control surface — inputs; also the faintest line */
+  --neutral-200: #e7dbca; /* default lines, skeleton blocks */
+  --neutral-250: #d8c9b5; /* strong lines */
+  --neutral-275: #c9bcab; /* disabled text */
+  --neutral-300: #a2a384; /* GIVEN — Dusty Bronze */
+  --neutral-400: #7d6d64; /* 4.7:1 on the cream */
+  --neutral-500: #5f4d45; /* 7.5:1 */
+  --neutral-700: #4c372f;
+  --neutral-900: #3f2c26; /* GIVEN — Worn Ruby, 12.4:1 */
+
+  /* Status ramp.
+     Error is aliased to the darkened accent because this palette is warm and
+     red-centred: its only alarm colour *is* a red, and the one red that reads
+     as danger next to Garnet is a deeper oxblood. Primary and destructive
+     therefore differ by darkness rather than hue — see the note in layer 2.
+     Info has no equivalent in the palette at all and stays a stock blue. */
+  --status-success: var(--bronze-400);
+  --status-success-ink: var(--bronze-800);
+  --status-error: var(--accent-800);
+  --status-error-strong: #7d1e1a; /* extrapolated: hover/pressed for destructive fills */
+  --status-warning: var(--ochre-500);
+  --status-warning-ink: var(--ochre-800);
+  --status-info: #3b82f6; /* NOT from the palette — no blue was supplied */
+
+  /* Corner radius — Figma "03 — Spacing & Radius".
+     Larger than Tailwind's stock values (4/6/8/12px). Held in :root rather
+     than only in @theme so plain CSS rules can reach them too. */
+  --corner-sm: 0.5rem; /* 8 */
+  --corner-md: 0.75rem; /* 12 */
+  --corner-lg: 1rem; /* 16 */
+  --corner-xl: 1.25rem; /* 20 */
+
+  /* Font stacks. The `*-src` variables are injected by next/font in
+     layout.tsx — swapping a typeface is a one-line change there, because
+     nothing else in the codebase names a font. */
+  --font-sans-stack: var(--font-sans-src), ui-sans-serif, system-ui, sans-serif;
+  --font-serif-stack: var(--font-serif-src), ui-serif, Georgia, serif;
+  --font-mono-stack: var(--font-mono-src), ui-monospace, SFMono-Regular, monospace;
+}
+
+/* -----------------------------------------------------------------------------
+   Layer 2 · Semantic roles
+   Named for the job, not the color. Nothing here is a literal — every value
+   points at a primitive, which is what keeps the swap zone authoritative.
+   -------------------------------------------------------------------------- */
+:root {
+  /* Surfaces — Figma "Background" */
+  --background: var(--neutral-050);
+  --background-secondary: var(--neutral-100);
+  /* Third surface step, for things that must read as filled against
+     background-secondary — skeleton blocks, filled tracks. Extrapolated:
+     Figma's Background group stops at two steps. */
+  --background-tertiary: var(--neutral-200);
+  --background-control: var(--neutral-150);
+  --background-inverse: var(--neutral-900);
+  /* Alpine Amber's wash — the warm highlight surface (drag-over, accent
+     panels). Deliberately amber rather than a garnet tint: a red wash under
+     a red accent reads as an error state. */
+  --background-accent: var(--amber-100);
+
+  /* Text — Figma "Text" */
+  --foreground: var(--neutral-900);
+  --foreground-secondary: var(--neutral-500);
+  --foreground-tertiary: var(--neutral-400);
+  --foreground-muted: var(--neutral-300);
+  --foreground-disabled: var(--neutral-275);
+  --foreground-inverse: var(--neutral-000);
+
+  /* Lines — Figma "Border" */
+  --border-faint: var(--neutral-150);
+  --border-default: var(--neutral-200);
+  --border-strong: var(--neutral-250);
+  --border-input: var(--neutral-300);
+  --border-input-strong: var(--neutral-900);
+  --border-error: var(--status-error);
+
+  /* Modal/overlay scrim. */
+  --scrim: rgb(0 0 0 / 0.4);
+
+  /* Accent role.
+     NOTE: in this palette the accent and the destructive colour are both red,
+     so `bg-accent` (bright garnet) and `bg-error` (deep oxblood) differ by
+     darkness, not hue. That is legible but weaker than the previous palette,
+     where they were different colours entirely. Two ways out, both one line:
+     supply a non-red error, or move the accent to Forest Ochre
+     (--ochre-500, which takes Worn Ruby text at 5.9:1). */
+  --accent: var(--accent-500);
+  --accent-hover: var(--accent-600);
+  --accent-subtle: var(--accent-200);
+  --on-accent: var(--accent-contrast);
+  /* Accent as *type*, not as a fill — see --accent-800. */
+  --accent-ink: var(--accent-800);
+
+  /* Status roles. The `-ink` variants are for text and icons; the plain ones
+     are for fills — Alpine Amber, Forest Ochre and Dusty Bronze are all too
+     light to be read as type on white. Error is dark enough to serve as both. */
+  --success: var(--status-success);
+  --success-ink: var(--status-success-ink);
+  --error: var(--status-error);
+  --error-hover: var(--status-error-strong);
+  --warning: var(--status-warning);
+  --warning-ink: var(--status-warning-ink);
+  --info: var(--status-info);
+}
+
+/* -----------------------------------------------------------------------------
+   Layer 3 · Tailwind utility surface
+
+   `inline` matters here: it makes utilities compile to the *referenced*
+   variable (`var(--foreground)`) rather than a copy of its value, so a future
+   theme could re-point layer 2 and have every utility follow.
+
+   Adding --color-* here extends Tailwind's palette, it does not replace it, so
+   existing utilities like `text-red-600` still resolve.
+   -------------------------------------------------------------------------- */
+@theme inline {
+  /* Surfaces → bg-background, bg-background-secondary, … */
+  --color-background: var(--background);
+  --color-background-secondary: var(--background-secondary);
+  --color-background-tertiary: var(--background-tertiary);
+  --color-background-control: var(--background-control);
+  --color-background-inverse: var(--background-inverse);
+  --color-background-accent: var(--background-accent);
+
+  /* Text → text-foreground, text-foreground-muted, … */
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-disabled: var(--foreground-disabled);
+  --color-foreground-inverse: var(--foreground-inverse);
+
+  /* Lines → border-border, border-border-input, … */
+  --color-border: var(--border-default);
+  --color-border-faint: var(--border-faint);
+  --color-border-strong: var(--border-strong);
+  --color-border-input: var(--border-input);
+  --color-border-input-strong: var(--border-input-strong);
+  --color-border-error: var(--border-error);
+
+  /* Accent → bg-accent, text-on-accent, … */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-on-accent: var(--on-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-scrim: var(--scrim);
+
+  /* Status → bg-success (fills), text-success-ink (type) … */
+  --color-success: var(--success);
+  --color-success-ink: var(--success-ink);
+  --color-error: var(--error);
+  --color-error-hover: var(--error-hover);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-info: var(--info);
+
+  /* Typefaces → font-sans, font-serif, font-mono */
+  --font-sans: var(--font-sans-stack);
+  --font-serif: var(--font-serif-stack);
+  --font-mono: var(--font-mono-stack);
+
+  /* Type scale — Figma "02 — Typography".
+     Each step carries its Figma line-height, and a weight where the style has
+     exactly one. Steps whose Figma style ships in several weights (headline,
+     body, callout, subheadline, footnote, caption-1) leave the weight open —
+     compose them with `font-medium` / `font-semibold` / `font-bold`.
+     Letter-spacing is not encoded: the Figma styles don't specify tracking. */
+  --text-large-title: 2.125rem; /* 34/40 · Black */
+  --text-large-title--line-height: 2.5rem;
+  --text-large-title--font-weight: 900;
+
+  --text-title-2: 2rem; /* 32/32 · Black */
+  --text-title-2--line-height: 2rem;
+  --text-title-2--font-weight: 900;
+
+  --text-title-1: 1.75rem; /* 28/32 · Black */
+  --text-title-1--line-height: 2rem;
+  --text-title-1--font-weight: 900;
+
+  --text-title-3: 1.25rem; /* 20/24 · Bold */
+  --text-title-3--line-height: 1.5rem;
+  --text-title-3--font-weight: 700;
+
+  --text-headline: 1.0625rem; /* 17/24 · Bold or Semi Bold */
+  --text-headline--line-height: 1.5rem;
+
+  --text-body: 1rem; /* 16/24 · Regular or Bold */
+  --text-body--line-height: 1.5rem;
+
+  --text-callout: 0.9375rem; /* 15/20 · Regular or Semi Bold */
+  --text-callout--line-height: 1.25rem;
+
+  --text-subheadline: 0.875rem; /* 14/20 · Regular, Medium or Bold */
+  --text-subheadline--line-height: 1.25rem;
+
+  --text-footnote: 0.8125rem; /* 13/16 · Regular or Bold */
+  --text-footnote--line-height: 1rem;
+
+  --text-caption-1: 0.75rem; /* 12/16 · Regular, Medium or Semi Bold */
+  --text-caption-1--line-height: 1rem;
+
+  --text-caption-2: 0.6875rem; /* 11/14 · Regular */
+  --text-caption-2--line-height: 0.875rem;
+  --text-caption-2--font-weight: 400;
+
+  --text-eyebrow: 0.6875rem; /* 11/16 · Semi Bold */
+  --text-eyebrow--line-height: 1rem;
+  --text-eyebrow--font-weight: 600;
+
+  --text-date-num: 1.375rem; /* 22/28 · Black */
+  --text-date-num--line-height: 1.75rem;
+  --text-date-num--font-weight: 900;
+
+  --text-date-label: 0.6875rem; /* 11/16 · Bold */
+  --text-date-label--line-height: 1rem;
+  --text-date-label--font-weight: 700;
+
+  --text-legal: 0.6875rem; /* 11/16 · Regular */
+  --text-legal--line-height: 1rem;
+  --text-legal--font-weight: 400;
+
+  /* Corner radius → rounded-sm, rounded-md, … (--radius-full is 9999px already) */
+  --radius-sm: var(--corner-sm);
+  --radius-md: var(--corner-md);
+  --radius-lg: var(--corner-lg);
+  --radius-xl: var(--corner-xl);
+
+  /* Spacing is deliberately NOT redefined. Figma's 8pt scale (space/1 = 4px,
+     space/2 = 8, /3 = 12, /4 = 16, /5 = 20, /6 = 24, /8 = 32, /10 = 40,
+     /12 = 48) is exactly Tailwind's stock scale off `--spacing: 0.25rem`, so
+     `p-4` is already Figma's space/4. Overriding it would only add a way for
+     the two to drift. */
+}

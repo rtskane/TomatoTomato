@@ -44,12 +44,12 @@ export default async function MembersPage({
     <div className="mx-auto max-w-2xl px-4 py-10">
       <Link
         href={`/cookbooks/${view.cookbookId}`}
-        className="text-sm text-black/60 hover:underline dark:text-white/60"
+        className="text-subheadline text-foreground-secondary hover:underline"
       >
         ← {view.cookbookTitle}
       </Link>
 
-      <h1 className="mt-4 mb-8 text-2xl font-semibold">
+      <h1 className="mt-4 mb-8 text-title-1">
         Share &ldquo;{view.cookbookTitle}&rdquo;
       </h1>
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatIngredient, formatMinutes } from "@/lib/recipe-display";
 import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 
@@ -9,10 +10,10 @@ import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11px] font-medium uppercase tracking-widest text-black/40 dark:text-white/40">
+      <dt className="text-[11px] font-medium uppercase tracking-widest text-foreground-muted">
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-medium">{value}</dd>
+      <dd className="mt-1 text-subheadline font-medium">{value}</dd>
     </div>
   );
 }
@@ -33,7 +34,7 @@ function Stats({ recipe }: { recipe: RecipeDetail }) {
   if (stats.length === 0) return null;
 
   return (
-    <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-4 border-y border-black/10 py-5 dark:border-white/15">
+    <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-4 border-y border-border py-5">
       {stats.map((stat) => (
         <StatBlock key={stat.label} {...stat} />
       ))}
@@ -45,14 +46,28 @@ export default function RecipeArticle({ recipe }: { recipe: RecipeDetail }) {
   return (
     <article className="mx-auto max-w-3xl px-4 py-10">
       <header>
-        <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">
-          {recipe.title}
-        </h1>
-        <p className="mt-4 text-sm text-black/50 dark:text-white/50">
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="font-serif text-large-title leading-tight tracking-tight">
+            {recipe.title}
+          </h1>
+
+          {/* Only for the author or the cookbook's owner — `canModify` is the
+              same rule the update and delete actions enforce, so this link can
+              never offer something the server would refuse. */}
+          {recipe.canModify ? (
+            <Link
+              href={`/cookbooks/${recipe.cookbook.id}/recipes/${recipe.id}/edit`}
+              className="mt-2 shrink-0 rounded-md px-3 py-1.5 text-subheadline font-medium text-foreground-secondary hover:bg-background-secondary"
+            >
+              Edit
+            </Link>
+          ) : null}
+        </div>
+        <p className="mt-4 text-subheadline text-foreground-tertiary">
           By {recipe.authorName}
         </p>
         {recipe.description ? (
-          <p className="mt-5 font-serif text-lg leading-relaxed text-black/70 dark:text-white/70">
+          <p className="mt-5 font-serif text-headline leading-relaxed text-foreground-secondary">
             {recipe.description}
           </p>
         ) : null}
@@ -65,16 +80,16 @@ export default function RecipeArticle({ recipe }: { recipe: RecipeDetail }) {
           shouldn't have to scroll past a sidebar to reach step one. */}
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-14">
         <section>
-          <h2 className="font-serif text-xl font-semibold">Ingredients</h2>
+          <h2 className="font-serif text-title-3">Ingredients</h2>
           <ul className="mt-4 space-y-0">
             {recipe.ingredients.map((ingredient) => (
               <li
                 key={ingredient.id}
-                className="border-b border-black/[0.07] py-2.5 text-sm leading-relaxed last:border-0 dark:border-white/10"
+                className="border-b border-border py-2.5 text-subheadline leading-relaxed last:border-0"
               >
                 {formatIngredient(ingredient)}
                 {ingredient.note ? (
-                  <span className="text-black/45 dark:text-white/45">
+                  <span className="text-foreground-muted">
                     , {ingredient.note}
                   </span>
                 ) : null}
@@ -84,17 +99,17 @@ export default function RecipeArticle({ recipe }: { recipe: RecipeDetail }) {
         </section>
 
         <section>
-          <h2 className="font-serif text-xl font-semibold">Method</h2>
+          <h2 className="font-serif text-title-3">Method</h2>
           <ol className="mt-4 space-y-6">
             {recipe.steps.map((step, index) => (
               <li key={step.id} className="flex gap-4">
                 <span
                   aria-hidden="true"
-                  className="shrink-0 font-serif text-2xl leading-none font-semibold text-red-600/80 tabular-nums"
+                  className="shrink-0 font-serif text-date-num leading-none text-accent-ink tabular-nums"
                 >
                   {index + 1}
                 </span>
-                <p className="font-serif text-[17px] leading-relaxed whitespace-pre-wrap">
+                <p className="font-serif text-headline leading-relaxed whitespace-pre-wrap">
                   {step.instruction}
                 </p>
               </li>

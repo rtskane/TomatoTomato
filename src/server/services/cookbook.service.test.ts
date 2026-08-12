@@ -1,19 +1,55 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Fully replace the repository module so real Prisma is never imported.
-const { create, listForUser, findDetailForUser } = vi.hoisted(() => ({
+const {
+  create,
+  listForUser,
+  findDetailForUser,
+  findMembership,
+  update,
+  archive,
+  restore,
+  listArchivedForOwner,
+  findWithCounts,
+  countByOtherAuthors,
+} = vi.hoisted(() => ({
   create: vi.fn(),
   listForUser: vi.fn(),
   findDetailForUser: vi.fn(),
+  findMembership: vi.fn(),
+  update: vi.fn(),
+  archive: vi.fn(),
+  restore: vi.fn(),
+  listArchivedForOwner: vi.fn(),
+  findWithCounts: vi.fn(),
+  countByOtherAuthors: vi.fn(),
 }));
 vi.mock("@/server/repositories/cookbook.repository", () => ({
-  cookbookRepository: { create, listForUser, findDetailForUser },
+  cookbookRepository: {
+    create,
+    listForUser,
+    findDetailForUser,
+    findMembership,
+    update,
+    archive,
+    restore,
+    listArchivedForOwner,
+    findWithCounts,
+  },
+}));
+vi.mock("@/server/repositories/recipe.repository", () => ({
+  recipeRepository: { countByOtherAuthors },
 }));
 
 import {
   createCookbook,
   listUserCookbooks,
   getCookbookDetail,
+  updateCookbook,
+  archiveCookbook,
+  restoreCookbook,
+  listArchivedCookbooks,
+  getArchiveImpact,
 } from "./cookbook.service";
 
 beforeEach(() => {
@@ -281,5 +317,216 @@ describe("getCookbookDetail", () => {
     const detail = await getCookbookDetail("u1", "cb1");
 
     expect(detail?.recipes).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Editing, archiving, restoring — all owner-only
+// ---------------------------------------------------------------------------
+
+describe("updateCookbook", () => {
+  beforeEach(() => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    update.mockResolvedValue({ id: "cb1" });
+  });
+
+  it("renames a cookbook for its owner", async () => {
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "  Sunday Roasts ",
+      description: " Slow food. ",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(update).toHaveBeenCalledWith("cb1", {
+      title: "Sunday Roasts",
+      description: "Slow food.",
+    });
+  });
+
+  it("refuses an EDITOR", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    const result = await updateCookbook("u1", "cb1", {
+      title: "Mine now",
+      description: "",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("forbidden");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-member", async () => {
+    findMembership.mockResolvedValue(null);
+
+    const result = await updateCookbook("u1", "cb1", {
+      title: "Mine now",
+      description: "",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty title without writing", async () => {
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "",
+      description: "",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("validation");
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("archiveCookbook", () => {
+  beforeEach(() => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    archive.mockResolvedValue({ count: 1 });
+  });
+
+  it("archives for the owner", async () => {
+    const result = await archiveCookbook("owner1", "cb1");
+
+    expect(result.ok).toBe(true);
+    expect(archive).toHaveBeenCalledWith("cb1", "owner1");
+  });
+
+  it("refuses an EDITOR", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    const result = await archiveCookbook("u1", "cb1");
+
+    expect(result.ok).toBe(false);
+    expect(archive).not.toHaveBeenCalled();
+  });
+
+  // Ownership is in the WHERE clause too, so a write that matches nothing is a
+  // failure rather than a silent no-op reported as success.
+  it("fails when the write matched no rows", async () => {
+    archive.mockResolvedValue({ count: 0 });
+
+    const result = await archiveCookbook("owner1", "cb1");
+
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("restoreCookbook", () => {
+  // Restore deliberately skips findMembership: that lookup filters archived
+  // cookbooks out, so the one operation that must see one can't rely on it.
+  it("restores without consulting membership", async () => {
+    restore.mockResolvedValue({ count: 1 });
+
+    const result = await restoreCookbook("owner1", "cb1");
+
+    expect(result.ok).toBe(true);
+    expect(restore).toHaveBeenCalledWith("cb1", "owner1");
+    expect(findMembership).not.toHaveBeenCalled();
+  });
+
+  it("fails for someone who doesn't own it", async () => {
+    restore.mockResolvedValue({ count: 0 });
+
+    const result = await restoreCookbook("mallory", "cb1");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("forbidden");
+  });
+});
+
+describe("listArchivedCookbooks", () => {
+  it("flattens the rows and keeps the recipe count", async () => {
+    listArchivedForOwner.mockResolvedValue([
+      {
+        id: "cb1",
+        title: "Old Favourites",
+        description: null,
+        archivedAt: new Date(),
+        _count: { recipes: 4 },
+      },
+    ]);
+
+    await expect(listArchivedCookbooks("owner1")).resolves.toEqual([
+      {
+        id: "cb1",
+        title: "Old Favourites",
+        description: null,
+        recipeCount: 4,
+      },
+    ]);
+  });
+
+  it("returns an empty array when there are none", async () => {
+    listArchivedForOwner.mockResolvedValue([]);
+
+    await expect(listArchivedCookbooks("owner1")).resolves.toEqual([]);
+  });
+});
+
+describe("getArchiveImpact", () => {
+  beforeEach(() => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    findWithCounts.mockResolvedValue({
+      id: "cb1",
+      title: "Weeknight Dinners",
+      ownerId: "owner1",
+      _count: { recipes: 12, members: 3 },
+    });
+    countByOtherAuthors.mockResolvedValue(5);
+  });
+
+  // The number that makes the warning honest.
+  it("reports how many recipes belong to other people", async () => {
+    const result = await getArchiveImpact("owner1", "cb1");
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({
+        title: "Weeknight Dinners",
+        recipeCount: 12,
+        recipesByOthers: 5,
+        memberCount: 3,
+      });
+    }
+  });
+
+  it("refuses anyone who isn't the owner", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    const result = await getArchiveImpact("u1", "cb1");
+
+    expect(result.ok).toBe(false);
+    expect(findWithCounts).not.toHaveBeenCalled();
+  });
+});
+
+describe("getCookbookDetail — edit permission", () => {
+  const detailRow = {
+    role: "OWNER",
+    cookbook: {
+      id: "cb1",
+      title: "Weeknight Dinners",
+      description: null,
+      recipes: [],
+    },
+  };
+
+  it("marks an OWNER as able to edit the cookbook", async () => {
+    findDetailForUser.mockResolvedValue(detailRow);
+
+    const detail = await getCookbookDetail("owner1", "cb1");
+
+    expect(detail?.canEditCookbook).toBe(true);
+  });
+
+  it("marks an EDITOR as unable to edit the cookbook itself", async () => {
+    findDetailForUser.mockResolvedValue({ ...detailRow, role: "EDITOR" });
+
+    const detail = await getCookbookDetail("u1", "cb1");
+
+    expect(detail?.canEditCookbook).toBe(false);
+    expect(detail?.canAddRecipes).toBe(true);
   });
 });

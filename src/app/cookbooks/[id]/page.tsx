@@ -2,9 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getCookbookDetail } from "@/server/services/cookbook.service";
+import { getArchiveImpact } from "@/server/services/cookbook.service";
 import { getCookbookMembers } from "@/server/services/member.service";
 import RecipeList from "./recipe-list";
 import ShareDialog from "./share-dialog";
+import SettingsDialog from "./settings-dialog";
+import {
+  updateCookbookAction,
+  archiveCookbookAction,
+} from "./settings-actions";
 import MembersPanel from "./members/members-panel";
 import {
   inviteMembersAction,
@@ -36,6 +42,12 @@ export default async function CookbookPage({
   // itself something they shouldn't learn.
   if (!cookbook || !members) notFound();
 
+  // Only the owner gets the settings dialog, and only the owner's request pays
+  // for the counts behind its archive warning.
+  const impact = cookbook.canEditCookbook
+    ? await getArchiveImpact(user.id, cookbook.id)
+    : null;
+
   // Binding the id server-side means it never rides along in the form, so a
   // crafted POST can't retarget these at a different cookbook.
   const actions = {
@@ -50,16 +62,16 @@ export default async function CookbookPage({
     <div className="mx-auto max-w-5xl px-4 py-10">
       <Link
         href="/dashboard"
-        className="text-sm text-black/60 hover:underline dark:text-white/60"
+        className="text-subheadline text-foreground-secondary hover:underline"
       >
         ← Your library
       </Link>
 
       <div className="mt-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold">{cookbook.title}</h1>
+          <h1 className="text-title-1">{cookbook.title}</h1>
           {cookbook.description ? (
-            <p className="mt-2 text-black/70 dark:text-white/70">
+            <p className="mt-2 text-foreground-secondary">
               {cookbook.description}
             </p>
           ) : null}
@@ -76,10 +88,24 @@ export default async function CookbookPage({
             <MembersPanel view={members} actions={actions} />
           </ShareDialog>
 
+          {cookbook.canEditCookbook && impact?.ok ? (
+            <SettingsDialog
+              title={cookbook.title}
+              description={cookbook.description}
+              impact={impact.value}
+              updateAction={updateCookbookAction.bind(null, cookbook.id)}
+              archiveAction={archiveCookbookAction.bind(
+                null,
+                cookbook.id,
+                cookbook.title,
+              )}
+            />
+          ) : null}
+
           {cookbook.canAddRecipes ? (
             <Link
               href={`/cookbooks/${cookbook.id}/recipes/new`}
-              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              className="rounded-md bg-accent px-4 py-2 text-subheadline font-medium text-on-accent hover:bg-accent-hover"
             >
               New recipe
             </Link>

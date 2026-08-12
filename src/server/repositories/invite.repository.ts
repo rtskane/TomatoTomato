@@ -101,6 +101,10 @@ export const inviteRepository = {
         invitedUserId: userId,
         status: InviteStatus.PENDING,
         expiresAt: { gt: now },
+        // An archived cookbook is gone as far as its members are concerned, so
+        // a pending invite to one shouldn't sit on someone's dashboard asking
+        // them to join it.
+        cookbook: { archivedAt: null },
       },
       orderBy: { createdAt: "desc" },
       select: {

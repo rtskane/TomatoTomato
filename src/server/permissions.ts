@@ -21,3 +21,34 @@ export function canAddRecipes(role: CookbookRole): boolean {
 export function canManageMembers(role: CookbookRole): boolean {
   return role === "OWNER";
 }
+
+/**
+ * Change a recipe that already exists — both editing and deleting it.
+ *
+ * One predicate for both because they carry the same rule: you may modify a
+ * recipe you wrote, and the owner may modify any of them. An EDITOR who didn't
+ * write it cannot, which is the distinction `canAddRecipes` alone never drew —
+ * before this, EDITOR and VIEWER differed only in whether they could create.
+ *
+ * Note this is deliberately narrower than `canAddRecipes`: being able to add
+ * recipes to a cookbook doesn't imply being able to rewrite everyone else's.
+ */
+export function canModifyRecipe(
+  role: CookbookRole,
+  isAuthor: boolean,
+): boolean {
+  if (role === "OWNER") return true;
+  return role === "EDITOR" && isAuthor;
+}
+
+/**
+ * Rename a cookbook, change its description, archive it, or restore it.
+ *
+ * Owner-only: the title is how members find a cookbook they agreed to join, and
+ * archiving hides it from all of them at once. Same holder as
+ * `canManageMembers`, but kept separate so the two can diverge without one
+ * silently widening the other.
+ */
+export function canEditCookbook(role: CookbookRole): boolean {
+  return role === "OWNER";
+}
