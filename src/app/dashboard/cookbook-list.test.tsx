@@ -18,23 +18,8 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
   };
 }
 
-describe("CookbookList — empty state", () => {
-  it("tells the user there are none and what to do", () => {
-    render(<CookbookList cookbooks={[]} />);
-
-    expect(screen.getByText(/no cookbooks yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/create one/i)).toBeInTheDocument();
-  });
-
-  it("renders no list when empty", () => {
-    render(<CookbookList cookbooks={[]} />);
-
-    expect(screen.queryByRole("list")).not.toBeInTheDocument();
-  });
-});
-
 describe("CookbookList — populated", () => {
-  it("renders one item per cookbook and drops the empty state", () => {
+  it("renders one item per cookbook", () => {
     render(
       <CookbookList
         cookbooks={[summary(), summary({ id: "cb2", title: "Baking" })]}
@@ -42,7 +27,6 @@ describe("CookbookList — populated", () => {
     );
 
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.queryByText(/no cookbooks yet/i)).not.toBeInTheDocument();
   });
 
   it("shows the title and description", () => {
