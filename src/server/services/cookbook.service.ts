@@ -13,6 +13,12 @@ import type { CookbookRole } from "@/generated/prisma/enums";
 export type CreateCookbookInput = {
   title: string;
   description: string;
+  /**
+   * The blob URL the browser uploaded to, or "" for no cover. Validated
+   * against the blob host in `coverImageUrlSchema` — it arrives from the
+   * client, so it is never trusted as a URL.
+   */
+  coverImageUrl?: string;
 };
 
 // Only validation can fail in an *expected* way here: titles aren't unique, so
@@ -39,6 +45,7 @@ export async function createCookbook(
     ownerId: userId,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
+    coverImageUrl: parsed.data.coverImageUrl ?? null,
   });
 
   return ok({ id: cookbook.id });
@@ -53,6 +60,7 @@ export type CookbookSummary = {
   id: string;
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
   role: CookbookRole;
   recipeCount: number;
   memberCount: number;
@@ -72,6 +80,7 @@ export async function listUserCookbooks(
     id: cookbook.id,
     title: cookbook.title,
     description: cookbook.description,
+    coverImageUrl: cookbook.coverImageUrl,
     role,
     recipeCount: cookbook._count.recipes,
     memberCount: cookbook._count.members,
@@ -94,6 +103,7 @@ export type CookbookDetail = {
   id: string;
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
   role: CookbookRole;
   canAddRecipes: boolean;
   canEditCookbook: boolean;
@@ -121,6 +131,7 @@ export async function getCookbookDetail(
     id: cookbook.id,
     title: cookbook.title,
     description: cookbook.description,
+    coverImageUrl: cookbook.coverImageUrl,
     role,
     canAddRecipes: canAddRecipes(role),
     canEditCookbook: canEditCookbook(role),
@@ -161,12 +172,23 @@ async function requireOwner(
   return ok(true);
 }
 
-/** Rename a cookbook or change its description. Reuses the create validation. */
+/**
+ * Rename a cookbook, change its description, or swap its cover. Reuses the
+ * create validation.
+ *
+ * `orphanedCover` is the file this write just detached — the previous cover,
+ * when the update replaced or cleared it. Deleting it is the caller's job, not
+ * this function's: talking to blob storage from here would put a network call
+ * inside the layer whose whole point is that it can be unit-tested by calling
+ * it. The Server Action deletes it, best-effort.
+ */
 export async function updateCookbook(
   userId: string,
   cookbookId: string,
   input: CreateCookbookInput,
-): Promise<Result<{ id: string }, CookbookAdminError>> {
+): Promise<
+  Result<{ id: string; orphanedCover: string | null }, CookbookAdminError>
+> {
   const allowed = await requireOwner(userId, cookbookId);
   if (!allowed.ok) return allowed;
 
@@ -177,12 +199,23 @@ export async function updateCookbook(
     return err({ kind: "validation", message });
   }
 
+  const nextCover = parsed.data.coverImageUrl ?? null;
+  const previous = await cookbookRepository.findCover(cookbookId);
+  const previousCover = previous?.coverImageUrl ?? null;
+
   await cookbookRepository.update(cookbookId, {
     title: parsed.data.title,
     description: parsed.data.description ?? null,
+    coverImageUrl: nextCover,
   });
 
-  return ok({ id: cookbookId });
+  return ok({
+    id: cookbookId,
+    // Only when it actually changed: saving the form without touching the
+    // cover must not delete the cover the cookbook still uses.
+    orphanedCover:
+      previousCover && previousCover !== nextCover ? previousCover : null,
+  });
 }
 
 /**

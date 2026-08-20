@@ -50,6 +50,14 @@ function SwatchGrid({ children }: { children: React.ReactNode }) {
   );
 }
 
+const BOOK_COVERS = [
+  ["bg-book-cover-1", "text-book-ink-1", "1 · Worn Ruby · 13.1:1"],
+  ["bg-book-cover-2", "text-book-ink-2", "2 · Garnet Crystal · 4.3:1"],
+  ["bg-book-cover-3", "text-book-ink-3", "3 · Dusty Bronze · 5.1:1"],
+  ["bg-book-cover-4", "text-book-ink-4", "4 · Alpine Amber · 7.9:1"],
+  ["bg-book-cover-5", "text-book-ink-5", "5 · Forest Ochre · 5.9:1"],
+];
+
 const TYPE_SCALE = [
   ["text-large-title", "LargeTitle · 34/40 · Black"],
   ["text-title-2", "Title2 · 32/32 · Black"],
@@ -180,6 +188,26 @@ export default function ThemePage() {
           <Swatch name="error" className="bg-error" />
           <Swatch name="warning" className="bg-warning" />
           <Swatch name="info" className="bg-info" />
+        </SwatchGrid>
+      </Section>
+
+      <Section
+        title="Book covers"
+        note="The dashboard shelf. Each cover ships with the one ink that is legible on it — the swatch is set in that ink, so a bad pairing shows up here rather than on the shelf."
+      >
+        <SwatchGrid>
+          {BOOK_COVERS.map(([face, ink, label]) => (
+            <div key={face}>
+              <div
+                className={`flex h-16 items-center justify-center rounded-md border border-border-faint font-serif text-callout ${face} ${ink}`}
+              >
+                Cookbook
+              </div>
+              <p className="mt-2 text-caption-1 text-foreground-secondary">
+                {label}
+              </p>
+            </div>
+          ))}
         </SwatchGrid>
       </Section>
 

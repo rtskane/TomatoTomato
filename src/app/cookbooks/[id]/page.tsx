@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getCookbookDetail } from "@/server/services/cookbook.service";
@@ -68,13 +69,29 @@ export default async function CookbookPage({
       </Link>
 
       <div className="mt-4 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-title-1">{cookbook.title}</h1>
-          {cookbook.description ? (
-            <p className="mt-2 text-foreground-secondary">
-              {cookbook.description}
-            </p>
+        <div className="flex min-w-0 items-start gap-4">
+          {/* Only when there is one: an empty frame here would be a hole next
+              to the title, and unlike the shelf this page has no grid to keep
+              aligned. Decorative, so alt is empty — the h1 says the name. */}
+          {cookbook.coverImageUrl ? (
+            <Image
+              src={cookbook.coverImageUrl}
+              alt=""
+              width={96}
+              height={128}
+              sizes="96px"
+              className="h-32 w-24 shrink-0 rounded-md border border-border object-cover"
+            />
           ) : null}
+
+          <div className="min-w-0">
+            <h1 className="text-title-1">{cookbook.title}</h1>
+            {cookbook.description ? (
+              <p className="mt-2 text-foreground-secondary">
+                {cookbook.description}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -92,6 +109,7 @@ export default async function CookbookPage({
             <SettingsDialog
               title={cookbook.title}
               description={cookbook.description}
+              coverImageUrl={cookbook.coverImageUrl}
               impact={impact.value}
               updateAction={updateCookbookAction.bind(null, cookbook.id)}
               archiveAction={archiveCookbookAction.bind(

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import ModalDialog from "@/components/modal-dialog";
+import CoverImageField from "@/components/cover-image-field";
 import type { UpdateCookbookState, ArchiveCookbookState } from "./settings-actions";
 import type { ArchiveImpact } from "@/server/services/cookbook.service";
 
@@ -123,17 +124,23 @@ function ArchiveSection({
 export default function SettingsDialog({
   title,
   description,
+  coverImageUrl,
   updateAction,
   archiveAction,
   impact,
 }: {
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
   updateAction: UpdateAction;
   archiveAction: ArchiveAction;
   impact: ArchiveImpact;
 }) {
   const [state, submit, pending] = useActionState(updateAction, {});
+  // Seeded from the saved cover, then owned here — an upload can land at any
+  // point after render, and a rejected save must not discard it.
+  const [cover, setCover] = useState(coverImageUrl ?? "");
+  const [uploading, setUploading] = useState(false);
 
   return (
     <ModalDialog
@@ -190,6 +197,13 @@ export default function SettingsDialog({
             />
           </div>
 
+          <CoverImageField
+            value={cover}
+            onChange={setCover}
+            onUploadingChange={setUploading}
+          />
+          <input type="hidden" name="coverImageUrl" value={cover} />
+
           {state.error ? (
             <p role="alert" className="text-subheadline text-error">
               {state.error}
@@ -198,7 +212,7 @@ export default function SettingsDialog({
 
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || uploading}
             className="rounded-md bg-accent px-4 py-2 text-subheadline font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
           >
             {pending ? "Saving…" : "Save changes"}

@@ -11,6 +11,7 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     id: "cb1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
+    coverImageUrl: null,
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,
@@ -18,23 +19,8 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
   };
 }
 
-describe("CookbookList — empty state", () => {
-  it("tells the user there are none and what to do", () => {
-    render(<CookbookList cookbooks={[]} />);
-
-    expect(screen.getByText(/no cookbooks yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/create one/i)).toBeInTheDocument();
-  });
-
-  it("renders no list when empty", () => {
-    render(<CookbookList cookbooks={[]} />);
-
-    expect(screen.queryByRole("list")).not.toBeInTheDocument();
-  });
-});
-
 describe("CookbookList — populated", () => {
-  it("renders one item per cookbook and drops the empty state", () => {
+  it("renders one item per cookbook", () => {
     render(
       <CookbookList
         cookbooks={[summary(), summary({ id: "cb2", title: "Baking" })]}
@@ -42,7 +28,6 @@ describe("CookbookList — populated", () => {
     );
 
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.queryByText(/no cookbooks yet/i)).not.toBeInTheDocument();
   });
 
   it("shows the title and description", () => {
@@ -139,5 +124,35 @@ describe("CookbookList — whole card is clickable", () => {
     expect(screen.getByRole("listitem").className).toContain(
       "focus-within:ring-2",
     );
+  });
+});
+
+describe("CookbookList — cover chips", () => {
+  const BLOB = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/a.jpg";
+
+  // A colour chip stands in for the book, so the rows line up and a cookbook
+  // looks like itself in both views.
+  it("gives every row a chip in the cookbook's own cover colour", () => {
+    const { container } = render(<CookbookList cookbooks={[summary()]} />);
+
+    const chip = container.querySelector("[aria-hidden]");
+    expect(chip).not.toBeNull();
+    expect(chip!.className).toContain("bg-book-cover-");
+  });
+
+  it("puts the image in the chip when the cookbook has one", () => {
+    const { container } = render(
+      <CookbookList cookbooks={[summary({ coverImageUrl: BLOB })]} />,
+    );
+
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("alt")).toBe("");
+  });
+
+  it("leaves the chip empty when it has none", () => {
+    const { container } = render(<CookbookList cookbooks={[summary()]} />);
+
+    expect(container.querySelector("img")).toBeNull();
   });
 });

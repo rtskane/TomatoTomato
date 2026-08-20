@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOnboardedUser } from "@/lib/user";
+import { deleteCoverImage } from "@/server/blob";
 import {
   updateCookbook,
   archiveCookbook,
@@ -15,7 +16,7 @@ import {
 
 export type UpdateCookbookState = {
   error?: string;
-  values?: { title: string; description: string };
+  values?: { title: string; description: string; coverImageUrl: string };
 };
 
 export async function updateCookbookAction(
@@ -28,10 +29,17 @@ export async function updateCookbookAction(
   const values = {
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
+    coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
   };
 
   const result = await updateCookbook(user.id, cookbookId, values);
   if (!result.ok) return { error: result.error.message, values };
+
+  // Swapping or removing a cover leaves the old file behind. Deleting it here
+  // rather than in the service keeps the network call out of the layer that is
+  // meant to be testable without one; it is best-effort, and never fails the
+  // save that already succeeded.
+  await deleteCoverImage(result.value.orphanedCover);
 
   revalidatePath(`/cookbooks/${cookbookId}`);
   // The title is what the dashboard lists this cookbook by.

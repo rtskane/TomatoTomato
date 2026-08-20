@@ -11,7 +11,7 @@ import { createCookbook } from "@/server/services/cookbook.service";
 
 export type CreateCookbookState = {
   error?: string;
-  values?: { title: string; description: string };
+  values?: { title: string; description: string; coverImageUrl: string };
 };
 
 export async function createCookbookAction(
@@ -26,6 +26,10 @@ export async function createCookbookAction(
   const values = {
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
+    // A blob URL the browser uploaded to before submitting, or "" for no
+    // cover. Checked against the blob host by the service — the client could
+    // put anything in this field.
+    coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
   };
 
   const result = await createCookbook(user.id, values);

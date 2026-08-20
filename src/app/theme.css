@@ -162,6 +162,29 @@
   --warning: var(--status-warning);
   --warning-ink: var(--status-warning-ink);
   --info: var(--status-info);
+
+  /* Book covers — the shelf view on the dashboard.
+
+     Five covers, so a library reads as a shelf rather than a wall of one
+     colour. Which cover a cookbook gets is derived from its id, not stored:
+     the point is variety, and nobody chose these.
+
+     Each cover carries its own ink because the palette's fills sit at wildly
+     different luminance — white is the only legible ink on Worn Ruby (13.1:1)
+     and unreadable on Alpine Amber (1.7:1), where Worn Ruby gives 7.9:1. The
+     ratios below are for the cover title, which is bold 20px and therefore
+     "large text" under WCAG, needing 3:1. Garnet is the only one that leans on
+     that; the rest clear 4.5:1 outright. */
+  --book-cover-1: var(--neutral-900); /* Worn Ruby       · ink 13.1:1 */
+  --book-ink-1: var(--neutral-000);
+  --book-cover-2: var(--accent-500); /* Garnet Crystal  · ink  4.3:1 */
+  --book-ink-2: var(--accent-contrast);
+  --book-cover-3: var(--bronze-400); /* Dusty Bronze    · ink  5.1:1 */
+  --book-ink-3: var(--neutral-900);
+  --book-cover-4: var(--amber-300); /* Alpine Amber    · ink  7.9:1 */
+  --book-ink-4: var(--neutral-900);
+  --book-cover-5: var(--ochre-500); /* Forest Ochre    · ink  5.9:1 */
+  --book-ink-5: var(--neutral-900);
 }
 
 /* -----------------------------------------------------------------------------
@@ -215,6 +238,21 @@
   --color-warning: var(--warning);
   --color-warning-ink: var(--warning-ink);
   --color-info: var(--info);
+
+  /* Book covers → bg-book-cover-1, text-book-ink-1, …
+     The spine and page-edge shading is the ink at low alpha rather than two
+     more tokens per cover: on a dark cover that reads as an edge catching the
+     light, on a light one as one falling into shadow. Both read as a spine. */
+  --color-book-cover-1: var(--book-cover-1);
+  --color-book-ink-1: var(--book-ink-1);
+  --color-book-cover-2: var(--book-cover-2);
+  --color-book-ink-2: var(--book-ink-2);
+  --color-book-cover-3: var(--book-cover-3);
+  --color-book-ink-3: var(--book-ink-3);
+  --color-book-cover-4: var(--book-cover-4);
+  --color-book-ink-4: var(--book-ink-4);
+  --color-book-cover-5: var(--book-cover-5);
+  --color-book-ink-5: var(--book-ink-5);
 
   /* Typefaces → font-sans, font-serif, font-mono */
   --font-sans: var(--font-sans-stack);

@@ -19,6 +19,7 @@ describe("cookbookRepository.create", () => {
     ownerId: "u1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
+        coverImageUrl: null,
   };
 
   it("writes the cookbook fields", async () => {

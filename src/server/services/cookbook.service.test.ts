@@ -11,6 +11,7 @@ const {
   restore,
   listArchivedForOwner,
   findWithCounts,
+  findCover,
   countByOtherAuthors,
 } = vi.hoisted(() => ({
   create: vi.fn(),
@@ -22,6 +23,7 @@ const {
   restore: vi.fn(),
   listArchivedForOwner: vi.fn(),
   findWithCounts: vi.fn(),
+  findCover: vi.fn(),
   countByOtherAuthors: vi.fn(),
 }));
 vi.mock("@/server/repositories/cookbook.repository", () => ({
@@ -35,6 +37,7 @@ vi.mock("@/server/repositories/cookbook.repository", () => ({
     restore,
     listArchivedForOwner,
     findWithCounts,
+    findCover,
   },
 }));
 vi.mock("@/server/repositories/recipe.repository", () => ({
@@ -54,6 +57,9 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Every update reads the current cover before overwriting it; unless a test
+  // says otherwise, there isn't one.
+  findCover.mockResolvedValue({ coverImageUrl: null });
 });
 
 describe("createCookbook", () => {
@@ -89,6 +95,7 @@ describe("createCookbook", () => {
       ownerId: "u1",
       title: "Weeknight Dinners",
       description: "Fast meals.",
+      coverImageUrl: null,
     });
   });
 
@@ -101,6 +108,7 @@ describe("createCookbook", () => {
       ownerId: "u1",
       title: "Weeknight Dinners",
       description: null,
+      coverImageUrl: null,
     });
   });
 
@@ -340,6 +348,7 @@ describe("updateCookbook", () => {
     expect(update).toHaveBeenCalledWith("cb1", {
       title: "Sunday Roasts",
       description: "Slow food.",
+      coverImageUrl: null,
     });
   });
 
@@ -528,5 +537,139 @@ describe("getCookbookDetail — edit permission", () => {
 
     expect(detail?.canEditCookbook).toBe(false);
     expect(detail?.canAddRecipes).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cover images
+// ---------------------------------------------------------------------------
+
+const BLOB = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/a.jpg";
+const BLOB_2 = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/b.jpg";
+
+describe("createCookbook — cover", () => {
+  it("stores the cover it was given", async () => {
+    create.mockResolvedValue({ id: "cb1" });
+
+    await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: BLOB,
+    });
+
+    expect(create.mock.calls[0][0].coverImageUrl).toBe(BLOB);
+  });
+
+  it("stores no cover as null rather than an empty string", async () => {
+    create.mockResolvedValue({ id: "cb1" });
+
+    await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: "",
+    });
+
+    expect(create.mock.calls[0][0].coverImageUrl).toBeNull();
+  });
+
+  // The URL arrives from the browser, so a cookbook must not be creatable with
+  // a cover pointing anywhere we don't serve.
+  it("refuses a cover hosted somewhere else, and writes nothing", async () => {
+    const result = await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: "https://evil.example.com/x.jpg",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateCookbook — cover", () => {
+  beforeEach(() => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    update.mockResolvedValue({ id: "cb1" });
+  });
+
+  it("sets a cover on a cookbook that had none", async () => {
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: BLOB,
+    });
+
+    expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.orphanedCover).toBeNull();
+  });
+
+  // The old file would otherwise sit in the store forever, paid for and
+  // unreachable.
+  it("reports the replaced cover so the caller can delete it", async () => {
+    findCover.mockResolvedValue({ coverImageUrl: BLOB });
+
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: BLOB_2,
+    });
+
+    expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB_2);
+    if (result.ok) expect(result.value.orphanedCover).toBe(BLOB);
+  });
+
+  it("reports the removed cover when the cover is cleared", async () => {
+    findCover.mockResolvedValue({ coverImageUrl: BLOB });
+
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: "",
+    });
+
+    expect(update.mock.calls[0][1].coverImageUrl).toBeNull();
+    if (result.ok) expect(result.value.orphanedCover).toBe(BLOB);
+  });
+
+  // The dangerous case: renaming a cookbook must not delete the picture it
+  // still uses.
+  it("orphans nothing when the cover is resubmitted unchanged", async () => {
+    findCover.mockResolvedValue({ coverImageUrl: BLOB });
+
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "A new name",
+      description: "",
+      coverImageUrl: BLOB,
+    });
+
+    expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB);
+    if (result.ok) expect(result.value.orphanedCover).toBeNull();
+  });
+
+  it("refuses a cover hosted somewhere else, and writes nothing", async () => {
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: "https://evil.example.com/x.jpg",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  // Ownership is checked before anything is read or written.
+  it("never reads the current cover for someone who can't edit", async () => {
+    findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    const result = await updateCookbook("u1", "cb1", {
+      title: "Mine now",
+      description: "",
+      coverImageUrl: BLOB,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(findCover).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 });
