@@ -9,11 +9,13 @@ type CreateCookbookInput = {
   ownerId: string;
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
 };
 
 type UpdateCookbookInput = {
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
 };
 
 /**
@@ -45,11 +47,12 @@ export const cookbookRepository = {
    * relations. Prisma runs a nested create in one transaction, so a cookbook can
    * never exist without its owner's membership row.
    */
-  create({ ownerId, title, description }: CreateCookbookInput) {
+  create({ ownerId, title, description, coverImageUrl }: CreateCookbookInput) {
     return prisma.cookbook.create({
       data: {
         title,
         description,
+        coverImageUrl,
         ownerId,
         members: { create: { userId: ownerId, role: CookbookRole.OWNER } },
       },
@@ -75,6 +78,7 @@ export const cookbookRepository = {
             id: true,
             title: true,
             description: true,
+            coverImageUrl: true,
             updatedAt: true,
             _count: { select: { recipes: true, members: true } },
           },
@@ -103,6 +107,7 @@ export const cookbookRepository = {
             id: true,
             title: true,
             description: true,
+            coverImageUrl: true,
             recipes: {
               orderBy: { createdAt: "desc" },
               select: {
@@ -205,11 +210,29 @@ export const cookbookRepository = {
     });
   },
 
-  update(cookbookId: string, { title, description }: UpdateCookbookInput) {
+  update(
+    cookbookId: string,
+    { title, description, coverImageUrl }: UpdateCookbookInput,
+  ) {
     return prisma.cookbook.update({
       where: { id: cookbookId },
-      data: { title, description },
+      data: { title, description, coverImageUrl },
       select: { id: true },
+    });
+  },
+
+  /**
+   * The cover a cookbook currently has, read before an update overwrites it.
+   *
+   * Replacing or clearing a cover leaves the old file sitting in blob storage
+   * paying rent forever, so the service hands the orphaned URL back to its
+   * caller to delete. Reading it needs its own query because `update` returns
+   * the row as it is *after* the write.
+   */
+  findCover(cookbookId: string) {
+    return prisma.cookbook.findUnique({
+      where: { id: cookbookId },
+      select: { coverImageUrl: true },
     });
   },
 

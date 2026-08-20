@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import CookbookShelf, { coverFor } from "./cookbook-shelf";
+import CookbookShelf from "./cookbook-shelf";
+import { coverFor } from "./book-covers";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 
 afterEach(cleanup);
@@ -11,6 +12,7 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     id: "cb1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
+    coverImageUrl: null,
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,
@@ -133,5 +135,34 @@ describe("CookbookShelf — the whole book is clickable", () => {
     expect(screen.getByRole("listitem").className).toContain(
       "focus-within:ring-2",
     );
+  });
+});
+
+describe("CookbookShelf — cover images", () => {
+  const BLOB = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/a.jpg";
+
+  it("prints the title on the cover when there is no image", () => {
+    render(<CookbookShelf cookbooks={[summary()]} />);
+
+    // Once on the cover, once on the shelf label below it.
+    expect(screen.getAllByText("Weeknight Dinners")).toHaveLength(2);
+  });
+
+  it("shows the image instead of the printed title when there is one", () => {
+    render(<CookbookShelf cookbooks={[summary({ coverImageUrl: BLOB })]} />);
+
+    const img = screen.getByRole("presentation", { hidden: true });
+    expect(img.tagName).toBe("IMG");
+    // The name is now only the label below, so it appears once.
+    expect(screen.getAllByText("Weeknight Dinners")).toHaveLength(1);
+  });
+
+  // The book keeps its shape: an image swaps for the frame, not for the book.
+  it("keeps naming the cookbook underneath either way", () => {
+    render(<CookbookShelf cookbooks={[summary({ coverImageUrl: BLOB })]} />);
+
+    expect(
+      screen.getByRole("link", { name: "Weeknight Dinners" }),
+    ).toHaveAttribute("href", "/cookbooks/cb1");
   });
 });

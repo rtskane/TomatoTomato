@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import CoverImageField from "@/components/cover-image-field";
 import type { CreateCookbookState } from "./actions";
 
 const initialState: CreateCookbookState = {};
@@ -20,6 +21,11 @@ export default function CookbookForm({
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const titleRef = useRef<HTMLInputElement>(null);
+  // The cover lives here rather than in the DOM: it is set by an upload that
+  // finishes long after the field was rendered, and it has to survive the
+  // re-render a rejected submit causes.
+  const [coverImageUrl, setCoverImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   // Move focus to the field that needs attention when the server rejects.
   useEffect(() => {
@@ -72,6 +78,13 @@ export default function CookbookForm({
         </p>
       </div>
 
+      <CoverImageField
+        value={coverImageUrl}
+        onChange={setCoverImageUrl}
+        onUploadingChange={setUploading}
+      />
+      <input type="hidden" name="coverImageUrl" value={coverImageUrl} />
+
       {hasError ? (
         <p id="title-error" role="alert" className="text-subheadline text-error">
           {state.error}
@@ -81,7 +94,9 @@ export default function CookbookForm({
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={pending}
+          // Submitting mid-upload would create the cookbook without the cover
+          // the user just picked, with nothing to show why.
+          disabled={pending || uploading}
           className="rounded-md bg-accent px-4 py-2 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
         >
           {pending ? "Creating…" : "Create cookbook"}

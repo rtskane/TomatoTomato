@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import LinkPending from "@/components/link-pending";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 import CookbookMeta from "./cookbook-meta";
+import { coverFor } from "./book-covers";
 
 // Presentational: props in, markup out. The list view — one row per cookbook,
 // dense enough to scan a long library at a glance. The empty state belongs to
@@ -21,7 +23,25 @@ export default function CookbookList({
           key={cookbook.id}
           className="group relative flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-background-secondary focus-within:ring-2 focus-within:ring-border-input-strong"
         >
-          <div className="min-w-0">
+          {/* A book-shaped chip, in the same colour this cookbook wears on the
+              shelf, so switching views doesn't feel like a different library.
+              Decorative — the title is right beside it. */}
+          <div
+            aria-hidden
+            className={`relative h-12 w-9 shrink-0 overflow-hidden rounded-xs rounded-l-[1px] ${coverFor(cookbook.id).face}`}
+          >
+            {cookbook.coverImageUrl ? (
+              <Image
+                src={cookbook.coverImageUrl}
+                alt=""
+                fill
+                sizes="36px"
+                className="object-cover"
+              />
+            ) : null}
+          </div>
+
+          <div className="min-w-0 flex-1">
             {/*
               Stretched-link pattern: one real anchor on the title, with an
               invisible ::after overlaying the entire row. The whole box is

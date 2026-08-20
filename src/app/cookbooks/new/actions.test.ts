@@ -52,6 +52,7 @@ describe("createCookbookAction", () => {
     expect(createCookbook).toHaveBeenCalledWith("u1", {
       title: "Weeknight Dinners",
       description: "Fast meals.",
+      coverImageUrl: "",
     });
   });
 
@@ -62,7 +63,7 @@ describe("createCookbookAction", () => {
       error: { kind: "validation", message: "Give your cookbook a title." },
     });
 
-    const values = { title: "", description: "" };
+    const values = { title: "", description: "", coverImageUrl: "" };
     const result = await createCookbookAction({}, formOf(values));
 
     expect(result).toEqual({ error: "Give your cookbook a title.", values });
@@ -93,6 +94,7 @@ describe("createCookbookAction", () => {
     expect(createCookbook).toHaveBeenCalledWith("u1", {
       title: "",
       description: "",
+      coverImageUrl: "",
     });
   });
 });

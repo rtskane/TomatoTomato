@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   cookbookTitleSchema,
   cookbookDescriptionSchema,
+  coverImageUrlSchema,
   createCookbookSchema,
+  isCoverImageUrl,
 } from "./cookbook";
 
 describe("cookbookTitleSchema", () => {
@@ -86,5 +88,91 @@ describe("createCookbookSchema", () => {
     expect(
       createCookbookSchema.safeParse({ title: "", description: "" }).success,
     ).toBe(false);
+  });
+});
+
+// The cover URL is the one field a client can put anything in: the browser
+// uploads the file itself and posts back whatever URL it likes. These tests are
+// the guard on what may be stored.
+const BLOB = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/x.jpg";
+
+describe("isCoverImageUrl", () => {
+  it("accepts a URL from our blob store", () => {
+    expect(isCoverImageUrl(BLOB)).toBe(true);
+  });
+
+  it("rejects any other host", () => {
+    expect(isCoverImageUrl("https://evil.example.com/x.jpg")).toBe(false);
+  });
+
+  // The check is a suffix match, so a host that merely *ends* with ours after
+  // an attacker-controlled prefix is the case worth pinning down.
+  it("rejects a lookalike host that only ends with the blob domain", () => {
+    expect(
+      isCoverImageUrl("https://public.blob.vercel-storage.com.evil.com/x.jpg"),
+    ).toBe(false);
+  });
+
+  it("rejects the bare blob domain with no store id", () => {
+    expect(isCoverImageUrl("https://public.blob.vercel-storage.com/x.jpg")).toBe(
+      false,
+    );
+  });
+
+  it("rejects plain http", () => {
+    expect(
+      isCoverImageUrl("http://abc.public.blob.vercel-storage.com/x.jpg"),
+    ).toBe(false);
+  });
+
+  it("rejects non-http schemes", () => {
+    expect(isCoverImageUrl("javascript:alert(1)")).toBe(false);
+    expect(isCoverImageUrl("data:image/png;base64,AAAA")).toBe(false);
+  });
+
+  it("rejects text that isn't a URL at all", () => {
+    expect(isCoverImageUrl("not a url")).toBe(false);
+    expect(isCoverImageUrl("")).toBe(false);
+  });
+});
+
+describe("coverImageUrlSchema", () => {
+  it("accepts a blob URL", () => {
+    expect(coverImageUrlSchema.parse(BLOB)).toBe(BLOB);
+  });
+
+  // "" is what an untouched form field sends, and it has to mean "no cover"
+  // rather than an invalid URL.
+  it("turns an empty field into undefined, so it stores as null", () => {
+    expect(coverImageUrlSchema.parse("")).toBeUndefined();
+    expect(coverImageUrlSchema.parse("   ")).toBeUndefined();
+  });
+
+  it("rejects a URL from anywhere else", () => {
+    expect(coverImageUrlSchema.safeParse("https://evil.example.com/x.jpg").success).toBe(false);
+  });
+});
+
+describe("createCookbookSchema — cover", () => {
+  it("parses a cookbook with a cover", () => {
+    const parsed = createCookbookSchema.parse({
+      title: "Baking",
+      description: "",
+      coverImageUrl: BLOB,
+    });
+    expect(parsed.coverImageUrl).toBe(BLOB);
+  });
+
+  it("is happy with no cover field at all", () => {
+    const parsed = createCookbookSchema.parse({ title: "Baking" });
+    expect(parsed.coverImageUrl).toBeUndefined();
+  });
+
+  it("fails the whole cookbook when the cover is somewhere we don't host", () => {
+    const result = createCookbookSchema.safeParse({
+      title: "Baking",
+      coverImageUrl: "https://evil.example.com/x.jpg",
+    });
+    expect(result.success).toBe(false);
   });
 });

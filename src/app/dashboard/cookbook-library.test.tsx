@@ -17,6 +17,7 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     id: "cb1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
+    coverImageUrl: null,
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,

@@ -57,7 +57,7 @@ describe("CookbookForm", () => {
   it("surfaces a server error in an alert and marks the title invalid", async () => {
     const action = vi.fn(async () => ({
       error: "Give your cookbook a title.",
-      values: { title: "", description: "" },
+      values: { title: "", description: "", coverImageUrl: "" },
     }));
     render(<CookbookForm action={action} />);
 
@@ -80,7 +80,7 @@ describe("CookbookForm", () => {
   it("repopulates the form from the values echoed back by the server", async () => {
     const action = vi.fn(async () => ({
       error: "Title must be 80 characters or fewer.",
-      values: { title: "a long title", description: "Fast meals." },
+      values: { title: "a long title", description: "Fast meals.", coverImageUrl: "" },
     }));
     render(<CookbookForm action={action} />);
 

@@ -53,6 +53,7 @@ describe("updateCookbookAction", () => {
     expect(updateCookbook).toHaveBeenCalledWith("owner1", "cb1", {
       title: "New name",
       description: "",
+      coverImageUrl: "",
     });
   });
 
