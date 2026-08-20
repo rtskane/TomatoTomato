@@ -11,7 +11,13 @@ import { createCookbook } from "@/server/services/cookbook.service";
 
 export type CreateCookbookState = {
   error?: string;
-  values?: { title: string; description: string; coverImageUrl: string };
+  values?: {
+    title: string;
+    description: string;
+    coverImageUrl: string;
+    coverColor: string;
+    coverStyle: string;
+  };
 };
 
 export async function createCookbookAction(
@@ -30,6 +36,11 @@ export async function createCookbookAction(
     // cover. Checked against the blob host by the service — the client could
     // put anything in this field.
     coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
+    // Posted by the cover designer's radios. Empty when the request didn't
+    // come from it at all, which the schema reads as "unchosen" rather than
+    // as an error — see createCookbookSchema.
+    coverColor: String(formData.get("coverColor") ?? ""),
+    coverStyle: String(formData.get("coverStyle") ?? ""),
   };
 
   const result = await createCookbook(user.id, values);

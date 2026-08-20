@@ -12,6 +12,8 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     title: "Weeknight Dinners",
     description: "Fast meals.",
     coverImageUrl: null,
+    coverColor: 1,
+    coverStyle: "TITLED",
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,
@@ -135,14 +137,17 @@ describe("CookbookList — cover chips", () => {
   it("gives every row a chip in the cookbook's own cover colour", () => {
     const { container } = render(<CookbookList cookbooks={[summary()]} />);
 
-    const chip = container.querySelector("[aria-hidden]");
+    // The wrapper carries aria-hidden; the book itself is the div inside it.
+    const chip = container.querySelector("[aria-hidden] > div");
     expect(chip).not.toBeNull();
-    expect(chip!.className).toContain("bg-book-cover-");
+    expect(chip!.className).toContain("bg-book-cover-1");
   });
 
   it("puts the image in the chip when the cookbook has one", () => {
     const { container } = render(
-      <CookbookList cookbooks={[summary({ coverImageUrl: BLOB })]} />,
+      <CookbookList
+        cookbooks={[summary({ coverImageUrl: BLOB, coverStyle: "PHOTO" })]}
+      />,
     );
 
     const img = container.querySelector("img");

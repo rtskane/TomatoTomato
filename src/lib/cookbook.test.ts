@@ -3,9 +3,12 @@ import {
   cookbookTitleSchema,
   cookbookDescriptionSchema,
   coverImageUrlSchema,
+  coverColorSchema,
+  coverStyleSchema,
   createCookbookSchema,
   isCoverImageUrl,
 } from "./cookbook";
+import { COVER_COUNT } from "./book-covers";
 
 describe("cookbookTitleSchema", () => {
   it("accepts a normal title", () => {
@@ -73,6 +76,9 @@ describe("createCookbookSchema", () => {
     expect(parsed).toEqual({
       title: "Weeknight Dinners",
       description: "Fast meals.",
+      // Settled by the schema even though the payload never mentioned it —
+      // a cover has to render as something.
+      coverStyle: "TITLED",
     });
   });
 
@@ -174,5 +180,86 @@ describe("createCookbookSchema — cover", () => {
       coverImageUrl: "https://evil.example.com/x.jpg",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("coverColorSchema", () => {
+  it("accepts a colour the palette actually has", () => {
+    expect(coverColorSchema.parse("3")).toBe(3);
+  });
+
+  it("reads an empty field as unchosen rather than as zero", () => {
+    expect(coverColorSchema.parse("")).toBeUndefined();
+    expect(coverColorSchema.parse("  ")).toBeUndefined();
+  });
+
+  it("reads an absent field as unchosen too", () => {
+    expect(coverColorSchema.parse(undefined)).toBeUndefined();
+  });
+
+  // Not something a user can trip — the designer only submits numbers it drew
+  // a swatch for. This is the guard against a hand-made POST.
+  it("refuses a colour outside the palette", () => {
+    for (const bad of ["0", "-1", String(COVER_COUNT + 1), "1.5", "red"]) {
+      expect(coverColorSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe("coverStyleSchema", () => {
+  it("accepts the styles the database stores", () => {
+    expect(coverStyleSchema.parse("PHOTO")).toBe("PHOTO");
+    expect(coverStyleSchema.parse("PLAIN")).toBe("PLAIN");
+  });
+
+  it("reads empty and absent alike as unsaid", () => {
+    expect(coverStyleSchema.parse("")).toBeUndefined();
+    expect(coverStyleSchema.parse(undefined)).toBeUndefined();
+  });
+
+  it("refuses a style that isn't one", () => {
+    expect(coverStyleSchema.safeParse("titled").success).toBe(false);
+    expect(coverStyleSchema.safeParse("FANCY").success).toBe(false);
+  });
+});
+
+describe("createCookbookSchema — settling the cover style", () => {
+  it("keeps the style the designer chose", () => {
+    const parsed = createCookbookSchema.parse({
+      title: "Baking",
+      coverColor: "4",
+      coverStyle: "PLAIN",
+    });
+    expect(parsed).toMatchObject({ coverColor: 4, coverStyle: "PLAIN" });
+  });
+
+  // The pre-designer rule, so adding these fields broke no existing caller:
+  // a cookbook with a picture showed the picture, one without showed its title.
+  it("infers PHOTO from a picture when the caller says nothing", () => {
+    const parsed = createCookbookSchema.parse({
+      title: "Baking",
+      coverImageUrl: BLOB,
+    });
+    expect(parsed.coverStyle).toBe("PHOTO");
+  });
+
+  it("infers TITLED with no picture and nothing said", () => {
+    expect(createCookbookSchema.parse({ title: "Baking" }).coverStyle).toBe(
+      "TITLED",
+    );
+  });
+
+  // Nothing for the user to fix — it means the upload failed or the image was
+  // removed after the style was picked. Refusing the save would hold their
+  // title and description hostage to it.
+  it("folds PHOTO-with-no-picture back to TITLED instead of failing", () => {
+    const result = createCookbookSchema.safeParse({
+      title: "Baking",
+      coverStyle: "PHOTO",
+      coverImageUrl: "",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.coverStyle).toBe("TITLED");
   });
 });

@@ -163,11 +163,21 @@
   --warning-ink: var(--status-warning-ink);
   --info: var(--status-info);
 
-  /* Book covers — the shelf view on the dashboard.
+  /* Book covers — the shelf view on the dashboard, and the cover designer.
 
-     Five covers, so a library reads as a shelf rather than a wall of one
-     colour. Which cover a cookbook gets is derived from its id, not stored:
-     the point is variety, and nobody chose these.
+     Eight covers, so a library reads as a shelf rather than a wall of one
+     colour. A cookbook's cover is now *chosen* (see `Cookbook.coverColor`);
+     the id-derived cover is only the starting suggestion for one nobody has
+     opened the designer on yet. That is why there are eight and not five: five
+     is enough for incidental variety, but a palette someone picks from wants
+     range — three dark, two mid, three light — so two books side by side can
+     be told apart on purpose rather than by luck. Going from five to eight
+     re-derives the suggestion for undesigned cookbooks, so some existing books
+     change colour once; see derivedCoverColor in lib/book-covers.ts.
+
+     Every cover here is a recombination of layer-1 primitives that already
+     existed; covers 6–8 add no new hexes. Keeping the swap zone closed is the
+     point — re-point the primitives and the whole shelf re-themes with them.
 
      Each cover carries its own ink because the palette's fills sit at wildly
      different luminance — white is the only legible ink on Worn Ruby (13.1:1)
@@ -185,6 +195,15 @@
   --book-ink-4: var(--neutral-900);
   --book-cover-5: var(--ochre-500); /* Forest Ochre    · ink  5.9:1 */
   --book-ink-5: var(--neutral-900);
+  --book-cover-6: var(--accent-800); /* Oxblood         · ink  7.7:1 */
+  --book-ink-6: var(--neutral-000);
+  --book-cover-7: var(--bronze-800); /* Deep Olive      · ink  6.7:1 */
+  --book-ink-7: var(--neutral-000);
+  /* The one pale cover. Its ink is the darkest neutral rather than white, and
+     it is the only cover whose spine needs the ink at a heavier alpha to read
+     as an edge at all — see `shade` in lib/book-covers.ts. */
+  --book-cover-8: var(--neutral-200); /* Linen          · ink  9.6:1 */
+  --book-ink-8: var(--neutral-900);
 }
 
 /* -----------------------------------------------------------------------------
@@ -253,6 +272,12 @@
   --color-book-ink-4: var(--book-ink-4);
   --color-book-cover-5: var(--book-cover-5);
   --color-book-ink-5: var(--book-ink-5);
+  --color-book-cover-6: var(--book-cover-6);
+  --color-book-ink-6: var(--book-ink-6);
+  --color-book-cover-7: var(--book-cover-7);
+  --color-book-ink-7: var(--book-ink-7);
+  --color-book-cover-8: var(--book-cover-8);
+  --color-book-ink-8: var(--book-ink-8);
 
   /* Typefaces → font-sans, font-serif, font-mono */
   --font-sans: var(--font-sans-stack);

@@ -54,6 +54,8 @@ describe("updateCookbookAction", () => {
       title: "New name",
       description: "",
       coverImageUrl: "",
+      coverColor: "",
+      coverStyle: "",
     });
   });
 

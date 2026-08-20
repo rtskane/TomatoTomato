@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { derivedCoverColor } from "@/lib/book-covers";
 
 // Fully replace the repository module so real Prisma is never imported.
 const {
@@ -96,6 +97,10 @@ describe("createCookbook", () => {
       title: "Weeknight Dinners",
       description: "Fast meals.",
       coverImageUrl: null,
+      // Nothing was chosen, so nothing is stored — the colour keeps being
+      // derived from the id.
+      coverColor: null,
+      coverStyle: "TITLED",
     });
   });
 
@@ -109,6 +114,8 @@ describe("createCookbook", () => {
       title: "Weeknight Dinners",
       description: null,
       coverImageUrl: null,
+      coverColor: null,
+      coverStyle: "TITLED",
     });
   });
 
@@ -139,6 +146,10 @@ describe("listUserCookbooks", () => {
       id: "cb1",
       title: "Weeknight Dinners",
       description: "Fast meals.",
+      // Null: a cookbook nobody has designed, which is what every row looked
+      // like before the designer shipped.
+      coverColor: null,
+      coverStyle: "TITLED",
       updatedAt: new Date("2026-08-01"),
       _count: { recipes: 3, members: 2 },
     },
@@ -167,6 +178,10 @@ describe("listUserCookbooks", () => {
         id: "cb1",
         title: "Weeknight Dinners",
         description: "Fast meals.",
+        // Resolved here, so the view is handed a colour rather than a null to
+        // work out for itself.
+        coverColor: derivedCoverColor("cb1"),
+        coverStyle: "TITLED",
         role: "OWNER",
         recipeCount: 3,
         memberCount: 2,
@@ -349,6 +364,8 @@ describe("updateCookbook", () => {
       title: "Sunday Roasts",
       description: "Slow food.",
       coverImageUrl: null,
+      coverColor: null,
+      coverStyle: "TITLED",
     });
   });
 
@@ -671,5 +688,135 @@ describe("updateCookbook — cover", () => {
     expect(result.ok).toBe(false);
     expect(findCover).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The designed cover — colour and style
+// ---------------------------------------------------------------------------
+
+describe("createCookbook — the designed cover", () => {
+  it("stores the colour and style the designer posted", async () => {
+    create.mockResolvedValue({ id: "cb1" });
+
+    await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverColor: "6",
+      coverStyle: "PLAIN",
+    });
+
+    expect(create.mock.calls[0][0]).toMatchObject({
+      coverColor: 6,
+      coverStyle: "PLAIN",
+    });
+  });
+
+  // Storing the derived colour would freeze a colour nobody picked, and make
+  // it indistinguishable from one somebody did.
+  it("stores an unchosen colour as null rather than as the derived one", async () => {
+    create.mockResolvedValue({ id: "cb1" });
+
+    await createCookbook("u1", { title: "Baking", description: "" });
+
+    expect(create.mock.calls[0][0].coverColor).toBeNull();
+  });
+
+  it("refuses a colour the palette doesn't have, and writes nothing", async () => {
+    const result = await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverColor: "99",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("saves rather than fails when PHOTO arrives with no picture", async () => {
+    create.mockResolvedValue({ id: "cb1" });
+
+    const result = await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverStyle: "PHOTO",
+      coverImageUrl: "",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(create.mock.calls[0][0].coverStyle).toBe("TITLED");
+  });
+});
+
+describe("updateCookbook — the designed cover", () => {
+  beforeEach(() => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    update.mockResolvedValue({ id: "cb1" });
+  });
+
+  it("writes a redesigned cover", async () => {
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverColor: "8",
+      coverStyle: "PLAIN",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(update.mock.calls[0][1]).toMatchObject({
+      coverColor: 8,
+      coverStyle: "PLAIN",
+    });
+  });
+
+  // Switching a photo cover back to a colour keeps the picture, so switching
+  // forward again needs no re-upload — and nothing is orphaned.
+  it("keeps the picture when the style moves off PHOTO", async () => {
+    findCover.mockResolvedValue({ coverImageUrl: BLOB });
+
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: BLOB,
+      coverColor: "2",
+      coverStyle: "TITLED",
+    });
+
+    expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.orphanedCover).toBeNull();
+  });
+});
+
+describe("listUserCookbooks — resolving the colour", () => {
+  function rowWith(coverColor: number | null) {
+    return {
+      role: "OWNER",
+      cookbook: {
+        id: "cb1",
+        title: "Baking",
+        description: null,
+        coverImageUrl: null,
+        coverColor,
+        coverStyle: "TITLED",
+        updatedAt: new Date("2026-08-01"),
+        _count: { recipes: 0, members: 1 },
+      },
+    };
+  }
+
+  it("hands the view the stored choice", async () => {
+    listForUser.mockResolvedValue([rowWith(4)]);
+
+    const [summary] = await listUserCookbooks("u1");
+    expect(summary.coverColor).toBe(4);
+  });
+
+  // The view is handed a colour, never a null it has to work out for itself.
+  it("hands the view a derived colour when nobody has chosen", async () => {
+    listForUser.mockResolvedValue([rowWith(null)]);
+
+    const [summary] = await listUserCookbooks("u1");
+    expect(summary.coverColor).toBe(derivedCoverColor("cb1"));
   });
 });

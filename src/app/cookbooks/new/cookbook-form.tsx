@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import CoverImageField from "@/components/cover-image-field";
+import CoverDesigner from "@/components/cover-designer";
 import type { CreateCookbookState } from "./actions";
 
 const initialState: CreateCookbookState = {};
@@ -16,15 +16,19 @@ type CreateCookbookAction = (
 // by the container. Its job is a semantic, accessible form.
 export default function CookbookForm({
   action,
+  suggestedCoverColor,
 }: {
   action: CreateCookbookAction;
+  /** Drawn on the server — see `suggestCoverColor` for why not here. */
+  suggestedCoverColor: number;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const titleRef = useRef<HTMLInputElement>(null);
-  // The cover lives here rather than in the DOM: it is set by an upload that
-  // finishes long after the field was rendered, and it has to survive the
-  // re-render a rejected submit causes.
-  const [coverImageUrl, setCoverImageUrl] = useState("");
+  // A mirror of the title input, kept only so the cover preview can show the
+  // real book while it is being named. The input stays uncontrolled — this
+  // listens to it, it does not drive it — so submission still reads the DOM
+  // and a rejected save can't blank the field out from under the typist.
+  const [title, setTitle] = useState(state.values?.title ?? "");
   const [uploading, setUploading] = useState(false);
 
   // Move focus to the field that needs attention when the server rejects.
@@ -51,6 +55,7 @@ export default function CookbookForm({
           required
           placeholder="Weeknight Dinners"
           defaultValue={state.values?.title}
+          onChange={(e) => setTitle(e.target.value)}
           className={fieldClass}
           aria-invalid={hasError || undefined}
           aria-describedby={hasError ? "title-error" : undefined}
@@ -78,12 +83,12 @@ export default function CookbookForm({
         </p>
       </div>
 
-      <CoverImageField
-        value={coverImageUrl}
-        onChange={setCoverImageUrl}
+      <CoverDesigner
+        title={title}
+        defaultCoverColor={suggestedCoverColor}
+        defaultCoverStyle="TITLED"
         onUploadingChange={setUploading}
       />
-      <input type="hidden" name="coverImageUrl" value={coverImageUrl} />
 
       {hasError ? (
         <p id="title-error" role="alert" className="text-subheadline text-error">

@@ -16,7 +16,13 @@ import {
 
 export type UpdateCookbookState = {
   error?: string;
-  values?: { title: string; description: string; coverImageUrl: string };
+  values?: {
+    title: string;
+    description: string;
+    coverImageUrl: string;
+    coverColor: string;
+    coverStyle: string;
+  };
 };
 
 export async function updateCookbookAction(
@@ -30,6 +36,11 @@ export async function updateCookbookAction(
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
     coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
+    // Posted by the cover designer's radios. Empty when the request didn't
+    // come from it at all, which the schema reads as "unchosen" rather than
+    // as an error — see createCookbookSchema.
+    coverColor: String(formData.get("coverColor") ?? ""),
+    coverStyle: String(formData.get("coverStyle") ?? ""),
   };
 
   const result = await updateCookbook(user.id, cookbookId, values);

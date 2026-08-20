@@ -2,7 +2,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import CookbookShelf from "./cookbook-shelf";
-import { coverFor } from "./book-covers";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 
 afterEach(cleanup);
@@ -13,6 +12,8 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     title: "Weeknight Dinners",
     description: "Fast meals.",
     coverImageUrl: null,
+    coverColor: 1,
+    coverStyle: "TITLED",
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,
@@ -58,28 +59,22 @@ describe("CookbookShelf — the shelf", () => {
 });
 
 describe("CookbookShelf — covers", () => {
-  // Stable, because a cookbook changing colour between visits would read as a
-  // different cookbook.
-  it("gives an id the same cover every time", () => {
-    expect(coverFor("cb1")).toBe(coverFor("cb1"));
-  });
+  // The palette itself is tested in lib/book-covers.test.ts, and the book face
+  // in components/book-cover.test.tsx. What matters here is that the shelf
+  // paints the colour the cookbook was given rather than one of its own.
+  it("paints each book in its own chosen colour", () => {
+    const { container } = render(
+      <CookbookShelf
+        cookbooks={[
+          summary({ coverColor: 2 }),
+          summary({ id: "cb2", title: "Baking", coverColor: 7 }),
+        ]}
+      />,
+    );
 
-  it("spreads different ids across the covers", () => {
-    const ids = ["cba", "cbb", "cbc", "cbd", "cbe"];
-    const faces = new Set(ids.map((id) => coverFor(id).face));
-
-    // Consecutive ids differ by one in the sum, so they land on five different
-    // covers — the case that matters, since cuids created together are close.
-    expect(faces.size).toBe(5);
-  });
-
-  it("pairs every cover with an ink meant to be read on it", () => {
-    for (const id of ["cba", "cbb", "cbc", "cbd", "cbe"]) {
-      const cover = coverFor(id);
-      const n = cover.face.slice(-1);
-      expect(cover.ink).toBe(`text-book-ink-${n}`);
-      expect(cover.face).toBe(`bg-book-cover-${n}`);
-    }
+    const faces = [...container.querySelectorAll("[aria-hidden] > div")];
+    expect(faces[0]!.className).toContain("bg-book-cover-2");
+    expect(faces[1]!.className).toContain("bg-book-cover-7");
   });
 });
 
@@ -149,7 +144,11 @@ describe("CookbookShelf — cover images", () => {
   });
 
   it("shows the image instead of the printed title when there is one", () => {
-    render(<CookbookShelf cookbooks={[summary({ coverImageUrl: BLOB })]} />);
+    render(
+      <CookbookShelf
+        cookbooks={[summary({ coverImageUrl: BLOB, coverStyle: "PHOTO" })]}
+      />,
+    );
 
     const img = screen.getByRole("presentation", { hidden: true });
     expect(img.tagName).toBe("IMG");
@@ -159,7 +158,11 @@ describe("CookbookShelf — cover images", () => {
 
   // The book keeps its shape: an image swaps for the frame, not for the book.
   it("keeps naming the cookbook underneath either way", () => {
-    render(<CookbookShelf cookbooks={[summary({ coverImageUrl: BLOB })]} />);
+    render(
+      <CookbookShelf
+        cookbooks={[summary({ coverImageUrl: BLOB, coverStyle: "PHOTO" })]}
+      />,
+    );
 
     expect(
       screen.getByRole("link", { name: "Weeknight Dinners" }),
