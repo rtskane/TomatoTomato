@@ -1,21 +1,26 @@
 import { prisma } from "@/lib/prisma";
-import { CookbookRole } from "@/generated/prisma/enums";
+import { CookbookRole, type CoverStyle } from "@/generated/prisma/enums";
 
 // The ONLY module that talks to Prisma for the Cookbook table. Mirrors the
 // contract of user.repository: callers above this layer speak in method calls
 // and domain errors, never in Prisma queries.
 
-type CreateCookbookInput = {
+type CookbookCoverInput = {
+  coverImageUrl: string | null;
+  /** null leaves the colour derived from the id — see `resolveCoverColor`. */
+  coverColor: number | null;
+  coverStyle: CoverStyle;
+};
+
+type CreateCookbookInput = CookbookCoverInput & {
   ownerId: string;
   title: string;
   description: string | null;
-  coverImageUrl: string | null;
 };
 
-type UpdateCookbookInput = {
+type UpdateCookbookInput = CookbookCoverInput & {
   title: string;
   description: string | null;
-  coverImageUrl: string | null;
 };
 
 /**
@@ -47,12 +52,21 @@ export const cookbookRepository = {
    * relations. Prisma runs a nested create in one transaction, so a cookbook can
    * never exist without its owner's membership row.
    */
-  create({ ownerId, title, description, coverImageUrl }: CreateCookbookInput) {
+  create({
+    ownerId,
+    title,
+    description,
+    coverImageUrl,
+    coverColor,
+    coverStyle,
+  }: CreateCookbookInput) {
     return prisma.cookbook.create({
       data: {
         title,
         description,
         coverImageUrl,
+        coverColor,
+        coverStyle,
         ownerId,
         members: { create: { userId: ownerId, role: CookbookRole.OWNER } },
       },
@@ -79,6 +93,8 @@ export const cookbookRepository = {
             title: true,
             description: true,
             coverImageUrl: true,
+            coverColor: true,
+            coverStyle: true,
             updatedAt: true,
             _count: { select: { recipes: true, members: true } },
           },
@@ -108,6 +124,8 @@ export const cookbookRepository = {
             title: true,
             description: true,
             coverImageUrl: true,
+            coverColor: true,
+            coverStyle: true,
             recipes: {
               orderBy: { createdAt: "desc" },
               select: {
@@ -212,11 +230,17 @@ export const cookbookRepository = {
 
   update(
     cookbookId: string,
-    { title, description, coverImageUrl }: UpdateCookbookInput,
+    {
+      title,
+      description,
+      coverImageUrl,
+      coverColor,
+      coverStyle,
+    }: UpdateCookbookInput,
   ) {
     return prisma.cookbook.update({
       where: { id: cookbookId },
-      data: { title, description, coverImageUrl },
+      data: { title, description, coverImageUrl, coverColor, coverStyle },
       select: { id: true },
     });
   },

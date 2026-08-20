@@ -18,6 +18,8 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     title: "Weeknight Dinners",
     description: "Fast meals.",
     coverImageUrl: null,
+    coverColor: 1,
+    coverStyle: "TITLED",
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,

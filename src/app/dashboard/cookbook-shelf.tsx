@@ -1,67 +1,15 @@
 import Link from "next/link";
-import Image from "next/image";
 import LinkPending from "@/components/link-pending";
+import BookCover from "@/components/book-cover";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 import CookbookMeta from "./cookbook-meta";
-import { coverFor } from "./book-covers";
 
 // Presentational: props in, markup out. The shelf view — each cookbook is a
 // book, laid out two or three to a row. The empty state belongs to the
 // container that switches between views, so it isn't repeated here.
-
-/**
- * The book itself: spine down the left, page edges on the right, title set in
- * the serif inside a debossed frame.
- *
- * `aria-hidden` because the title is repeated in the caption below, which is
- * the link's accessible name — a screen reader should hear the cookbook once,
- * not twice.
- *
- * A cookbook with an uploaded cover shows it in place of the titled frame; the
- * spine and page edges stay on top either way, so a photographed book and a
- * plain one still read as the same object.
- */
-function BookFace({ cookbook }: { cookbook: CookbookSummary }) {
-  const cover = coverFor(cookbook.id);
-
-  return (
-    <div
-      aria-hidden
-      className={`relative isolate mx-auto aspect-3/4 w-full max-w-60 overflow-hidden rounded-r-md rounded-l-xs shadow-md transition-transform duration-150 group-hover:-translate-y-1 ${cover.face}`}
-    >
-      {/* Spine: the ink at low alpha, so a dark cover gets an edge catching the
-          light and a pale one an edge falling into shadow. */}
-      <span className={`absolute inset-y-0 left-0 w-3 ${cover.shade}`} />
-      <span className={`absolute inset-y-0 left-3 w-px ${cover.hairline}`} />
-
-      {/* Fore-edge: the pages, inset top and bottom so the boards overhang. */}
-      <span className="absolute inset-y-[3%] right-0 w-[3px] rounded-r-xs bg-background" />
-
-      {cookbook.coverImageUrl ? (
-        // -z-10 puts the photo under the spine and fore-edge drawn above,
-        // rather than over them. `alt=""` because the caption below already
-        // names the cookbook — see the aria-hidden note above.
-        <Image
-          src={cookbook.coverImageUrl}
-          alt=""
-          fill
-          sizes="(min-width: 1024px) 240px, 45vw"
-          className="-z-10 object-cover"
-        />
-      ) : (
-        <div
-          className={`absolute inset-y-4 right-4 left-7 flex items-center justify-center rounded-xs border px-2 text-center ${cover.frame}`}
-        >
-          <p
-            className={`line-clamp-4 font-serif text-title-3 text-balance ${cover.ink}`}
-          >
-            {cookbook.title}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
+//
+// The book itself is drawn by `BookCover`, which the cover designer also
+// renders: this file decides how books are *arranged*, not what one looks like.
 
 export default function CookbookShelf({
   cookbooks,
@@ -77,7 +25,19 @@ export default function CookbookShelf({
           key={cookbook.id}
           className="group relative rounded-lg focus-within:ring-2 focus-within:ring-border-input-strong focus-within:ring-offset-4 focus-within:ring-offset-background"
         >
-          <BookFace cookbook={cookbook} />
+          {/* aria-hidden because the title is repeated in the caption below,
+              which is the link's accessible name — a screen reader should hear
+              the cookbook once, not twice. */}
+          <div aria-hidden>
+            <BookCover
+              title={cookbook.title}
+              coverColor={cookbook.coverColor}
+              coverStyle={cookbook.coverStyle}
+              coverImageUrl={cookbook.coverImageUrl}
+              sizes="(min-width: 1024px) 240px, 45vw"
+              className="mx-auto aspect-3/4 w-full max-w-60 shadow-md transition-transform duration-150 group-hover:-translate-y-1"
+            />
+          </div>
 
           {/* The name sits under the book whether or not the cover shows it,
               the way a shelf label does. */}

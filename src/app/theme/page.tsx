@@ -56,6 +56,9 @@ const BOOK_COVERS = [
   ["bg-book-cover-3", "text-book-ink-3", "3 · Dusty Bronze · 5.1:1"],
   ["bg-book-cover-4", "text-book-ink-4", "4 · Alpine Amber · 7.9:1"],
   ["bg-book-cover-5", "text-book-ink-5", "5 · Forest Ochre · 5.9:1"],
+  ["bg-book-cover-6", "text-book-ink-6", "6 · Oxblood · 7.7:1"],
+  ["bg-book-cover-7", "text-book-ink-7", "7 · Deep Olive · 6.7:1"],
+  ["bg-book-cover-8", "text-book-ink-8", "8 · Linen · 9.6:1"],
 ];
 
 const TYPE_SCALE = [
@@ -193,7 +196,7 @@ export default function ThemePage() {
 
       <Section
         title="Book covers"
-        note="The dashboard shelf. Each cover ships with the one ink that is legible on it — the swatch is set in that ink, so a bad pairing shows up here rather than on the shelf."
+        note="The dashboard shelf, and the palette the cover designer offers. Each cover ships with the one ink that is legible on it — the swatch is set in that ink, so a bad pairing shows up here rather than on the shelf."
       >
         <SwatchGrid>
           {BOOK_COVERS.map(([face, ink, label]) => (

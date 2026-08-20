@@ -59,10 +59,26 @@ export default function CoverImageField({
   value,
   onChange,
   onUploadingChange,
+  showPreview = true,
+  heading = "Cover",
 }: {
   value: string;
   onChange: (url: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
+  /**
+   * Draw the little thumbnail beside the button.
+   *
+   * Off inside the cover designer, which shows the picture on a full book
+   * preview a few pixels away — two previews of one image, at two sizes,
+   * disagreeing about whether it is cropped is worse than none.
+   */
+  showPreview?: boolean;
+  /**
+   * The field's own heading, or null to omit it — the cover designer already
+   * has a heading over the whole cover section, and a second one directly
+   * under it reads as a nested field that isn't there.
+   */
+  heading?: string | null;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [percentage, setPercentage] = useState(0);
@@ -124,29 +140,35 @@ export default function CoverImageField({
 
   return (
     <div>
-      <span className="block text-subheadline font-medium">
-        Cover{" "}
-        <span className="font-normal text-foreground-tertiary">(optional)</span>
-      </span>
+      {heading ? (
+        <span className="block text-subheadline font-medium">
+          {heading}{" "}
+          <span className="font-normal text-foreground-tertiary">
+            (optional)
+          </span>
+        </span>
+      ) : null}
 
-      <div className="mt-2 flex items-start gap-4">
-        {/* The preview doubles as the empty state, so the row doesn't reflow
-            when a picture arrives. */}
-        <div className="relative aspect-3/4 w-24 shrink-0 overflow-hidden rounded-md border border-border bg-background-control">
-          {value ? (
-            <Image
-              src={value}
-              alt=""
-              fill
-              sizes="96px"
-              className="object-cover"
-            />
-          ) : (
-            <span className="flex h-full items-center justify-center text-caption-2 text-foreground-muted">
-              No cover
-            </span>
-          )}
-        </div>
+      <div className={`flex items-start gap-4 ${heading ? "mt-2" : ""}`}>
+        {showPreview ? (
+          /* The preview doubles as the empty state, so the row doesn't reflow
+             when a picture arrives. */
+          <div className="relative aspect-3/4 w-24 shrink-0 overflow-hidden rounded-md border border-border bg-background-control">
+            {value ? (
+              <Image
+                src={value}
+                alt=""
+                fill
+                sizes="96px"
+                className="object-cover"
+              />
+            ) : (
+              <span className="flex h-full items-center justify-center text-caption-2 text-foreground-muted">
+                No cover
+              </span>
+            )}
+          </div>
+        ) : null}
 
         <div className="min-w-0">
           <label

@@ -1,4 +1,5 @@
 import { createCookbookSchema } from "@/lib/cookbook";
+import { resolveCoverColor, type CoverStyle } from "@/lib/book-covers";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { ok, err, type Result } from "@/server/result";
 import { recipeRepository } from "@/server/repositories/recipe.repository";
@@ -19,6 +20,14 @@ export type CreateCookbookInput = {
    * client, so it is never trusted as a URL.
    */
   coverImageUrl?: string;
+  /**
+   * The designed cover, as the form posted it: a 1-based palette index and a
+   * `CoverStyle` name, both still strings because that is what a FormData
+   * field is. Both optional — a caller that omits them gets the pre-designer
+   * behaviour, which `createCookbookSchema` spells out.
+   */
+  coverColor?: string;
+  coverStyle?: string;
 };
 
 // Only validation can fail in an *expected* way here: titles aren't unique, so
@@ -46,6 +55,10 @@ export async function createCookbook(
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     coverImageUrl: parsed.data.coverImageUrl ?? null,
+    // null rather than a derived value: storing what the id already implies
+    // would make "nobody chose" indistinguishable from a real choice.
+    coverColor: parsed.data.coverColor ?? null,
+    coverStyle: parsed.data.coverStyle,
   });
 
   return ok({ id: cookbook.id });
@@ -61,6 +74,13 @@ export type CookbookSummary = {
   title: string;
   description: string | null;
   coverImageUrl: string | null;
+  /**
+   * Always a real palette index, never null: `resolveCoverColor` folds "nobody
+   * chose" into the derived colour here, at the one boundary, so no view has to
+   * carry the id around just in case.
+   */
+  coverColor: number;
+  coverStyle: CoverStyle;
   role: CookbookRole;
   recipeCount: number;
   memberCount: number;
@@ -81,6 +101,8 @@ export async function listUserCookbooks(
     title: cookbook.title,
     description: cookbook.description,
     coverImageUrl: cookbook.coverImageUrl,
+    coverColor: resolveCoverColor(cookbook.id, cookbook.coverColor),
+    coverStyle: cookbook.coverStyle,
     role,
     recipeCount: cookbook._count.recipes,
     memberCount: cookbook._count.members,
@@ -104,6 +126,8 @@ export type CookbookDetail = {
   title: string;
   description: string | null;
   coverImageUrl: string | null;
+  coverColor: number;
+  coverStyle: CoverStyle;
   role: CookbookRole;
   canAddRecipes: boolean;
   canEditCookbook: boolean;
@@ -132,6 +156,8 @@ export async function getCookbookDetail(
     title: cookbook.title,
     description: cookbook.description,
     coverImageUrl: cookbook.coverImageUrl,
+    coverColor: resolveCoverColor(cookbook.id, cookbook.coverColor),
+    coverStyle: cookbook.coverStyle,
     role,
     canAddRecipes: canAddRecipes(role),
     canEditCookbook: canEditCookbook(role),
@@ -207,6 +233,11 @@ export async function updateCookbook(
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     coverImageUrl: nextCover,
+    // A save that omits the colour resets it to "unchosen", exactly as a save
+    // that omits the description clears it. The designer always posts one, so
+    // this only bites a hand-made request.
+    coverColor: parsed.data.coverColor ?? null,
+    coverStyle: parsed.data.coverStyle,
   });
 
   return ok({

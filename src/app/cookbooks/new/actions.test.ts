@@ -53,6 +53,10 @@ describe("createCookbookAction", () => {
       title: "Weeknight Dinners",
       description: "Fast meals.",
       coverImageUrl: "",
+      // Empty because this form data never went near the designer; the schema
+      // reads that as "unchosen" rather than as an error.
+      coverColor: "",
+      coverStyle: "",
     });
   });
 
@@ -63,7 +67,13 @@ describe("createCookbookAction", () => {
       error: { kind: "validation", message: "Give your cookbook a title." },
     });
 
-    const values = { title: "", description: "", coverImageUrl: "" };
+    const values = {
+      title: "",
+      description: "",
+      coverImageUrl: "",
+      coverColor: "",
+      coverStyle: "",
+    };
     const result = await createCookbookAction({}, formOf(values));
 
     expect(result).toEqual({ error: "Give your cookbook a title.", values });
@@ -95,6 +105,8 @@ describe("createCookbookAction", () => {
       title: "",
       description: "",
       coverImageUrl: "",
+      coverColor: "",
+      coverStyle: "",
     });
   });
 });

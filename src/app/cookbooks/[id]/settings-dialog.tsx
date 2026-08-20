@@ -2,9 +2,10 @@
 
 import { useActionState, useState } from "react";
 import ModalDialog from "@/components/modal-dialog";
-import CoverImageField from "@/components/cover-image-field";
+import CoverDesigner from "@/components/cover-designer";
 import type { UpdateCookbookState, ArchiveCookbookState } from "./settings-actions";
 import type { ArchiveImpact } from "@/server/services/cookbook.service";
+import type { CoverStyle } from "@/lib/book-covers";
 
 // Renaming a cookbook and archiving it. Owner-only — the page decides whether
 // to render this at all.
@@ -125,6 +126,8 @@ export default function SettingsDialog({
   title,
   description,
   coverImageUrl,
+  coverColor,
+  coverStyle,
   updateAction,
   archiveAction,
   impact,
@@ -132,14 +135,17 @@ export default function SettingsDialog({
   title: string;
   description: string | null;
   coverImageUrl: string | null;
+  /** Already resolved, so the designer opens on the colour the shelf shows. */
+  coverColor: number;
+  coverStyle: CoverStyle;
   updateAction: UpdateAction;
   archiveAction: ArchiveAction;
   impact: ArchiveImpact;
 }) {
   const [state, submit, pending] = useActionState(updateAction, {});
-  // Seeded from the saved cover, then owned here — an upload can land at any
-  // point after render, and a rejected save must not discard it.
-  const [cover, setCover] = useState(coverImageUrl ?? "");
+  // A mirror of the title input, so the cover preview renames itself as the
+  // cookbook does. The input itself stays uncontrolled.
+  const [liveTitle, setLiveTitle] = useState(state.values?.title ?? title);
   const [uploading, setUploading] = useState(false);
 
   return (
@@ -177,6 +183,7 @@ export default function SettingsDialog({
               name="title"
               required
               defaultValue={state.values?.title ?? title}
+              onChange={(e) => setLiveTitle(e.target.value)}
               className={fieldClass}
             />
           </div>
@@ -197,12 +204,13 @@ export default function SettingsDialog({
             />
           </div>
 
-          <CoverImageField
-            value={cover}
-            onChange={setCover}
+          <CoverDesigner
+            title={liveTitle}
+            defaultCoverColor={coverColor}
+            defaultCoverStyle={coverStyle}
+            defaultCoverImageUrl={coverImageUrl ?? ""}
             onUploadingChange={setUploading}
           />
-          <input type="hidden" name="coverImageUrl" value={cover} />
 
           {state.error ? (
             <p role="alert" className="text-subheadline text-error">
