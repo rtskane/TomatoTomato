@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { COVER_COUNT, COVER_STYLES } from "@/lib/book-covers";
+import {
+  COVER_COUNT,
+  COVER_STYLES,
+  COVER_TEXTURES,
+  COVER_TITLE_FONTS,
+  COVER_TITLE_SIZES,
+  COVER_TITLE_POSITIONS,
+  MIN_ZOOM,
+  MAX_ZOOM,
+} from "@/lib/book-covers";
 
 // Validation for cookbook input. Lives in lib/ (not the service) so the same
 // rules are importable from anywhere — including, later, a client-side check.
@@ -100,6 +109,73 @@ export const coverStyleSchema = z
   .pipe(z.enum(COVER_STYLES, "That cover style doesn't exist.").optional())
   .optional();
 
+/**
+ * The rest of the composed cover's vocabulary.
+ *
+ * All four follow the same shape as the style: empty or absent means "not
+ * said", and anything outside the vocabulary is refused rather than coerced —
+ * these can only come from a control that rendered the option, so a value that
+ * isn't one of them is a hand-made request, not a user mistake.
+ */
+function vocabulary<const T extends readonly [string, ...string[]]>(
+  values: T,
+  message: string,
+) {
+  return z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? undefined : v))
+    .pipe(z.enum(values, message).optional())
+    .optional();
+}
+
+export const coverTextureSchema = vocabulary(
+  COVER_TEXTURES,
+  "That cover texture doesn't exist.",
+);
+export const coverTitleFontSchema = vocabulary(
+  COVER_TITLE_FONTS,
+  "That title font doesn't exist.",
+);
+export const coverTitleSizeSchema = vocabulary(
+  COVER_TITLE_SIZES,
+  "That title size doesn't exist.",
+);
+export const coverTitlePositionSchema = vocabulary(
+  COVER_TITLE_POSITIONS,
+  "That title position doesn't exist.",
+);
+
+/**
+ * A number posted by a slider or a drag: the focal point's two fractions and
+ * the zoom.
+ *
+ * Out-of-range values are **clamped rather than refused**, unlike the
+ * vocabularies above. These come from continuous controls, where a value a
+ * hair outside the range is a rounding artefact rather than an attack, and
+ * failing someone's whole save over `1.0000001` would be absurd. The clamp
+ * bounds are the ones `BookCover` would apply at render time anyway.
+ *
+ * An absent or unparseable value becomes `undefined` rather than a number, so
+ * the service falls back to the column's default — the same path a caller that
+ * never heard of these fields takes.
+ */
+function fraction(min: number, max: number) {
+  return z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? undefined : Number(v)))
+    .pipe(z.number().optional())
+    .optional()
+    .transform((v) => {
+      if (v === undefined || !Number.isFinite(v)) return undefined;
+      return Math.min(max, Math.max(min, v));
+    });
+}
+
+export const coverFocalSchema = fraction(0, 1);
+export const coverZoomSchema = fraction(MIN_ZOOM, MAX_ZOOM);
+
 export const createCookbookSchema = z
   .object({
     title: cookbookTitleSchema,
@@ -107,6 +183,13 @@ export const createCookbookSchema = z
     coverImageUrl: coverImageUrlSchema,
     coverColor: coverColorSchema,
     coverStyle: coverStyleSchema,
+    coverTexture: coverTextureSchema,
+    coverTitleFont: coverTitleFontSchema,
+    coverTitleSize: coverTitleSizeSchema,
+    coverTitlePosition: coverTitlePositionSchema,
+    coverFocalX: coverFocalSchema,
+    coverFocalY: coverFocalSchema,
+    coverZoom: coverZoomSchema,
   })
   /**
    * Settle the style, so nothing downstream has to reason about the two ways

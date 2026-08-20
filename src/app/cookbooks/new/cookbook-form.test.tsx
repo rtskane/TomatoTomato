@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 describe("CookbookForm", () => {
   it("renders a labelled, required title field", () => {
-    render(<CookbookForm action={vi.fn()} suggestedCoverColor={3} />);
+    render(<CookbookForm action={vi.fn()} />);
 
     const title = screen.getByLabelText("Title");
     expect(title).toBeRequired();
@@ -17,7 +17,7 @@ describe("CookbookForm", () => {
   });
 
   it("renders an optional description tied to its hint", () => {
-    render(<CookbookForm action={vi.fn()} suggestedCoverColor={3} />);
+    render(<CookbookForm action={vi.fn()} />);
 
     const description = screen.getByLabelText(/description/i);
     expect(description).not.toBeRequired();
@@ -29,7 +29,7 @@ describe("CookbookForm", () => {
   });
 
   it("offers a way out without submitting", () => {
-    render(<CookbookForm action={vi.fn()} suggestedCoverColor={3} />);
+    render(<CookbookForm action={vi.fn()} />);
 
     expect(screen.getByRole("link", { name: /cancel/i })).toHaveAttribute(
       "href",
@@ -43,37 +43,31 @@ describe("CookbookForm", () => {
     const action = vi.fn<
       (state: CreateCookbookState, formData: FormData) => Promise<CreateCookbookState>
     >(async () => ({}));
-    render(<CookbookForm action={action} suggestedCoverColor={3} />);
+    render(<CookbookForm action={action} />);
 
     await userEvent.type(screen.getByLabelText("Title"), "Weeknight Dinners");
     await userEvent.click(
-      screen.getByRole("button", { name: /create cookbook/i }),
+      screen.getByRole("button", { name: /continue/i }),
     );
 
     expect(action).toHaveBeenCalled();
     const posted = action.mock.calls[0][1];
     expect(posted.get("title")).toBe("Weeknight Dinners");
-    // The cover rides along on every submit, whether or not it was touched —
-    // the suggested colour is a real choice once the form is sent.
-    expect(posted.get("coverColor")).toBe("3");
-    expect(posted.get("coverStyle")).toBe("TITLED");
+    // Step one names the cookbook and nothing else — the cover is designed on
+    // the next screen, against a cookbook that exists.
+    expect(posted.get("coverColor")).toBeNull();
+    expect(posted.get("coverStyle")).toBeNull();
   });
 
   it("surfaces a server error in an alert and marks the title invalid", async () => {
     const action = vi.fn(async () => ({
       error: "Give your cookbook a title.",
-      values: {
-        title: "",
-        description: "",
-        coverImageUrl: "",
-        coverColor: "3",
-        coverStyle: "TITLED",
-      },
+      values: { title: "", description: "" },
     }));
-    render(<CookbookForm action={action} suggestedCoverColor={3} />);
+    render(<CookbookForm action={action} />);
 
     await userEvent.click(
-      screen.getByRole("button", { name: /create cookbook/i }),
+      screen.getByRole("button", { name: /continue/i }),
     );
 
     const alert = await screen.findByRole("alert");
@@ -91,18 +85,12 @@ describe("CookbookForm", () => {
   it("repopulates the form from the values echoed back by the server", async () => {
     const action = vi.fn(async () => ({
       error: "Title must be 80 characters or fewer.",
-      values: {
-        title: "a long title",
-        description: "Fast meals.",
-        coverImageUrl: "",
-        coverColor: "3",
-        coverStyle: "TITLED",
-      },
+      values: { title: "a long title", description: "Fast meals." },
     }));
-    render(<CookbookForm action={action} suggestedCoverColor={3} />);
+    render(<CookbookForm action={action} />);
 
     await userEvent.click(
-      screen.getByRole("button", { name: /create cookbook/i }),
+      screen.getByRole("button", { name: /continue/i }),
     );
     await screen.findByRole("alert");
 

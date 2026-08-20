@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
-import CoverDesigner from "@/components/cover-designer";
 import type { CreateCookbookState } from "./actions";
 
 const initialState: CreateCookbookState = {};
@@ -14,22 +13,14 @@ type CreateCookbookAction = (
 
 // Presentational: props in, markup out. Owns no data — the action is supplied
 // by the container. Its job is a semantic, accessible form.
-export default function CookbookForm({
-  action,
-  suggestedCoverColor,
-}: {
-  action: CreateCookbookAction;
-  /** Drawn on the server — see `suggestCoverColor` for why not here. */
-  suggestedCoverColor: number;
-}) {
+//
+// Step one of setting up a cookbook, and deliberately just two fields: the
+// cover is designed on the next screen, once there is a cookbook to design it
+// for. Keeping this screen short is the point — it is the only step that
+// can't be skipped.
+export default function CookbookForm({ action }: { action: CreateCookbookAction }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const titleRef = useRef<HTMLInputElement>(null);
-  // A mirror of the title input, kept only so the cover preview can show the
-  // real book while it is being named. The input stays uncontrolled — this
-  // listens to it, it does not drive it — so submission still reads the DOM
-  // and a rejected save can't blank the field out from under the typist.
-  const [title, setTitle] = useState(state.values?.title ?? "");
-  const [uploading, setUploading] = useState(false);
 
   // Move focus to the field that needs attention when the server rejects.
   useEffect(() => {
@@ -55,7 +46,6 @@ export default function CookbookForm({
           required
           placeholder="Weeknight Dinners"
           defaultValue={state.values?.title}
-          onChange={(e) => setTitle(e.target.value)}
           className={fieldClass}
           aria-invalid={hasError || undefined}
           aria-describedby={hasError ? "title-error" : undefined}
@@ -83,13 +73,6 @@ export default function CookbookForm({
         </p>
       </div>
 
-      <CoverDesigner
-        title={title}
-        defaultCoverColor={suggestedCoverColor}
-        defaultCoverStyle="TITLED"
-        onUploadingChange={setUploading}
-      />
-
       {hasError ? (
         <p id="title-error" role="alert" className="text-subheadline text-error">
           {state.error}
@@ -99,12 +82,10 @@ export default function CookbookForm({
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          // Submitting mid-upload would create the cookbook without the cover
-          // the user just picked, with nothing to show why.
-          disabled={pending || uploading}
+          disabled={pending}
           className="rounded-md bg-accent px-4 py-2 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
         >
-          {pending ? "Creating…" : "Create cookbook"}
+          {pending ? "Creating…" : "Continue"}
         </button>
         <Link
           href="/dashboard"

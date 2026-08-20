@@ -31,9 +31,7 @@ export default function CookbookShelf({
           <div aria-hidden>
             <BookCover
               title={cookbook.title}
-              coverColor={cookbook.coverColor}
-              coverStyle={cookbook.coverStyle}
-              coverImageUrl={cookbook.coverImageUrl}
+              design={cookbook.design}
               sizes="(min-width: 1024px) 240px, 45vw"
               className="mx-auto aspect-3/4 w-full max-w-60 shadow-md transition-transform duration-150 group-hover:-translate-y-1"
             />

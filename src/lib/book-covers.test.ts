@@ -3,6 +3,19 @@ import {
   BOOK_COVERS,
   COVER_COUNT,
   COVER_STYLES,
+  COVER_TEXTURES,
+  COVER_TITLE_FONTS,
+  COVER_TITLE_SIZES,
+  COVER_TITLE_POSITIONS,
+  TEXTURES,
+  TITLE_FONTS,
+  TITLE_SIZES,
+  TITLE_POSITIONS,
+  DEFAULT_COVER_DESIGN,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  clampFraction,
+  clampZoom,
   derivedCoverColor,
   isCoverColor,
   isCoverStyle,
@@ -110,6 +123,92 @@ describe("suggestCoverColor", () => {
   it("does not always suggest the same one", () => {
     const seen = new Set(Array.from({ length: 200 }, suggestCoverColor));
     expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+describe("the composed vocabulary", () => {
+  it("gives each texture a label, and only the weaves a class", () => {
+    expect(TEXTURES.NONE.className).toBeNull();
+    expect(TEXTURES.GINGHAM.className).toBe("cover-weave-gingham");
+    expect(TEXTURES.GRID.className).toBe("cover-weave-grid");
+    for (const t of COVER_TEXTURES) {
+      expect(TEXTURES[t].label.length).toBeGreaterThan(0);
+    }
+  });
+
+  // Two controls answering to one name is ambiguous to anyone navigating by
+  // name rather than by sight — and cover 8 is already called Linen.
+  it("never labels a texture with a colour's name", () => {
+    const colourNames = new Set(BOOK_COVERS.map((c) => c.name));
+    for (const t of COVER_TEXTURES) {
+      expect(colourNames.has(TEXTURES[t].label)).toBe(false);
+    }
+  });
+
+  // The whole reason a size is an enum and not a number of pixels: the same
+  // cover is drawn at 240px on the shelf and 128px in the designer.
+  it("sizes the title as a percentage of the cover, never in pixels", () => {
+    for (const size of COVER_TITLE_SIZES) {
+      expect(TITLE_SIZES[size].className).toMatch(/cqw/);
+      expect(TITLE_SIZES[size].className).not.toMatch(/px|rem/);
+    }
+  });
+
+  // MEDIUM has to stay exactly what the shelf book was already set at, or
+  // every undesigned cookbook changes the day this ships.
+  it("keeps MEDIUM at the size covers were already printed at", () => {
+    expect(TITLE_SIZES.MEDIUM.className).toBe("text-[8.3cqw]");
+  });
+
+  it("offers both of the theme's families and no third one", () => {
+    expect(COVER_TITLE_FONTS).toEqual(["SERIF", "SANS"]);
+    expect(TITLE_FONTS.SERIF.className).toBe("font-serif");
+    expect(TITLE_FONTS.SANS.className).toBe("font-sans");
+  });
+
+  it("positions the title by alignment, so the frame itself never moves", () => {
+    for (const p of COVER_TITLE_POSITIONS) {
+      expect(TITLE_POSITIONS[p].className).toMatch(/^items-/);
+    }
+  });
+});
+
+describe("clamping what a continuous control posts", () => {
+  it("keeps a focal point inside the picture", () => {
+    expect(clampFraction(0.25)).toBe(0.25);
+    expect(clampFraction(-1)).toBe(0);
+    expect(clampFraction(4)).toBe(1);
+  });
+
+  it("falls back to the centre for a value that isn't a number", () => {
+    expect(clampFraction(Number.NaN)).toBe(0.5);
+    expect(clampFraction(Number.POSITIVE_INFINITY)).toBe(0.5);
+  });
+
+  it("keeps zoom within what the slider offers", () => {
+    expect(clampZoom(2)).toBe(2);
+    expect(clampZoom(0.1)).toBe(MIN_ZOOM);
+    expect(clampZoom(99)).toBe(MAX_ZOOM);
+    expect(clampZoom(Number.NaN)).toBe(MIN_ZOOM);
+  });
+});
+
+describe("DEFAULT_COVER_DESIGN", () => {
+  // These are the values the migration wrote as the columns' defaults. If the
+  // two drift apart, a cookbook renders one way before its first save and a
+  // different way after it.
+  it("matches the columns' defaults, so nothing changes on first save", () => {
+    expect(DEFAULT_COVER_DESIGN).toEqual({
+      coverStyle: "TITLED",
+      coverImageUrl: null,
+      coverTexture: "NONE",
+      coverTitleFont: "SERIF",
+      coverTitleSize: "MEDIUM",
+      coverTitlePosition: "CENTER",
+      coverFocalX: 0.5,
+      coverFocalY: 0.5,
+      coverZoom: 1,
+    });
   });
 });
 
