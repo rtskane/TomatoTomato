@@ -9,6 +9,7 @@ const { cookbook, cookbookMember } = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: { cookbook, cookbookMember } }));
 
 import { cookbookRepository } from "./cookbook.repository";
+import { DEFAULT_COVER_DESIGN } from "@/lib/book-covers";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -19,9 +20,9 @@ describe("cookbookRepository.create", () => {
     ownerId: "u1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
-    coverImageUrl: null,
+    // A cookbook nobody has designed: the defaults, and no chosen colour.
     coverColor: null,
-    coverStyle: "TITLED" as const,
+    ...DEFAULT_COVER_DESIGN,
   };
 
   it("writes the cookbook fields", async () => {

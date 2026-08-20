@@ -47,6 +47,44 @@ enum CoverStyle {
   PHOTO
 }
 
+/// The pattern printed on the cloth. Drawn from the cover's own ink at low
+/// alpha, so it costs no new colour and works on all eight covers.
+///
+/// GINGHAM was called LINEN until it turned out that a fine cross-hatch and a
+/// ruled GRID are the same idea at two gauges — indistinguishable at the size
+/// a cover is actually looked at. Gingham is a different object rather than a
+/// finer version of the same one.
+enum CoverTexture {
+  NONE
+  GINGHAM
+  GRID
+}
+
+/// Which of the app's two families the cover title is set in. Deliberately not
+/// a free font list: two families that already ship with the theme keep covers
+/// looking like they belong to one shelf, and add no webfont to load.
+enum CoverTitleFont {
+  SERIF
+  SANS
+}
+
+/// Sizes, not points. The rendered size is a percentage of the cover's own
+/// width (see TITLE_SIZES in lib/book-covers.ts) — a cover has to read at
+/// 240px on the shelf and 128px in the designer, so anything stored in pixels
+/// would be wrong at one of them.
+enum CoverTitleSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+/// Where the title sits inside the frame. The frame itself doesn't move.
+enum CoverTitlePosition {
+  TOP
+  CENTER
+  BOTTOM
+}
+
 // ---------------------------------------------------------------------------
 // Identity — keyed by clerkId. email/avatar are lazily synced from Clerk
 // (see ensureUser); username/firstName/lastName are owned by our onboarding
@@ -109,6 +147,37 @@ model Cookbook {
   /// backfills existing rows that have a `coverImageUrl` to PHOTO so nobody's
   /// cover changes underneath them.
   coverStyle CoverStyle @default(TITLED)
+
+  // ---- How the cover is composed -----------------------------------------
+  //
+  // Explicit typed columns rather than one `Json` blob, and that is a
+  // deliberate trade. A blob would take fewer migrations to extend, but the
+  // whole premise here is a *composed* cover, not a freeform one: the
+  // vocabulary is finite by design, which is exactly what an enum is for. It
+  // also means Prisma's types carry the vocabulary all the way to the JSX, and
+  // a value that isn't in it can't be stored at all rather than being
+  // discovered at render time.
+  //
+  // Every default below reproduces how covers looked before this existed, so
+  // no cookbook changes appearance when the columns appear.
+
+  coverTexture       CoverTexture       @default(NONE)
+  coverTitleFont     CoverTitleFont     @default(SERIF)
+  coverTitleSize     CoverTitleSize     @default(MEDIUM)
+  coverTitlePosition CoverTitlePosition @default(CENTER)
+
+  /// Which point of the photograph to keep when it is cropped to the book's
+  /// 3:4, as fractions of the image (0–1, centre is 0.5/0.5), plus how far it
+  /// is zoomed in (1 = fit).
+  ///
+  /// Fractions rather than pixels for the same reason the title size is an
+  /// enum: the same cover is drawn at 240px, 128px and 36px, and a focal point
+  /// in pixels would be a different part of the picture at each one. Stored on
+  /// the cookbook rather than baked into the uploaded file so it stays
+  /// adjustable forever and costs no re-upload.
+  coverFocalX Float @default(0.5)
+  coverFocalY Float @default(0.5)
+  coverZoom   Float @default(1)
 
   /// Set when the owner archives the cookbook; null means live.
   ///

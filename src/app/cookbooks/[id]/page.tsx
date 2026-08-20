@@ -76,9 +76,7 @@ export default async function CookbookPage({
               says the name. */}
           <BookCover
             title={cookbook.title}
-            coverColor={cookbook.coverColor}
-            coverStyle={cookbook.coverStyle}
-            coverImageUrl={cookbook.coverImageUrl}
+            design={cookbook.design}
             sizes="96px"
             className="h-32 w-24 shrink-0 shadow-md"
           />
@@ -108,9 +106,7 @@ export default async function CookbookPage({
             <SettingsDialog
               title={cookbook.title}
               description={cookbook.description}
-              coverImageUrl={cookbook.coverImageUrl}
-              coverColor={cookbook.coverColor}
-              coverStyle={cookbook.coverStyle}
+              design={cookbook.design}
               impact={impact.value}
               updateAction={updateCookbookAction.bind(null, cookbook.id)}
               archiveAction={archiveCookbookAction.bind(

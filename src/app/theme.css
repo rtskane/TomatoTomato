@@ -279,6 +279,9 @@
   --color-book-cover-8: var(--book-cover-8);
   --color-book-ink-8: var(--book-ink-8);
 
+  /* Book cover weaves → see below the @theme block, where they are defined as
+     utilities rather than colours. */
+
   /* Typefaces → font-sans, font-serif, font-mono */
   --font-sans: var(--font-sans-stack);
   --font-serif: var(--font-serif-stack);
@@ -355,4 +358,65 @@
      /12 = 48) is exactly Tailwind's stock scale off `--spacing: 0.25rem`, so
      `p-4` is already Figma's space/4. Overriding it would only add a way for
      the two to drift. */
+}
+
+/* -----------------------------------------------------------------------------
+   Book cover patterns
+
+   The pattern a cover can be printed with. Utilities rather than tokens
+   because what varies is a *pattern*, not a colour.
+
+   Both are drawn in `currentColor`, which is the whole trick: the component
+   sets the text colour to that cover's own ink and the pattern then belongs to
+   whichever of the eight covers it lands on. One definition, eight covers, and
+   nothing to redo when layer 1 is re-pointed.
+
+   The strength lives here too, in the alpha of the bands, rather than as an
+   opacity utility on the element. Each pattern needs a different strength —
+   broad gingham bands would shout at the alpha a hairline grid needs to be
+   visible at all — and that is a property of the pattern, not of the element
+   drawing it.
+
+   Sized in `cqw` for the same reason the title is: a cover is drawn at 240px
+   and at 128px, and a pattern pinned to pixels would be coarse sacking at one
+   size and invisible at the other. Because they scale, a chip shows the same
+   pattern simply smaller — though GRID's hairlines do fall below a pixel there
+   and effectively disappear, which is a fair degradation for a 36px chip.
+   -------------------------------------------------------------------------- */
+@utility cover-weave-gingham {
+  /* Gingham is three tones, not two: the cloth, a band, and the deeper square
+     where two bands cross. That crossing is what separates it from a grid, and
+     it only happens if the bands are *translucent* — an opaque band would
+     simply paint over its neighbour and the third tone would never appear.
+     Two 15% bands cross at ~28%, which is the step that reads as gingham. */
+  --cover-gingham-band: color-mix(in srgb, currentColor 15%, transparent);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--cover-gingham-band) 0 5cqw,
+      transparent 5cqw 10cqw
+    ),
+    repeating-linear-gradient(
+      0deg,
+      var(--cover-gingham-band) 0 5cqw,
+      transparent 5cqw 10cqw
+    );
+}
+
+@utility cover-weave-grid {
+  /* A hairline rule on a wide gauge: a ruled notebook rather than cloth. The
+     lines are near-opaque because there is so little of each one — at 0.3cqw a
+     translucent rule washes out to nothing. */
+  --cover-grid-line: color-mix(in srgb, currentColor 22%, transparent);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--cover-grid-line) 0 0.3cqw,
+      transparent 0.3cqw 9cqw
+    ),
+    repeating-linear-gradient(
+      0deg,
+      var(--cover-grid-line) 0 0.3cqw,
+      transparent 0.3cqw 9cqw
+    );
 }

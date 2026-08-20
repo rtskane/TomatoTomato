@@ -1,0 +1,13 @@
+-- LINEN becomes GINGHAM.
+--
+-- The linen cross-hatch and the ruled grid turned out to be the same idea at
+-- two gauges — at the size a cover is actually looked at, you could not tell
+-- them apart, so the choice between them wasn't a choice. Gingham is a
+-- different object rather than a finer version of the same one.
+--
+-- A rename rather than a drop-and-add: renaming the value keeps every row that
+-- held it pointing at the same option, so nothing has to be migrated and no
+-- cookbook loses its texture. (Nothing held it yet in practice — every row is
+-- NONE — but a rename would have been right either way, and does not depend on
+-- that being true.)
+ALTER TYPE "CoverTexture" RENAME VALUE 'LINEN' TO 'GINGHAM';

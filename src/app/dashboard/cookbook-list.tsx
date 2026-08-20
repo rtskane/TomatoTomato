@@ -28,9 +28,7 @@ export default function CookbookList({
           <div aria-hidden className="shrink-0">
             <BookCover
               title={cookbook.title}
-              coverColor={cookbook.coverColor}
-              coverStyle={cookbook.coverStyle}
-              coverImageUrl={cookbook.coverImageUrl}
+              design={cookbook.design}
               size="chip"
               sizes="36px"
               className="h-12 w-9"
