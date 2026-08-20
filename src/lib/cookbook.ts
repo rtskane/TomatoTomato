@@ -155,8 +155,12 @@ export const coverTitlePositionSchema = vocabulary(
  * hair outside the range is a rounding artefact rather than an attack, and
  * failing someone's whole save over `1.0000001` would be absurd. The clamp
  * bounds are the ones `BookCover` would apply at render time anyway.
+ *
+ * An absent or unparseable value becomes `undefined` rather than a number, so
+ * the service falls back to the column's default — the same path a caller that
+ * never heard of these fields takes.
  */
-function fraction(min: number, max: number, fallback: number) {
+function fraction(min: number, max: number) {
   return z
     .string()
     .trim()
@@ -169,8 +173,8 @@ function fraction(min: number, max: number, fallback: number) {
     });
 }
 
-export const coverFocalSchema = fraction(0, 1, 0.5);
-export const coverZoomSchema = fraction(MIN_ZOOM, MAX_ZOOM, MIN_ZOOM);
+export const coverFocalSchema = fraction(0, 1);
+export const coverZoomSchema = fraction(MIN_ZOOM, MAX_ZOOM);
 
 export const createCookbookSchema = z
   .object({
