@@ -98,6 +98,40 @@ describe("CoverImageField — uploading", () => {
     expect(uploadMock.mock.calls[0][0]).toBe("cookbook-covers/my-photo-1-.jpg");
   });
 
+  it("passes an abort signal, so a hung upload can't spin forever", async () => {
+    const user = userEvent.setup();
+    render(<CoverImageField value="" onChange={() => {}} />);
+
+    await user.upload(screen.getByLabelText("Choose image"), imageFile());
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalled());
+    expect(uploadMock.mock.calls[0][2].abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  // A real symptom: the blob API answers some misconfigurations with a 503,
+  // the SDK retries those, and the field sat at "Uploading… 0%" with no error.
+  it("says so when the upload times out, and stops looking busy", async () => {
+    const user = userEvent.setup();
+    const onUploadingChange = vi.fn();
+    const timeout = new Error("signal timed out");
+    timeout.name = "TimeoutError";
+    uploadMock.mockRejectedValue(timeout);
+
+    render(
+      <CoverImageField
+        value=""
+        onChange={() => {}}
+        onUploadingChange={onUploadingChange}
+      />,
+    );
+
+    await user.upload(screen.getByLabelText("Choose image"), imageFile());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/timed out/i);
+    expect(onUploadingChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("explains a failed upload without repeating the API's wording", async () => {
     const user = userEvent.setup();
     uploadMock.mockRejectedValue(new Error("No token found for store_abc123"));

@@ -20,6 +20,18 @@ import { upload } from "@vercel/blob/client";
 
 /** Kept in step with the route handler, which enforces both for real. */
 const MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * How long to let an upload run before calling it failed.
+ *
+ * Without this the field can spin forever: the SDK retries a 5xx from the blob
+ * API with backoff, and some server-side misconfigurations (a private store
+ * asked for public access, say) surface as exactly that. The user sees
+ * "Uploading… 0%" and no error, which is the worst of both — nothing happened
+ * and nothing said so. Generous enough for 8 MB on a bad connection, and the
+ * percentage is ticking the whole time on a healthy one.
+ */
+const TIMEOUT_MS = 90_000;
 const ACCEPTED = [
   "image/jpeg",
   "image/png",
@@ -85,13 +97,23 @@ export default function CoverImageField({
       const blob = await upload(safePathname(file.name), file, {
         access: "public",
         handleUploadUrl: "/api/cookbooks/cover",
+        abortSignal: AbortSignal.timeout(TIMEOUT_MS),
         onUploadProgress: (progress) => setPercentage(progress.percentage),
       });
       onChange(blob.url);
-    } catch {
+    } catch (cause) {
       // The API's own messages are about tokens and stores, which means
-      // nothing to someone choosing a photo.
-      setError("That didn't upload. Try again?");
+      // nothing to someone choosing a photo. A timeout gets its own wording
+      // because "try again" is bad advice when the last attempt hung.
+      const timedOut = cause instanceof Error && cause.name === "TimeoutError";
+      setError(
+        timedOut
+          ? "That upload timed out. Check your connection and try again."
+          : "That didn't upload. Try again?",
+      );
+      // Whatever it was, it is worth having in the console: the friendly text
+      // above is deliberately uninformative to anyone debugging.
+      console.error("[cover] upload failed", cause);
     } finally {
       setBusy(false);
       // Let the same file be chosen again after a failure — without this the
