@@ -2,6 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import CookbookShelf from "./cookbook-shelf";
+import { coverDesign } from "@/components/book-cover";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 
 afterEach(cleanup);
@@ -11,9 +12,7 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     id: "cb1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
-    coverImageUrl: null,
-    coverColor: 1,
-    coverStyle: "TITLED",
+    design: coverDesign(1),
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,
@@ -66,8 +65,8 @@ describe("CookbookShelf — covers", () => {
     const { container } = render(
       <CookbookShelf
         cookbooks={[
-          summary({ coverColor: 2 }),
-          summary({ id: "cb2", title: "Baking", coverColor: 7 }),
+          summary({ design: coverDesign(2) }),
+          summary({ id: "cb2", title: "Baking", design: coverDesign(7) }),
         ]}
       />,
     );
@@ -146,7 +145,7 @@ describe("CookbookShelf — cover images", () => {
   it("shows the image instead of the printed title when there is one", () => {
     render(
       <CookbookShelf
-        cookbooks={[summary({ coverImageUrl: BLOB, coverStyle: "PHOTO" })]}
+        cookbooks={[summary({ design: coverDesign(1, { coverImageUrl: BLOB, coverStyle: "PHOTO" }) })]}
       />,
     );
 
@@ -160,7 +159,7 @@ describe("CookbookShelf — cover images", () => {
   it("keeps naming the cookbook underneath either way", () => {
     render(
       <CookbookShelf
-        cookbooks={[summary({ coverImageUrl: BLOB, coverStyle: "PHOTO" })]}
+        cookbooks={[summary({ design: coverDesign(1, { coverImageUrl: BLOB, coverStyle: "PHOTO" }) })]}
       />,
     );
 

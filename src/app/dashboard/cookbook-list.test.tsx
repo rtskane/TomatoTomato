@@ -2,6 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import CookbookList from "./cookbook-list";
+import { coverDesign } from "@/components/book-cover";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 
 afterEach(cleanup);
@@ -11,9 +12,7 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     id: "cb1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
-    coverImageUrl: null,
-    coverColor: 1,
-    coverStyle: "TITLED",
+    design: coverDesign(1),
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,
@@ -146,7 +145,7 @@ describe("CookbookList — cover chips", () => {
   it("puts the image in the chip when the cookbook has one", () => {
     const { container } = render(
       <CookbookList
-        cookbooks={[summary({ coverImageUrl: BLOB, coverStyle: "PHOTO" })]}
+        cookbooks={[summary({ design: coverDesign(1, { coverImageUrl: BLOB, coverStyle: "PHOTO" }) })]}
       />,
     );
 

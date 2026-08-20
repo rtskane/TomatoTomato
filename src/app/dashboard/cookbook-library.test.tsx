@@ -4,6 +4,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CookbookLibrary from "./cookbook-library";
 import { LIBRARY_VIEW_COOKIE, parseLibraryView } from "./library-view";
+import { coverDesign } from "@/components/book-cover";
 import type { CookbookSummary } from "@/server/services/cookbook.service";
 
 afterEach(cleanup);
@@ -17,9 +18,7 @@ function summary(overrides: Partial<CookbookSummary> = {}): CookbookSummary {
     id: "cb1",
     title: "Weeknight Dinners",
     description: "Fast meals.",
-    coverImageUrl: null,
-    coverColor: 1,
-    coverStyle: "TITLED",
+    design: coverDesign(1),
     role: "OWNER",
     recipeCount: 3,
     memberCount: 2,

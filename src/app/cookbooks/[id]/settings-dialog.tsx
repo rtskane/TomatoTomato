@@ -5,7 +5,7 @@ import ModalDialog from "@/components/modal-dialog";
 import CoverDesigner from "@/components/cover-designer";
 import type { UpdateCookbookState, ArchiveCookbookState } from "./settings-actions";
 import type { ArchiveImpact } from "@/server/services/cookbook.service";
-import type { CoverStyle } from "@/lib/book-covers";
+import type { CoverDesign } from "@/lib/book-covers";
 
 // Renaming a cookbook and archiving it. Owner-only — the page decides whether
 // to render this at all.
@@ -125,19 +125,15 @@ function ArchiveSection({
 export default function SettingsDialog({
   title,
   description,
-  coverImageUrl,
-  coverColor,
-  coverStyle,
+  design,
   updateAction,
   archiveAction,
   impact,
 }: {
   title: string;
   description: string | null;
-  coverImageUrl: string | null;
-  /** Already resolved, so the designer opens on the colour the shelf shows. */
-  coverColor: number;
-  coverStyle: CoverStyle;
+  /** Already resolved, so the designer opens on the cover the shelf shows. */
+  design: CoverDesign;
   updateAction: UpdateAction;
   archiveAction: ArchiveAction;
   impact: ArchiveImpact;
@@ -206,9 +202,7 @@ export default function SettingsDialog({
 
           <CoverDesigner
             title={liveTitle}
-            defaultCoverColor={coverColor}
-            defaultCoverStyle={coverStyle}
-            defaultCoverImageUrl={coverImageUrl ?? ""}
+            design={design}
             onUploadingChange={setUploading}
           />
 

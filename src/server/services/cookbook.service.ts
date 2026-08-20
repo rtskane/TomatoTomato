@@ -1,5 +1,11 @@
 import { createCookbookSchema } from "@/lib/cookbook";
-import { resolveCoverColor, type CoverStyle } from "@/lib/book-covers";
+import {
+  resolveCoverColor,
+  clampFraction,
+  clampZoom,
+  DEFAULT_COVER_DESIGN,
+  type CoverDesign,
+} from "@/lib/book-covers";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { ok, err, type Result } from "@/server/result";
 import { recipeRepository } from "@/server/repositories/recipe.repository";
@@ -21,14 +27,90 @@ export type CreateCookbookInput = {
    */
   coverImageUrl?: string;
   /**
-   * The designed cover, as the form posted it: a 1-based palette index and a
-   * `CoverStyle` name, both still strings because that is what a FormData
-   * field is. Both optional — a caller that omits them gets the pre-designer
-   * behaviour, which `createCookbookSchema` spells out.
+   * The designed cover, as the form posted it — every field still a string,
+   * because that is what a FormData field is, and every one optional: a caller
+   * that omits them gets the pre-designer behaviour, which
+   * `createCookbookSchema` spells out.
    */
   coverColor?: string;
   coverStyle?: string;
+  coverTexture?: string;
+  coverTitleFont?: string;
+  coverTitleSize?: string;
+  coverTitlePosition?: string;
+  coverFocalX?: string;
+  coverFocalY?: string;
+  coverZoom?: string;
 };
+
+/**
+ * The stored cover columns, as the shape a view can render.
+ *
+ * `toCoverDesign` is called at every read boundary, so `resolveCoverColor` and
+ * the clamps happen in exactly one place and no view ever receives a null
+ * colour or a focal point outside the picture.
+ */
+type StoredCover = {
+  id: string;
+  coverImageUrl: string | null;
+  coverColor: number | null;
+  coverStyle: CoverDesign["coverStyle"];
+  coverTexture: CoverDesign["coverTexture"];
+  coverTitleFont: CoverDesign["coverTitleFont"];
+  coverTitleSize: CoverDesign["coverTitleSize"];
+  coverTitlePosition: CoverDesign["coverTitlePosition"];
+  coverFocalX: number;
+  coverFocalY: number;
+  coverZoom: number;
+};
+
+/**
+ * The composed half of a cover, as the repository wants it.
+ *
+ * Every field falls back to the default rather than to whatever was stored
+ * before, because these arrive from a form that always posts all of them —
+ * so an absent field means "a caller that predates this", and the defaults
+ * are exactly what such a caller used to get. The alternative, merging with
+ * the current row, would make a save that clears a texture indistinguishable
+ * from one that never mentioned it.
+ */
+function composedCover(parsed: {
+  coverStyle: CoverDesign["coverStyle"];
+  coverTexture?: CoverDesign["coverTexture"];
+  coverTitleFont?: CoverDesign["coverTitleFont"];
+  coverTitleSize?: CoverDesign["coverTitleSize"];
+  coverTitlePosition?: CoverDesign["coverTitlePosition"];
+  coverFocalX?: number;
+  coverFocalY?: number;
+  coverZoom?: number;
+}) {
+  return {
+    coverStyle: parsed.coverStyle,
+    coverTexture: parsed.coverTexture ?? DEFAULT_COVER_DESIGN.coverTexture,
+    coverTitleFont: parsed.coverTitleFont ?? DEFAULT_COVER_DESIGN.coverTitleFont,
+    coverTitleSize: parsed.coverTitleSize ?? DEFAULT_COVER_DESIGN.coverTitleSize,
+    coverTitlePosition:
+      parsed.coverTitlePosition ?? DEFAULT_COVER_DESIGN.coverTitlePosition,
+    coverFocalX: clampFraction(parsed.coverFocalX ?? DEFAULT_COVER_DESIGN.coverFocalX),
+    coverFocalY: clampFraction(parsed.coverFocalY ?? DEFAULT_COVER_DESIGN.coverFocalY),
+    coverZoom: clampZoom(parsed.coverZoom ?? DEFAULT_COVER_DESIGN.coverZoom),
+  };
+}
+
+function toCoverDesign(row: StoredCover): CoverDesign {
+  return {
+    coverColor: resolveCoverColor(row.id, row.coverColor),
+    coverStyle: row.coverStyle,
+    coverImageUrl: row.coverImageUrl,
+    coverTexture: row.coverTexture,
+    coverTitleFont: row.coverTitleFont,
+    coverTitleSize: row.coverTitleSize,
+    coverTitlePosition: row.coverTitlePosition,
+    coverFocalX: clampFraction(row.coverFocalX),
+    coverFocalY: clampFraction(row.coverFocalY),
+    coverZoom: clampZoom(row.coverZoom),
+  };
+}
 
 // Only validation can fail in an *expected* way here: titles aren't unique, so
 // there is no equivalent of the username collision case.
@@ -58,7 +140,7 @@ export async function createCookbook(
     // null rather than a derived value: storing what the id already implies
     // would make "nobody chose" indistinguishable from a real choice.
     coverColor: parsed.data.coverColor ?? null,
-    coverStyle: parsed.data.coverStyle,
+    ...composedCover(parsed.data),
   });
 
   return ok({ id: cookbook.id });
@@ -73,14 +155,12 @@ export type CookbookSummary = {
   id: string;
   title: string;
   description: string | null;
-  coverImageUrl: string | null;
   /**
-   * Always a real palette index, never null: `resolveCoverColor` folds "nobody
-   * chose" into the derived colour here, at the one boundary, so no view has to
-   * carry the id around just in case.
+   * The composed cover, ready to render. Resolved here, at the one boundary,
+   * so no view has to carry the cookbook id around in case the colour was
+   * never chosen, or guard a focal point it didn't write.
    */
-  coverColor: number;
-  coverStyle: CoverStyle;
+  design: CoverDesign;
   role: CookbookRole;
   recipeCount: number;
   memberCount: number;
@@ -100,9 +180,7 @@ export async function listUserCookbooks(
     id: cookbook.id,
     title: cookbook.title,
     description: cookbook.description,
-    coverImageUrl: cookbook.coverImageUrl,
-    coverColor: resolveCoverColor(cookbook.id, cookbook.coverColor),
-    coverStyle: cookbook.coverStyle,
+    design: toCoverDesign(cookbook),
     role,
     recipeCount: cookbook._count.recipes,
     memberCount: cookbook._count.members,
@@ -125,9 +203,7 @@ export type CookbookDetail = {
   id: string;
   title: string;
   description: string | null;
-  coverImageUrl: string | null;
-  coverColor: number;
-  coverStyle: CoverStyle;
+  design: CoverDesign;
   role: CookbookRole;
   canAddRecipes: boolean;
   canEditCookbook: boolean;
@@ -155,9 +231,7 @@ export async function getCookbookDetail(
     id: cookbook.id,
     title: cookbook.title,
     description: cookbook.description,
-    coverImageUrl: cookbook.coverImageUrl,
-    coverColor: resolveCoverColor(cookbook.id, cookbook.coverColor),
-    coverStyle: cookbook.coverStyle,
+    design: toCoverDesign(cookbook),
     role,
     canAddRecipes: canAddRecipes(role),
     canEditCookbook: canEditCookbook(role),
@@ -237,7 +311,7 @@ export async function updateCookbook(
     // that omits the description clears it. The designer always posts one, so
     // this only bites a hand-made request.
     coverColor: parsed.data.coverColor ?? null,
-    coverStyle: parsed.data.coverStyle,
+    ...composedCover(parsed.data),
   });
 
   return ok({

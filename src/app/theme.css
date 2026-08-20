@@ -279,6 +279,9 @@
   --color-book-cover-8: var(--book-cover-8);
   --color-book-ink-8: var(--book-ink-8);
 
+  /* Book cover weaves → see below the @theme block, where they are defined as
+     utilities rather than colours. */
+
   /* Typefaces → font-sans, font-serif, font-mono */
   --font-sans: var(--font-sans-stack);
   --font-serif: var(--font-serif-stack);
@@ -355,4 +358,60 @@
      /12 = 48) is exactly Tailwind's stock scale off `--spacing: 0.25rem`, so
      `p-4` is already Figma's space/4. Overriding it would only add a way for
      the two to drift. */
+}
+
+/* -----------------------------------------------------------------------------
+   Book cover weaves
+
+   The cloth texture a cover can be printed with. Utilities rather than tokens
+   because what varies is a *pattern*, not a colour.
+
+   Both are drawn in `currentColor`, which is the whole trick: the component
+   sets the text colour to that cover's own ink and the weave then belongs to
+   whichever of the eight covers it lands on. One definition, eight covers, and
+   nothing to redo when layer 1 is re-pointed. The alpha lives on the element
+   (an `opacity-*` utility) rather than in here, so the same pattern can sit
+   heavier on a pale cover than a dark one.
+
+   Sized in `cqw` for the same reason the title is: a cover is drawn at 240px
+   and at 128px, and a weave pinned to pixels would be a coarse burlap at one
+   size and invisible at the other.
+   -------------------------------------------------------------------------- */
+@utility cover-weave-linen {
+  /* Two passes of fine lines at right angles reads as woven cloth; one alone
+     reads as corduroy.
+
+     The period is the number that matters. An earlier draft used 1.2cqw, which
+     at a 160px preview is under two pixels — fine enough that the browser
+     aliased it into a moiré plaid rather than drawing cloth. 2.5cqw keeps the
+     thread fine (1.5px on a 240px book) while staying above the size where
+     rounding turns a weave into a pattern nobody chose. */
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      currentColor 0 0.5cqw,
+      transparent 0.5cqw 2.5cqw
+    ),
+    repeating-linear-gradient(
+      0deg,
+      currentColor 0 0.5cqw,
+      transparent 0.5cqw 2.5cqw
+    );
+}
+
+@utility cover-weave-grid {
+  /* Much wider gauge and a hairline rule: a ruled notebook rather than cloth.
+     At 5cqw the squares were small enough to read as graph paper, which is a
+     different object entirely. */
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      currentColor 0 0.3cqw,
+      transparent 0.3cqw 9cqw
+    ),
+    repeating-linear-gradient(
+      0deg,
+      currentColor 0 0.3cqw,
+      transparent 0.3cqw 9cqw
+    );
 }

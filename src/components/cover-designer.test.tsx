@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CoverDesigner from "./cover-designer";
+import { coverDesign } from "./book-cover";
 import { upload } from "@vercel/blob/client";
 
 // The real one talks to Vercel. What matters here is what the designer does
@@ -34,8 +35,7 @@ function renderDesigner(
   return render(
     <CoverDesigner
       title="Weeknight Dinners"
-      defaultCoverColor={2}
-      defaultCoverStyle="TITLED"
+      design={coverDesign(2)}
       {...props}
     />,
   );
@@ -115,13 +115,7 @@ describe("CoverDesigner — the preview is the real book", () => {
     const { rerender } = renderDesigner({ title: "Baking" });
     expect(screen.getByText("Baking")).toBeInTheDocument();
 
-    rerender(
-      <CoverDesigner
-        title="Baking Bread"
-        defaultCoverColor={2}
-        defaultCoverStyle="TITLED"
-      />,
-    );
+    rerender(<CoverDesigner title="Baking Bread" design={coverDesign(2)} />);
     expect(screen.getByText("Baking Bread")).toBeInTheDocument();
   });
 
@@ -149,8 +143,7 @@ describe("CoverDesigner — the style follows the picture", () => {
   it("steps back off Photo when the image is removed", async () => {
     const user = userEvent.setup();
     const { container } = renderDesigner({
-      defaultCoverStyle: "PHOTO",
-      defaultCoverImageUrl: BLOB,
+      design: coverDesign(2, { coverStyle: "PHOTO", coverImageUrl: BLOB }),
     });
 
     expect(screen.getByRole("radio", { name: "Photo" })).toBeChecked();
@@ -166,9 +159,7 @@ describe("CoverDesigner — the style follows the picture", () => {
   it("keeps the chosen colour behind the photo, ready for a switch back", async () => {
     const user = userEvent.setup();
     const { container } = renderDesigner({
-      defaultCoverColor: 5,
-      defaultCoverStyle: "PHOTO",
-      defaultCoverImageUrl: BLOB,
+      design: coverDesign(5, { coverStyle: "PHOTO", coverImageUrl: BLOB }),
     });
 
     await user.click(screen.getByRole("radio", { name: "Titled" }));
@@ -179,6 +170,146 @@ describe("CoverDesigner — the style follows the picture", () => {
       container.querySelector<HTMLInputElement>('input[name="coverImageUrl"]')!
         .value,
     ).toBe(BLOB);
+  });
+});
+
+describe("CoverDesigner — the composed controls", () => {
+  it("posts every part of the design under its own name", () => {
+    const { container } = renderDesigner();
+
+    const posted = (name: string) =>
+      container.querySelector<HTMLInputElement>(
+        `input[name="${name}"]:checked, input[type="hidden"][name="${name}"]`,
+      )?.value;
+
+    expect(posted("coverTexture")).toBe("NONE");
+    expect(posted("coverTitleFont")).toBe("SERIF");
+    expect(posted("coverTitleSize")).toBe("MEDIUM");
+    expect(posted("coverTitlePosition")).toBe("CENTER");
+    expect(posted("coverFocalX")).toBe("0.5");
+    expect(posted("coverFocalY")).toBe("0.5");
+    expect(posted("coverZoom")).toBe("1");
+  });
+
+  it("restyles the title in the preview as the controls change", async () => {
+    const user = userEvent.setup();
+    renderDesigner();
+
+    await user.click(screen.getByRole("radio", { name: "Sans" }));
+    await user.click(screen.getByRole("radio", { name: "Large" }));
+
+    const title = screen.getByText("Weeknight Dinners");
+    expect(title.className).toContain("font-sans");
+    expect(title.className).toContain("text-[11cqw]");
+  });
+
+  it("prints the weave on the preview", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner();
+
+    await user.click(screen.getByRole("radio", { name: "Weave" }));
+
+    expect(container.querySelector(".cover-weave-linen")).not.toBeNull();
+  });
+
+  // Hiding a control must not quietly discard what it held: someone who sets a
+  // title treatment, tries Plain, and goes back should find their treatment.
+  it("keeps posting the title treatment while the cover is Plain", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner();
+
+    await user.click(screen.getByRole("radio", { name: "Sans" }));
+    await user.click(screen.getByRole("radio", { name: "Plain" }));
+
+    expect(screen.queryByRole("radio", { name: "Sans" })).toBeNull();
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="coverTitleFont"]')!.value,
+    ).toBe("SANS");
+  });
+});
+
+describe("CoverDesigner — framing the photograph", () => {
+  async function withPhoto() {
+    const view = renderDesigner({
+      design: coverDesign(2, { coverStyle: "PHOTO", coverImageUrl: BLOB }),
+    });
+    return view;
+  }
+
+  it("offers no reframing until there is a photograph", () => {
+    renderDesigner();
+    expect(screen.queryByRole("group", { name: /photo position/i })).toBeNull();
+    expect(screen.queryByRole("slider")).toBeNull();
+  });
+
+  it("says where the photograph sits, for someone who can't see it", async () => {
+    await withPhoto();
+
+    expect(
+      screen.getByRole("group", { name: /50% across, 50% down/i }),
+    ).toBeInTheDocument();
+  });
+
+  // A framing control reachable only by mouse is a control some people simply
+  // do not have.
+  it("reframes with the arrow keys", async () => {
+    const user = userEvent.setup();
+    const { container } = await withPhoto();
+
+    const frame = screen.getByRole("group", { name: /photo position/i });
+    frame.focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowDown}");
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="coverFocalX"]')!.value,
+    ).toBeCloseTo(0.54, 5);
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="coverFocalY"]')!.value,
+    ).toBeCloseTo(0.52, 5);
+  });
+
+  it("can't be nudged outside the picture", async () => {
+    const user = userEvent.setup();
+    const { container } = await withPhoto();
+
+    const frame = screen.getByRole("group", { name: /photo position/i });
+    frame.focus();
+    // Far more presses than it takes to reach the edge.
+    await user.keyboard("{ArrowLeft>40/}");
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="coverFocalX"]')!.value,
+    ).toBe("0");
+  });
+
+  it("offers a zoom slider only for a photographed cover", async () => {
+    await withPhoto();
+
+    const zoom = screen.getByRole("slider");
+    expect(zoom).toHaveAttribute("name", "coverZoom");
+    expect(zoom).toHaveAttribute("min", "1");
+    expect(zoom).toHaveAttribute("max", "3");
+  });
+
+  // A focal point chosen for one photograph means nothing on the next.
+  it("recentres the framing when a new picture is chosen", async () => {
+    const user = userEvent.setup();
+    const { container } = await withPhoto();
+
+    const frame = screen.getByRole("group", { name: /photo position/i });
+    frame.focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="coverFocalX"]')!.value,
+    ).not.toBe("0.5");
+
+    await user.upload(screen.getByLabelText("Replace image"), imageFile());
+
+    await waitFor(() => {
+      expect(
+        container.querySelector<HTMLInputElement>('input[name="coverFocalX"]')!.value,
+      ).toBe("0.5");
+    });
   });
 });
 

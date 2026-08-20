@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { CookbookRole, type CoverStyle } from "@/generated/prisma/enums";
+import {
+  CookbookRole,
+  type CoverStyle,
+  type CoverTexture,
+  type CoverTitleFont,
+  type CoverTitleSize,
+  type CoverTitlePosition,
+} from "@/generated/prisma/enums";
 
 // The ONLY module that talks to Prisma for the Cookbook table. Mirrors the
 // contract of user.repository: callers above this layer speak in method calls
@@ -10,6 +17,13 @@ type CookbookCoverInput = {
   /** null leaves the colour derived from the id — see `resolveCoverColor`. */
   coverColor: number | null;
   coverStyle: CoverStyle;
+  coverTexture: CoverTexture;
+  coverTitleFont: CoverTitleFont;
+  coverTitleSize: CoverTitleSize;
+  coverTitlePosition: CoverTitlePosition;
+  coverFocalX: number;
+  coverFocalY: number;
+  coverZoom: number;
 };
 
 type CreateCookbookInput = CookbookCoverInput & {
@@ -34,6 +48,26 @@ type UpdateCookbookInput = CookbookCoverInput & {
  */
 const liveCookbook = { cookbook: { archivedAt: null } } as const;
 
+/**
+ * Every column that makes up a cover, as one `select` fragment.
+ *
+ * Spread into each read rather than written out per query: there are ten of
+ * them now, and a cover column present in one read and missing from another is
+ * a cookbook that looks different on the shelf than on its own page.
+ */
+const coverColumns = {
+  coverImageUrl: true,
+  coverColor: true,
+  coverStyle: true,
+  coverTexture: true,
+  coverTitleFont: true,
+  coverTitleSize: true,
+  coverTitlePosition: true,
+  coverFocalX: true,
+  coverFocalY: true,
+  coverZoom: true,
+} as const;
+
 // Note the membership lookups below use `findFirst`, not `findUnique`, even
 // though (cookbookId, userId) is a unique index. `findUnique` accepts only the
 // key itself — adding the `liveCookbook` relation filter to it typechecks
@@ -52,21 +86,12 @@ export const cookbookRepository = {
    * relations. Prisma runs a nested create in one transaction, so a cookbook can
    * never exist without its owner's membership row.
    */
-  create({
-    ownerId,
-    title,
-    description,
-    coverImageUrl,
-    coverColor,
-    coverStyle,
-  }: CreateCookbookInput) {
+  create({ ownerId, title, description, ...cover }: CreateCookbookInput) {
     return prisma.cookbook.create({
       data: {
         title,
         description,
-        coverImageUrl,
-        coverColor,
-        coverStyle,
+        ...cover,
         ownerId,
         members: { create: { userId: ownerId, role: CookbookRole.OWNER } },
       },
@@ -92,9 +117,7 @@ export const cookbookRepository = {
             id: true,
             title: true,
             description: true,
-            coverImageUrl: true,
-            coverColor: true,
-            coverStyle: true,
+            ...coverColumns,
             updatedAt: true,
             _count: { select: { recipes: true, members: true } },
           },
@@ -123,9 +146,7 @@ export const cookbookRepository = {
             id: true,
             title: true,
             description: true,
-            coverImageUrl: true,
-            coverColor: true,
-            coverStyle: true,
+            ...coverColumns,
             recipes: {
               orderBy: { createdAt: "desc" },
               select: {
@@ -228,19 +249,10 @@ export const cookbookRepository = {
     });
   },
 
-  update(
-    cookbookId: string,
-    {
-      title,
-      description,
-      coverImageUrl,
-      coverColor,
-      coverStyle,
-    }: UpdateCookbookInput,
-  ) {
+  update(cookbookId: string, { title, description, ...cover }: UpdateCookbookInput) {
     return prisma.cookbook.update({
       where: { id: cookbookId },
-      data: { title, description, coverImageUrl, coverColor, coverStyle },
+      data: { title, description, ...cover },
       select: { id: true },
     });
   },
