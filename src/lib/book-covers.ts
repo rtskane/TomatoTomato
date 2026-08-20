@@ -15,6 +15,137 @@ export function isCoverStyle(value: string): value is CoverStyle {
   return (COVER_STYLES as readonly string[]).includes(value);
 }
 
+// ---------------------------------------------------------------------------
+// The composed cover
+//
+// Everything below is a *finite vocabulary*, which is the whole design premise:
+// a cover is composed from named choices rather than laid out freehand. That is
+// what lets one component draw the same cover at 240px on the shelf, 128px in
+// the designer and 36px in a list row and have all three agree — every value
+// here resolves to something relative (a percentage of the cover's own width,
+// or a fraction of the photograph), never a pixel.
+// ---------------------------------------------------------------------------
+
+export const COVER_TEXTURES = ["NONE", "GINGHAM", "GRID"] as const;
+export type CoverTexture = (typeof COVER_TEXTURES)[number];
+
+export const COVER_TITLE_FONTS = ["SERIF", "SANS"] as const;
+export type CoverTitleFont = (typeof COVER_TITLE_FONTS)[number];
+
+export const COVER_TITLE_SIZES = ["SMALL", "MEDIUM", "LARGE"] as const;
+export type CoverTitleSize = (typeof COVER_TITLE_SIZES)[number];
+
+export const COVER_TITLE_POSITIONS = ["TOP", "CENTER", "BOTTOM"] as const;
+export type CoverTitlePosition = (typeof COVER_TITLE_POSITIONS)[number];
+
+/**
+ * The pattern, as a class defined in theme.css.
+ *
+ * Drawn in `currentColor` there, so the component only has to set the text
+ * colour to the cover's ink and the pattern belongs to whichever of the eight
+ * covers it lands on — no per-cover texture assets, and nothing to re-do when
+ * the palette is re-pointed. Its *strength* lives in theme.css too, in the
+ * alpha of the bands, because each pattern needs a different one.
+ */
+export const TEXTURES: Record<CoverTexture, { label: string; className: string | null }> = {
+  NONE: { label: "None", className: null },
+  GINGHAM: { label: "Gingham", className: "cover-weave-gingham" },
+  GRID: { label: "Grid", className: "cover-weave-grid" },
+};
+
+/**
+ * Title size as a percentage of the cover's width.
+ *
+ * MEDIUM is 8.3cqw because that is exactly what the shelf book was set at
+ * before sizes existed (20px on a 240px book) — so a cookbook nobody has
+ * restyled is unchanged to the pixel.
+ */
+export const TITLE_SIZES: Record<CoverTitleSize, { label: string; className: string }> = {
+  SMALL: { label: "Small", className: "text-[6.2cqw]" },
+  MEDIUM: { label: "Medium", className: "text-[8.3cqw]" },
+  LARGE: { label: "Large", className: "text-[11cqw]" },
+};
+
+export const TITLE_FONTS: Record<CoverTitleFont, { label: string; className: string }> = {
+  SERIF: { label: "Serif", className: "font-serif" },
+  SANS: { label: "Sans", className: "font-sans" },
+};
+
+/**
+ * Where the title sits *within the frame*. The frame itself never moves — it
+ * is the label plate on the board, and sliding it around would stop the book
+ * looking like a book.
+ */
+export const TITLE_POSITIONS: Record<
+  CoverTitlePosition,
+  { label: string; className: string }
+> = {
+  TOP: { label: "Top", className: "items-start" },
+  CENTER: { label: "Centre", className: "items-center" },
+  BOTTOM: { label: "Bottom", className: "items-end" },
+};
+
+/** How far in the photograph may be zoomed. 1 is "fits the board". */
+export const MIN_ZOOM = 1;
+export const MAX_ZOOM = 3;
+
+export function isCoverTexture(v: string): v is CoverTexture {
+  return (COVER_TEXTURES as readonly string[]).includes(v);
+}
+export function isCoverTitleFont(v: string): v is CoverTitleFont {
+  return (COVER_TITLE_FONTS as readonly string[]).includes(v);
+}
+export function isCoverTitleSize(v: string): v is CoverTitleSize {
+  return (COVER_TITLE_SIZES as readonly string[]).includes(v);
+}
+export function isCoverTitlePosition(v: string): v is CoverTitlePosition {
+  return (COVER_TITLE_POSITIONS as readonly string[]).includes(v);
+}
+
+/** Keep a stored fraction inside 0–1; anything else is a hand-made request. */
+export function clampFraction(value: number): number {
+  if (!Number.isFinite(value)) return 0.5;
+  return Math.min(1, Math.max(0, value));
+}
+
+export function clampZoom(value: number): number {
+  if (!Number.isFinite(value)) return MIN_ZOOM;
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
+/**
+ * Everything about how a cover is composed, as one bag of props.
+ *
+ * Grouped into a type because it travels together everywhere — service to
+ * view, view to component, form to action — and threading nine loose
+ * parameters through each of those would be nine chances to drop one.
+ */
+export type CoverDesign = {
+  coverColor: number;
+  coverStyle: CoverStyle;
+  coverImageUrl: string | null;
+  coverTexture: CoverTexture;
+  coverTitleFont: CoverTitleFont;
+  coverTitleSize: CoverTitleSize;
+  coverTitlePosition: CoverTitlePosition;
+  coverFocalX: number;
+  coverFocalY: number;
+  coverZoom: number;
+};
+
+/** What a cookbook nobody has designed looks like. */
+export const DEFAULT_COVER_DESIGN: Omit<CoverDesign, "coverColor"> = {
+  coverStyle: "TITLED",
+  coverImageUrl: null,
+  coverTexture: "NONE",
+  coverTitleFont: "SERIF",
+  coverTitleSize: "MEDIUM",
+  coverTitlePosition: "CENTER",
+  coverFocalX: 0.5,
+  coverFocalY: 0.5,
+  coverZoom: 1,
+};
+
 export type BookCoverPalette = {
   /** 1-based, and what `Cookbook.coverColor` stores. Never renumber these. */
   id: number;

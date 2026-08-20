@@ -1,20 +1,27 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import BookCover from "./book-cover";
+import BookCover, { coverDesign } from "./book-cover";
 
 afterEach(cleanup);
 
 const BLOB =
   "https://abc123.public.blob.vercel-storage.com/cookbook-covers/a.jpg";
 
-function renderCover(props: Partial<React.ComponentProps<typeof BookCover>> = {}) {
+/**
+ * `design` overrides are merged into the default cover rather than replacing
+ * it, so each test names only the one property it is about.
+ */
+function renderCover({
+  design = {},
+  ...props
+}: Partial<Omit<React.ComponentProps<typeof BookCover>, "design">> & {
+  design?: Partial<ReturnType<typeof coverDesign>>;
+} = {}) {
   return render(
     <BookCover
       title="Weeknight Dinners"
-      coverColor={2}
-      coverStyle="TITLED"
-      coverImageUrl={null}
+      design={coverDesign(2, design)}
       {...props}
     />,
   );
@@ -27,7 +34,7 @@ describe("BookCover — the three styles", () => {
   });
 
   it("shows nothing but the cloth when PLAIN", () => {
-    const { container } = renderCover({ coverStyle: "PLAIN" });
+    const { container } = renderCover({ design: { coverStyle: "PLAIN" } });
 
     expect(screen.queryByText("Weeknight Dinners")).toBeNull();
     expect(container.querySelector("img")).toBeNull();
@@ -35,8 +42,7 @@ describe("BookCover — the three styles", () => {
 
   it("fills the board with the picture when PHOTO", () => {
     const { container } = renderCover({
-      coverStyle: "PHOTO",
-      coverImageUrl: BLOB,
+      design: { coverStyle: "PHOTO", coverImageUrl: BLOB },
     });
 
     const img = container.querySelector("img");
@@ -53,8 +59,7 @@ describe("BookCover — a style it cannot draw", () => {
   // hand-edited row. Falling back to the cloth beats an empty board.
   it("falls back to the printed title when PHOTO has no picture", () => {
     const { container } = renderCover({
-      coverStyle: "PHOTO",
-      coverImageUrl: null,
+      design: { coverStyle: "PHOTO", coverImageUrl: null },
     });
 
     expect(container.querySelector("img")).toBeNull();
@@ -64,19 +69,124 @@ describe("BookCover — a style it cannot draw", () => {
 
 describe("BookCover — the colour", () => {
   it("wears the cloth it was given", () => {
-    const { container } = renderCover({ coverColor: 7 });
+    const { container } = renderCover({ design: { coverColor: 7 } });
     expect(container.firstElementChild!.className).toContain("bg-book-cover-7");
   });
 
   it("draws the spine in that cover's own ink", () => {
-    const { container } = renderCover({ coverColor: 7 });
+    const { container } = renderCover({ design: { coverColor: 7 } });
     const spine = container.querySelector("span");
     expect(spine!.className).toContain("book-ink-7");
   });
 
   it("renders a real cover even for a colour outside the palette", () => {
-    const { container } = renderCover({ coverColor: 99 });
+    const { container } = renderCover({ design: { coverColor: 99 } });
     expect(container.firstElementChild!.className).toContain("bg-book-cover-");
+  });
+});
+
+describe("BookCover — the composed cover", () => {
+  it("prints the pattern on the cloth, in that cover's own ink", () => {
+    const { container } = renderCover({
+      design: { coverColor: 3, coverTexture: "GINGHAM" },
+    });
+
+    const weave = container.querySelector(".cover-weave-gingham");
+    expect(weave).not.toBeNull();
+    // The pattern is drawn in currentColor, so the ink class is what makes it
+    // belong to this cover rather than being a fixed grey.
+    expect(weave!.className).toContain("text-book-ink-3");
+  });
+
+  it("prints no pattern when there is none", () => {
+    const { container } = renderCover({ design: { coverTexture: "NONE" } });
+    expect(container.querySelector("[class*='cover-weave']")).toBeNull();
+  });
+
+  // A photograph fills the board edge to edge; a weave over it would just be
+  // dirt on the picture.
+  it("leaves the pattern off a photographed cover", () => {
+    const { container } = renderCover({
+      design: {
+        coverTexture: "GINGHAM",
+        coverStyle: "PHOTO",
+        coverImageUrl: BLOB,
+      },
+    });
+    expect(container.querySelector("[class*='cover-weave']")).toBeNull();
+  });
+
+  it("sets the title in the chosen family, size and position", () => {
+    renderCover({
+      design: {
+        coverTitleFont: "SANS",
+        coverTitleSize: "LARGE",
+        coverTitlePosition: "BOTTOM",
+      },
+    });
+
+    const title = screen.getByText("Weeknight Dinners");
+    expect(title.className).toContain("font-sans");
+    expect(title.className).toContain("text-[11cqw]");
+    // The frame doesn't move; the title aligns inside it.
+    expect(title.parentElement!.className).toContain("items-end");
+  });
+
+  it("falls back to a real treatment for a value outside the vocabulary", () => {
+    renderCover({
+      // Only reachable from older data or a hand-edited row.
+      design: { coverTitleSize: "HUGE" as never },
+    });
+    expect(screen.getByText("Weeknight Dinners").className).toContain("text-[8.3cqw]");
+  });
+});
+
+describe("BookCover — framing the photograph", () => {
+  it("keeps the chosen point of the picture when it is cropped", () => {
+    const { container } = renderCover({
+      design: {
+        coverStyle: "PHOTO",
+        coverImageUrl: BLOB,
+        coverFocalX: 0.25,
+        coverFocalY: 0.75,
+      },
+    });
+
+    const img = container.querySelector("img")!;
+    expect(img.style.objectPosition).toBe("25% 75%");
+  });
+
+  // Zooming about the focal point rather than the centre is what makes the
+  // gesture mean "get closer to *this*".
+  it("zooms about the focal point, not the middle of the frame", () => {
+    const { container } = renderCover({
+      design: {
+        coverStyle: "PHOTO",
+        coverImageUrl: BLOB,
+        coverFocalX: 0.2,
+        coverFocalY: 0.4,
+        coverZoom: 2,
+      },
+    });
+
+    const img = container.querySelector("img")!;
+    expect(img.style.transform).toBe("scale(2)");
+    expect(img.style.transformOrigin).toBe("20% 40%");
+  });
+
+  // The column is a bare float, so a stored value outside the picture has to
+  // render as *something* rather than throwing.
+  it("clamps a focal point that fell outside the picture", () => {
+    const { container } = renderCover({
+      design: {
+        coverStyle: "PHOTO",
+        coverImageUrl: BLOB,
+        coverFocalX: -3,
+        coverFocalY: 9,
+      },
+    });
+
+    expect(container.querySelector("img")!.style.objectPosition).toBe("0% 100%");
   });
 });
 
@@ -89,8 +199,7 @@ describe("BookCover — sizes", () => {
   it("still shows the picture on a chip", () => {
     const { container } = renderCover({
       size: "chip",
-      coverStyle: "PHOTO",
-      coverImageUrl: BLOB,
+      design: { coverStyle: "PHOTO", coverImageUrl: BLOB },
     });
     expect(container.querySelector("img")).not.toBeNull();
   });

@@ -56,6 +56,13 @@ describe("updateCookbookAction", () => {
       coverImageUrl: "",
       coverColor: "",
       coverStyle: "",
+      coverTexture: "",
+      coverTitleFont: "",
+      coverTitleSize: "",
+      coverTitlePosition: "",
+      coverFocalX: "",
+      coverFocalY: "",
+      coverZoom: "",
     });
   });
 

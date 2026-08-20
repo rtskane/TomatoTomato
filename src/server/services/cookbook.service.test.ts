@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { derivedCoverColor } from "@/lib/book-covers";
+import { derivedCoverColor, DEFAULT_COVER_DESIGN } from "@/lib/book-covers";
 
 // Fully replace the repository module so real Prisma is never imported.
 const {
@@ -96,11 +96,11 @@ describe("createCookbook", () => {
       ownerId: "u1",
       title: "Weeknight Dinners",
       description: "Fast meals.",
-      coverImageUrl: null,
       // Nothing was chosen, so nothing is stored — the colour keeps being
-      // derived from the id.
+      // derived from the id — and the rest of the cover is the untouched
+      // default.
       coverColor: null,
-      coverStyle: "TITLED",
+      ...DEFAULT_COVER_DESIGN,
     });
   });
 
@@ -113,9 +113,8 @@ describe("createCookbook", () => {
       ownerId: "u1",
       title: "Weeknight Dinners",
       description: null,
-      coverImageUrl: null,
       coverColor: null,
-      coverStyle: "TITLED",
+      ...DEFAULT_COVER_DESIGN,
     });
   });
 
@@ -149,7 +148,7 @@ describe("listUserCookbooks", () => {
       // Null: a cookbook nobody has designed, which is what every row looked
       // like before the designer shipped.
       coverColor: null,
-      coverStyle: "TITLED",
+      ...DEFAULT_COVER_DESIGN,
       updatedAt: new Date("2026-08-01"),
       _count: { recipes: 3, members: 2 },
     },
@@ -178,10 +177,9 @@ describe("listUserCookbooks", () => {
         id: "cb1",
         title: "Weeknight Dinners",
         description: "Fast meals.",
-        // Resolved here, so the view is handed a colour rather than a null to
-        // work out for itself.
-        coverColor: derivedCoverColor("cb1"),
-        coverStyle: "TITLED",
+        // Resolved here, so the view is handed a whole renderable cover rather
+        // than a null colour to work out for itself.
+        design: { ...DEFAULT_COVER_DESIGN, coverColor: derivedCoverColor("cb1") },
         role: "OWNER",
         recipeCount: 3,
         memberCount: 2,
@@ -233,6 +231,8 @@ describe("getCookbookDetail", () => {
       id: "cb1",
       title: "Weeknight Dinners",
       description: "Fast meals.",
+      coverColor: null,
+      ...DEFAULT_COVER_DESIGN,
       recipes: [recipeRow],
     },
   };
@@ -363,9 +363,8 @@ describe("updateCookbook", () => {
     expect(update).toHaveBeenCalledWith("cb1", {
       title: "Sunday Roasts",
       description: "Slow food.",
-      coverImageUrl: null,
       coverColor: null,
-      coverStyle: "TITLED",
+      ...DEFAULT_COVER_DESIGN,
     });
   });
 
@@ -796,9 +795,8 @@ describe("listUserCookbooks — resolving the colour", () => {
         id: "cb1",
         title: "Baking",
         description: null,
-        coverImageUrl: null,
         coverColor,
-        coverStyle: "TITLED",
+        ...DEFAULT_COVER_DESIGN,
         updatedAt: new Date("2026-08-01"),
         _count: { recipes: 0, members: 1 },
       },
@@ -809,7 +807,7 @@ describe("listUserCookbooks — resolving the colour", () => {
     listForUser.mockResolvedValue([rowWith(4)]);
 
     const [summary] = await listUserCookbooks("u1");
-    expect(summary.coverColor).toBe(4);
+    expect(summary.design.coverColor).toBe(4);
   });
 
   // The view is handed a colour, never a null it has to work out for itself.
@@ -817,6 +815,6 @@ describe("listUserCookbooks — resolving the colour", () => {
     listForUser.mockResolvedValue([rowWith(null)]);
 
     const [summary] = await listUserCookbooks("u1");
-    expect(summary.coverColor).toBe(derivedCoverColor("cb1"));
+    expect(summary.design.coverColor).toBe(derivedCoverColor("cb1"));
   });
 });

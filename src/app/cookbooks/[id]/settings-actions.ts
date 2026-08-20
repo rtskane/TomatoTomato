@@ -22,6 +22,13 @@ export type UpdateCookbookState = {
     coverImageUrl: string;
     coverColor: string;
     coverStyle: string;
+    coverTexture: string;
+    coverTitleFont: string;
+    coverTitleSize: string;
+    coverTitlePosition: string;
+    coverFocalX: string;
+    coverFocalY: string;
+    coverZoom: string;
   };
 };
 
@@ -41,6 +48,13 @@ export async function updateCookbookAction(
     // as an error — see createCookbookSchema.
     coverColor: String(formData.get("coverColor") ?? ""),
     coverStyle: String(formData.get("coverStyle") ?? ""),
+    coverTexture: String(formData.get("coverTexture") ?? ""),
+    coverTitleFont: String(formData.get("coverTitleFont") ?? ""),
+    coverTitleSize: String(formData.get("coverTitleSize") ?? ""),
+    coverTitlePosition: String(formData.get("coverTitlePosition") ?? ""),
+    coverFocalX: String(formData.get("coverFocalX") ?? ""),
+    coverFocalY: String(formData.get("coverFocalY") ?? ""),
+    coverZoom: String(formData.get("coverZoom") ?? ""),
   };
 
   const result = await updateCookbook(user.id, cookbookId, values);
