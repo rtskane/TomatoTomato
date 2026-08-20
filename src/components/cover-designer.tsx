@@ -80,19 +80,16 @@ function Segmented<T extends string>({
   options,
   value,
   onChange,
-  disabledValues = [],
 }: {
   name: string;
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
-  disabledValues?: T[];
 }) {
   return (
     <div className="inline-flex flex-wrap gap-1 rounded-md bg-background-control p-1">
       {options.map((option) => {
         const selected = option.value === value;
-        const disabled = disabledValues.includes(option.value);
 
         return (
           <label
@@ -101,14 +98,13 @@ function Segmented<T extends string>({
               selected
                 ? "bg-background text-foreground shadow-xs"
                 : "text-foreground-secondary hover:text-foreground"
-            } ${disabled ? "cursor-not-allowed opacity-40 hover:text-foreground-secondary" : ""}`}
+            }`}
           >
             <input
               type="radio"
               name={name}
               value={option.value}
               checked={selected}
-              disabled={disabled}
               onChange={() => onChange(option.value)}
               className="sr-only"
             />
@@ -137,6 +133,7 @@ export default function CoverDesigner({
   const [design, setDesign] = useState<CoverDesign>(initialDesign);
   const headingId = useId();
   const dragHintId = useId();
+  const zoomId = useId();
   const previewRef = useRef<HTMLDivElement>(null);
 
   function set<K extends keyof CoverDesign>(key: K, value: CoverDesign[K]) {
@@ -144,23 +141,38 @@ export default function CoverDesigner({
   }
 
   const hasImage = Boolean(design.coverImageUrl);
-  const isPhoto = design.coverStyle === "PHOTO" && hasImage;
+  /**
+   * Two different questions, and conflating them was the bug.
+   *
+   * `isPhotoStyle` is "which panel is open" — the owner has chosen Photo,
+   * whether or not they have supplied one yet. `isPhoto` is "is a photograph
+   * actually on the board", which is what the preview can be dragged by.
+   * Photo used to be un-selectable until an image existed, which meant the one
+   * control that looked like it would let you add a photo was greyed out.
+   */
+  const isPhotoStyle = design.coverStyle === "PHOTO";
+  const isPhoto = isPhotoStyle && hasImage;
   const isTitled = design.coverStyle === "TITLED";
 
   /**
-   * Uploading a picture selects Photo, and removing it steps back off Photo.
+   * Uploading a picture selects Photo. Removing one leaves the style alone.
    *
-   * Anything else is a trap: someone who uploads an image and saves would get
-   * their old colour cover and no explanation, and someone who removes the
-   * image while Photo is selected would be left on a style that cannot draw.
-   * The framing resets with the picture, because a focal point chosen for one
-   * photograph means nothing on the next.
+   * Selecting Photo on upload avoids a trap: someone who uploads an image and
+   * saves would otherwise get their old cloth cover back with no explanation.
+   *
+   * Removing used to step back to Titled, from when Photo could not be chosen
+   * without a photograph. Now that it can, bouncing someone off the panel they
+   * are working in is just abrupt — they chose Photo, they only cleared the
+   * picture. The empty state says what saving now would do.
+   *
+   * The framing resets with the picture either way, because a focal point
+   * chosen for one photograph means nothing on the next.
    */
   function handleImageChange(url: string) {
     setDesign((d) => ({
       ...d,
       coverImageUrl: url || null,
-      coverStyle: url ? "PHOTO" : d.coverStyle === "PHOTO" ? "TITLED" : d.coverStyle,
+      coverStyle: url ? "PHOTO" : d.coverStyle,
       coverFocalX: 0.5,
       coverFocalY: 0.5,
       coverZoom: MIN_ZOOM,
@@ -315,15 +327,19 @@ export default function CoverDesigner({
               options={STYLE_OPTIONS}
               value={design.coverStyle}
               onChange={(v) => set("coverStyle", v)}
-              // Photo is offered only once there is a photo. A control that
-              // accepts a choice it can't honour is worse than one that waits.
-              disabledValues={hasImage ? [] : ["PHOTO"]}
             />
           </Field>
 
+          {/* Everything below belongs to the style chosen above: picking one
+              reveals what you can do with it. An earlier version laid all the
+              controls out at once and left the upload at the bottom, which put
+              the way to add a photo nowhere near the Photo button — and greyed
+              that button out until a photo existed, so the one control that
+              looked like it would let you add a photo looked disabled. */}
+
           {/* The weave is printed on cloth, so it has nothing to say about a
               cover that is entirely photograph. */}
-          {isPhoto ? (
+          {isPhotoStyle ? (
             <input type="hidden" name="coverTexture" value={design.coverTexture} />
           ) : (
             <Field label="Texture">
@@ -389,45 +405,68 @@ export default function CoverDesigner({
             </>
           )}
 
-          {isPhoto ? (
-            <Field label="Zoom">
-              <input
-                type="range"
-                name="coverZoom"
-                min={MIN_ZOOM}
-                max={MAX_ZOOM}
-                step={0.05}
-                value={design.coverZoom}
-                onChange={(e) => set("coverZoom", clampZoom(Number(e.target.value)))}
-                className="w-full max-w-56 accent-accent"
+          {/* The photo panel. Choosing an image and framing it live here, under
+              the Photo button, rather than in a permanent row at the bottom —
+              which is what made the upload hard to find and made "Replace
+              image" sit under a cover that wasn't showing a photograph. */}
+          {isPhotoStyle ? (
+            <Field label="Photo">
+              <CoverImageField
+                value={design.coverImageUrl ?? ""}
+                onChange={handleImageChange}
+                onUploadingChange={onUploadingChange}
+                // Both suppressed because this section already has a heading
+                // and a much larger preview a few pixels to the left.
+                heading={null}
+                showPreview={false}
               />
+
+              {hasImage ? (
+                <div className="mt-3">
+                  <label
+                    htmlFor={zoomId}
+                    className="block text-caption-1 text-foreground-secondary"
+                  >
+                    Zoom
+                  </label>
+                  <input
+                    id={zoomId}
+                    type="range"
+                    name="coverZoom"
+                    min={MIN_ZOOM}
+                    max={MAX_ZOOM}
+                    step={0.05}
+                    value={design.coverZoom}
+                    onChange={(e) => set("coverZoom", clampZoom(Number(e.target.value)))}
+                    className="mt-1 w-full max-w-56 accent-accent"
+                  />
+                </div>
+              ) : (
+                // Said plainly, because the preview beside this is showing the
+                // cloth cover and that is not a bug: a Photo cover with no
+                // photograph saves as its cloth (see `createCookbookSchema`),
+                // so the preview is already telling the truth about what a
+                // save would do.
+                <p className="mt-2 text-caption-1 text-foreground-tertiary">
+                  Until you add one, this cover saves as the cloth beside it.
+                </p>
+              )}
             </Field>
           ) : (
             <input type="hidden" name="coverZoom" value={design.coverZoom} />
           )}
 
-          {/* The focal point has no control of its own — it is set by dragging
-              the preview — so it is the one part of the design that needs
-              hidden fields to be submitted at all. */}
+          {/* Posted whatever panel is open, so a photograph survives a trip
+              through Titled and back without being re-uploaded — and so the
+              focal point, which has no control of its own beyond dragging the
+              preview, is submitted at all. */}
+          <input
+            type="hidden"
+            name="coverImageUrl"
+            value={design.coverImageUrl ?? ""}
+          />
           <input type="hidden" name="coverFocalX" value={design.coverFocalX} />
           <input type="hidden" name="coverFocalY" value={design.coverFocalY} />
-
-          <div>
-            <CoverImageField
-              value={design.coverImageUrl ?? ""}
-              onChange={handleImageChange}
-              onUploadingChange={onUploadingChange}
-              // Both suppressed because this section already has a heading and
-              // a much larger preview a few pixels to the left.
-              heading={null}
-              showPreview={false}
-            />
-            <input
-              type="hidden"
-              name="coverImageUrl"
-              value={design.coverImageUrl ?? ""}
-            />
-          </div>
         </div>
       </div>
     </section>

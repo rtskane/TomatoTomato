@@ -102,11 +102,36 @@ describe("CoverDesigner — picking a style", () => {
     expect(screen.queryByText("Weeknight Dinners")).toBeNull();
   });
 
-  // A control that accepts a choice it cannot honour is worse than one that
-  // waits for the thing it needs.
-  it("refuses Photo until there is a photo", () => {
+  // Greying Photo out until a photo existed meant the one control that looked
+  // like it would let you add a photo looked unavailable.
+  it("offers Photo before there is a photo", () => {
     renderDesigner();
-    expect(screen.getByRole("radio", { name: "Photo" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Photo" })).toBeEnabled();
+  });
+
+  it("puts the upload under Photo, where someone looking for it would look", async () => {
+    const user = userEvent.setup();
+    renderDesigner();
+
+    // Not lying around underneath the other styles.
+    expect(screen.queryByLabelText("Choose image")).toBeNull();
+
+    await user.click(screen.getByRole("radio", { name: "Photo" }));
+
+    expect(screen.getByLabelText("Choose image")).toBeInTheDocument();
+  });
+
+  // The preview beside it shows the cloth, and that is the truth rather than a
+  // bug: a Photo cover with no photograph saves as its cloth.
+  it("says what saving would do while the photo is still missing", async () => {
+    const user = userEvent.setup();
+    renderDesigner();
+
+    await user.click(screen.getByRole("radio", { name: "Photo" }));
+
+    expect(screen.getByText(/saves as the cloth/i)).toBeInTheDocument();
+    // Nothing to zoom yet.
+    expect(screen.queryByRole("slider")).toBeNull();
   });
 });
 
@@ -132,15 +157,21 @@ describe("CoverDesigner — the style follows the picture", () => {
     const user = userEvent.setup();
     const { container } = renderDesigner();
 
+    await user.click(screen.getByRole("radio", { name: "Photo" }));
     await user.upload(screen.getByLabelText("Choose image"), imageFile());
 
     await waitFor(() => {
       expect(screen.getByRole("radio", { name: "Photo" })).toBeChecked();
     });
     expect(container.querySelector("img")).not.toBeNull();
+    // The framing controls arrive with the picture, not before it.
+    expect(screen.getByRole("slider")).toBeInTheDocument();
   });
 
-  it("steps back off Photo when the image is removed", async () => {
+  // Removing the picture used to bounce you to Titled, from when Photo could
+  // not be chosen without one. Now that it can, staying put is less abrupt —
+  // they chose Photo, they only cleared the picture.
+  it("stays on Photo when the image is removed, and offers the upload again", async () => {
     const user = userEvent.setup();
     const { container } = renderDesigner({
       design: coverDesign(2, { coverStyle: "PHOTO", coverImageUrl: BLOB }),
@@ -150,10 +181,30 @@ describe("CoverDesigner — the style follows the picture", () => {
 
     await user.click(screen.getByRole("button", { name: "Remove" }));
 
-    expect(screen.getByRole("radio", { name: "Titled" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Photo" })).toBeChecked();
     expect(container.querySelector("img")).toBeNull();
-    // And it is offered again only once there is another picture.
-    expect(screen.getByRole("radio", { name: "Photo" })).toBeDisabled();
+    expect(screen.getByLabelText("Choose image")).toBeInTheDocument();
+  });
+
+  // The complaint that started this: "Replace image" sat under a cover that
+  // was not showing a photograph at all.
+  it("hides the image controls entirely while another style is chosen", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner({
+      design: coverDesign(2, { coverStyle: "PHOTO", coverImageUrl: BLOB }),
+    });
+
+    expect(screen.getByLabelText("Replace image")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Titled" }));
+
+    expect(screen.queryByLabelText("Replace image")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(screen.queryByRole("slider")).toBeNull();
+    // The picture is still posted though, so going back needs no re-upload.
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="coverImageUrl"]')!.value,
+    ).toBe(BLOB);
   });
 
   it("keeps the chosen colour behind the photo, ready for a switch back", async () => {
@@ -319,6 +370,7 @@ describe("CoverDesigner — telling the form when to wait", () => {
     const onUploadingChange = vi.fn();
     renderDesigner({ onUploadingChange });
 
+    await user.click(screen.getByRole("radio", { name: "Photo" }));
     await user.upload(screen.getByLabelText("Choose image"), imageFile());
 
     await waitFor(() => {
