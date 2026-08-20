@@ -129,7 +129,7 @@ describe("suggestCoverColor", () => {
 describe("the composed vocabulary", () => {
   it("gives each texture a label, and only the weaves a class", () => {
     expect(TEXTURES.NONE.className).toBeNull();
-    expect(TEXTURES.LINEN.className).toBe("cover-weave-linen");
+    expect(TEXTURES.GINGHAM.className).toBe("cover-weave-gingham");
     expect(TEXTURES.GRID.className).toBe("cover-weave-grid");
     for (const t of COVER_TEXTURES) {
       expect(TEXTURES[t].label.length).toBeGreaterThan(0);

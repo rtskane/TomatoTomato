@@ -361,57 +361,62 @@
 }
 
 /* -----------------------------------------------------------------------------
-   Book cover weaves
+   Book cover patterns
 
-   The cloth texture a cover can be printed with. Utilities rather than tokens
+   The pattern a cover can be printed with. Utilities rather than tokens
    because what varies is a *pattern*, not a colour.
 
    Both are drawn in `currentColor`, which is the whole trick: the component
-   sets the text colour to that cover's own ink and the weave then belongs to
+   sets the text colour to that cover's own ink and the pattern then belongs to
    whichever of the eight covers it lands on. One definition, eight covers, and
-   nothing to redo when layer 1 is re-pointed. The alpha lives on the element
-   (an `opacity-*` utility) rather than in here, so the same pattern can sit
-   heavier on a pale cover than a dark one.
+   nothing to redo when layer 1 is re-pointed.
+
+   The strength lives here too, in the alpha of the bands, rather than as an
+   opacity utility on the element. Each pattern needs a different strength —
+   broad gingham bands would shout at the alpha a hairline grid needs to be
+   visible at all — and that is a property of the pattern, not of the element
+   drawing it.
 
    Sized in `cqw` for the same reason the title is: a cover is drawn at 240px
-   and at 128px, and a weave pinned to pixels would be a coarse burlap at one
-   size and invisible at the other.
+   and at 128px, and a pattern pinned to pixels would be coarse sacking at one
+   size and invisible at the other. Because they scale, a chip shows the same
+   pattern simply smaller — though GRID's hairlines do fall below a pixel there
+   and effectively disappear, which is a fair degradation for a 36px chip.
    -------------------------------------------------------------------------- */
-@utility cover-weave-linen {
-  /* Two passes of fine lines at right angles reads as woven cloth; one alone
-     reads as corduroy.
-
-     The period is the number that matters. An earlier draft used 1.2cqw, which
-     at a 160px preview is under two pixels — fine enough that the browser
-     aliased it into a moiré plaid rather than drawing cloth. 2.5cqw keeps the
-     thread fine (1.5px on a 240px book) while staying above the size where
-     rounding turns a weave into a pattern nobody chose. */
+@utility cover-weave-gingham {
+  /* Gingham is three tones, not two: the cloth, a band, and the deeper square
+     where two bands cross. That crossing is what separates it from a grid, and
+     it only happens if the bands are *translucent* — an opaque band would
+     simply paint over its neighbour and the third tone would never appear.
+     Two 15% bands cross at ~28%, which is the step that reads as gingham. */
+  --cover-gingham-band: color-mix(in srgb, currentColor 15%, transparent);
   background-image:
     repeating-linear-gradient(
       90deg,
-      currentColor 0 0.5cqw,
-      transparent 0.5cqw 2.5cqw
+      var(--cover-gingham-band) 0 5cqw,
+      transparent 5cqw 10cqw
     ),
     repeating-linear-gradient(
       0deg,
-      currentColor 0 0.5cqw,
-      transparent 0.5cqw 2.5cqw
+      var(--cover-gingham-band) 0 5cqw,
+      transparent 5cqw 10cqw
     );
 }
 
 @utility cover-weave-grid {
-  /* Much wider gauge and a hairline rule: a ruled notebook rather than cloth.
-     At 5cqw the squares were small enough to read as graph paper, which is a
-     different object entirely. */
+  /* A hairline rule on a wide gauge: a ruled notebook rather than cloth. The
+     lines are near-opaque because there is so little of each one — at 0.3cqw a
+     translucent rule washes out to nothing. */
+  --cover-grid-line: color-mix(in srgb, currentColor 22%, transparent);
   background-image:
     repeating-linear-gradient(
       90deg,
-      currentColor 0 0.3cqw,
+      var(--cover-grid-line) 0 0.3cqw,
       transparent 0.3cqw 9cqw
     ),
     repeating-linear-gradient(
       0deg,
-      currentColor 0 0.3cqw,
+      var(--cover-grid-line) 0 0.3cqw,
       transparent 0.3cqw 9cqw
     );
 }

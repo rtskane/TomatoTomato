@@ -86,29 +86,29 @@ describe("BookCover — the colour", () => {
 });
 
 describe("BookCover — the composed cover", () => {
-  it("prints the weave on the cloth, in that cover's own ink", () => {
+  it("prints the pattern on the cloth, in that cover's own ink", () => {
     const { container } = renderCover({
-      design: { coverColor: 3, coverTexture: "LINEN" },
+      design: { coverColor: 3, coverTexture: "GINGHAM" },
     });
 
-    const weave = container.querySelector(".cover-weave-linen");
+    const weave = container.querySelector(".cover-weave-gingham");
     expect(weave).not.toBeNull();
     // The pattern is drawn in currentColor, so the ink class is what makes it
     // belong to this cover rather than being a fixed grey.
     expect(weave!.className).toContain("text-book-ink-3");
   });
 
-  it("prints no weave when there is none", () => {
+  it("prints no pattern when there is none", () => {
     const { container } = renderCover({ design: { coverTexture: "NONE" } });
     expect(container.querySelector("[class*='cover-weave']")).toBeNull();
   });
 
   // A photograph fills the board edge to edge; a weave over it would just be
   // dirt on the picture.
-  it("leaves the weave off a photographed cover", () => {
+  it("leaves the pattern off a photographed cover", () => {
     const { container } = renderCover({
       design: {
-        coverTexture: "LINEN",
+        coverTexture: "GINGHAM",
         coverStyle: "PHOTO",
         coverImageUrl: BLOB,
       },

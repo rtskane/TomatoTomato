@@ -254,13 +254,13 @@ describe("CoverDesigner — the composed controls", () => {
     expect(title.className).toContain("text-[11cqw]");
   });
 
-  it("prints the weave on the preview", async () => {
+  it("prints the pattern on the preview", async () => {
     const user = userEvent.setup();
     const { container } = renderDesigner();
 
-    await user.click(screen.getByRole("radio", { name: "Weave" }));
+    await user.click(screen.getByRole("radio", { name: "Gingham" }));
 
-    expect(container.querySelector(".cover-weave-linen")).not.toBeNull();
+    expect(container.querySelector(".cover-weave-gingham")).not.toBeNull();
   });
 
   // Hiding a control must not quietly discard what it held: someone who sets a

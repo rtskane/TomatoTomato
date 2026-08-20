@@ -56,8 +56,6 @@ const SIZES = {
       "absolute inset-y-[6.7cqw] right-[6.7cqw] left-[11.7cqw] flex justify-center rounded-xs border px-[3cqw] py-[4cqw] text-center",
     radius: "rounded-r-md rounded-l-xs",
     showTitle: true,
-    /** The weave sits lighter on a big board and would disappear on a chip. */
-    weaveOpacity: "opacity-[0.09]",
   },
   chip: {
     // Not proportional: at 36px wide a 5%-of-width spine is under two pixels
@@ -70,9 +68,8 @@ const SIZES = {
     // A chip never shows a title — at 36px wide there is no type size that is
     // both legible and in proportion, and the title is already sitting next to
     // it in the row. This is the deliberate degradation rule for small sizes:
-    // colour, weave and photograph survive, type does not.
+    // colour, pattern and photograph survive, type does not.
     showTitle: false,
-    weaveOpacity: "opacity-[0.14]",
   },
 } as const;
 
@@ -159,10 +156,12 @@ export default function BookCover({
           />
           {weave ? (
             // `palette.ink` is here to set `currentColor`, which is what the
-            // weave pattern is drawn in — not to render any text.
+            // pattern is drawn in — not to render any text. Its strength is
+            // baked into the pattern's own band alphas in theme.css, because
+            // each pattern needs a different one.
             <span
               aria-hidden
-              className={`pointer-events-none absolute inset-0 -z-10 ${weave} ${palette.ink} ${spec.weaveOpacity}`}
+              className={`pointer-events-none absolute inset-0 -z-10 ${weave} ${palette.ink}`}
             />
           ) : null}
         </>

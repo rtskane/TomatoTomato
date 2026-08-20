@@ -26,7 +26,7 @@ export function isCoverStyle(value: string): value is CoverStyle {
 // or a fraction of the photograph), never a pixel.
 // ---------------------------------------------------------------------------
 
-export const COVER_TEXTURES = ["NONE", "LINEN", "GRID"] as const;
+export const COVER_TEXTURES = ["NONE", "GINGHAM", "GRID"] as const;
 export type CoverTexture = (typeof COVER_TEXTURES)[number];
 
 export const COVER_TITLE_FONTS = ["SERIF", "SANS"] as const;
@@ -39,22 +39,17 @@ export const COVER_TITLE_POSITIONS = ["TOP", "CENTER", "BOTTOM"] as const;
 export type CoverTitlePosition = (typeof COVER_TITLE_POSITIONS)[number];
 
 /**
- * The weave, as a class defined in theme.css.
+ * The pattern, as a class defined in theme.css.
  *
- * The pattern is drawn in `currentColor` there, so the component only has to
- * set the text colour to the cover's ink and the weave belongs to whichever of
- * the eight covers it lands on — no per-cover texture assets, and nothing to
- * re-do when the palette is re-pointed.
- */
-/**
- * The label for `LINEN` is "Weave", not "Linen", and deliberately so: cover 8
- * is already called Linen, and two controls on the same screen answering to
- * one name is ambiguous to anyone navigating by name rather than by sight. The
- * stored enum keeps the material word; the label takes the one that is free.
+ * Drawn in `currentColor` there, so the component only has to set the text
+ * colour to the cover's ink and the pattern belongs to whichever of the eight
+ * covers it lands on — no per-cover texture assets, and nothing to re-do when
+ * the palette is re-pointed. Its *strength* lives in theme.css too, in the
+ * alpha of the bands, because each pattern needs a different one.
  */
 export const TEXTURES: Record<CoverTexture, { label: string; className: string | null }> = {
   NONE: { label: "None", className: null },
-  LINEN: { label: "Weave", className: "cover-weave-linen" },
+  GINGHAM: { label: "Gingham", className: "cover-weave-gingham" },
   GRID: { label: "Grid", className: "cover-weave-grid" },
 };
 
