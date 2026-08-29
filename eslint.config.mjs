@@ -24,6 +24,13 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // Build output, wherever it lands. The bare ".next/**" below only matches
+    // the one at the repo root — a git worktree under .claude/worktrees/ has
+    // its own, and linting that stale generated bundle produced thousands of
+    // errors in files nobody wrote, which the pre-commit hook then refused
+    // every commit over.
+    "**/.next/**",
+    ".claude/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
