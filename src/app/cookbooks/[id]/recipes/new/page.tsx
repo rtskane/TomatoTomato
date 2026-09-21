@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getCookbookDetail } from "@/server/services/cookbook.service";
 import { createRecipeAction } from "./actions";
-import RecipeForm from "./recipe-form";
+import { importFromTextAction, importFromUrlAction } from "./import-actions";
+import RecipeCreator from "./recipe-creator";
 
 // Container: owns auth + data, and gates the whole page on permission before
 // rendering a form the user isn't allowed to submit.
@@ -20,8 +21,12 @@ export default async function NewRecipePage({
   // submit, so this is UX, not the security boundary.
   if (!cookbook || !cookbook.canAddRecipes) notFound();
 
-  // Bind the cookbook id server-side so it can't be swapped by the client.
+  // Bind the cookbook id server-side so it can't be swapped by the client —
+  // for the importers as much as for the save, since both check membership
+  // against whatever id they're given.
   const action = createRecipeAction.bind(null, cookbook.id);
+  const importText = importFromTextAction.bind(null, cookbook.id);
+  const importUrl = importFromUrlAction.bind(null, cookbook.id);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -38,7 +43,12 @@ export default async function NewRecipePage({
       </p>
 
       <div className="mt-8">
-        <RecipeForm action={action} cookbookId={cookbook.id} />
+        <RecipeCreator
+          cookbookId={cookbook.id}
+          saveAction={action}
+          importTextAction={importText}
+          importUrlAction={importUrl}
+        />
       </div>
     </div>
   );

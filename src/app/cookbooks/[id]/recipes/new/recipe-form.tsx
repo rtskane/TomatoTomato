@@ -5,10 +5,11 @@ import Link from "next/link";
 import type { CreateRecipeState, CreateRecipeValues } from "../recipe-form-data";
 import IngredientEditor, { type IngredientItem } from "./ingredient-editor";
 import StepEditor, { type StepItem } from "./step-editor";
+import { fieldClass, primaryButtonClass } from "./form-classes";
 
 const initialState: CreateRecipeState = {};
 
-type RecipeFormAction = (
+export type RecipeFormAction = (
   state: CreateRecipeState,
   formData: FormData,
 ) => Promise<CreateRecipeState>;
@@ -18,10 +19,6 @@ type RecipeFormAction = (
 // without React reusing the wrong DOM node.
 let nextKey = 0;
 const takeKey = () => nextKey++;
-
-const fieldClass =
-  "w-full rounded-lg border border-border bg-background-control px-3 py-2 " +
-  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
 
 export default function RecipeForm({
   action,
@@ -189,7 +186,7 @@ export default function RecipeForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-accent px-5 py-2.5 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+          className={primaryButtonClass}
         >
           {pending ? pendingLabel : submitLabel}
         </button>
