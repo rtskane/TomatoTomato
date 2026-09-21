@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import RecipeForm from "./recipe-form";
-import type { CreateRecipeState, CreateRecipeValues } from "../recipe-form-data";
+import RecipeForm, { type RecipeFormAction } from "./recipe-form";
+import type { CreateRecipeValues } from "../recipe-form-data";
 import type { ImportState } from "./import-actions";
+import { fieldClass, primaryButtonClass } from "./form-classes";
 
-// Four ways to start a recipe, one recipe at the end of them.
+// Three ways to start a recipe, one recipe at the end of them.
 //
 // Whichever route someone takes, they arrive at the same form holding the same
 // shape, and the same action saves it. An importer's only job is to fill that
@@ -18,19 +19,7 @@ type ImportAction = (
   formData: FormData,
 ) => Promise<ImportState>;
 
-type RecipeFormAction = (
-  state: CreateRecipeState,
-  formData: FormData,
-) => Promise<CreateRecipeState>;
-
 type Mode = "choose" | "form" | "paste" | "link";
-
-const fieldClass =
-  "w-full rounded-lg border border-border bg-background-control px-3 py-2 " +
-  "outline-none placeholder:text-foreground-muted focus:border-border-input-strong focus:bg-transparent";
-
-const primaryButtonClass =
-  "rounded-lg bg-accent px-5 py-2.5 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60";
 
 const CHOICES: {
   mode: Mode;
@@ -57,6 +46,24 @@ const CHOICES: {
     icon: "↗",
   },
 ];
+
+/**
+ * Run `onImport` once for each new set of values an import action returns.
+ *
+ * Done during render rather than in an effect — the same pattern RecipeForm
+ * already uses to absorb an echoed-back submission — so the form appears in the
+ * same commit as the values, with no flash of the empty importer behind it.
+ */
+function useOnImport(
+  values: CreateRecipeValues | undefined,
+  onImport: (values: CreateRecipeValues) => void,
+) {
+  const [seen, setSeen] = useState(values);
+  if (values !== seen) {
+    setSeen(values);
+    if (values) onImport(values);
+  }
+}
 
 /** The shared frame for an importer: a heading, the input, and a way back. */
 function ImportPanel({
@@ -121,12 +128,6 @@ export default function RecipeCreator({
   const [mode, setMode] = useState<Mode>("choose");
   const [imported, setImported] = useState<CreateRecipeValues | undefined>();
 
-  // Bumped every time an import lands, and used as the form's key. The form
-  // seeds its ingredient and step lists once, when it mounts — so without a new
-  // key, importing a second recipe after backing out of the first would show
-  // the first one's rows. Remounting is also what makes "start over" honest.
-  const [formKey, setFormKey] = useState(0);
-
   const [textState, textFormAction, textPending] = useActionState(
     importTextAction,
     {} as ImportState,
@@ -136,29 +137,19 @@ export default function RecipeCreator({
     {} as ImportState,
   );
 
-  // An import that succeeded is a form waiting to be checked. Done during
-  // render rather than in an effect — the same pattern RecipeForm already uses
-  // to absorb an echoed-back submission — so the form appears in the same
-  // commit as the values, with no flash of the empty importer behind it.
-  const [seenText, setSeenText] = useState(textState.values);
-  if (textState.values !== seenText) {
-    setSeenText(textState.values);
-    if (textState.values) {
-      setImported(textState.values);
-      setFormKey((key) => key + 1);
-      setMode("form");
-    }
-  }
-
-  const [seenUrl, setSeenUrl] = useState(urlState.values);
-  if (urlState.values !== seenUrl) {
-    setSeenUrl(urlState.values);
-    if (urlState.values) {
-      setImported(urlState.values);
-      setFormKey((key) => key + 1);
-      setMode("form");
-    }
-  }
+  // An import that succeeded is a form waiting to be checked — but only if the
+  // author is still waiting on it. Someone who backed out while it was reading
+  // may be typing into the blank form by now, and an import landing on top of
+  // that would overwrite their work. (It also keeps the form's one-time
+  // seeding honest: the form is only ever mounted fresh from a panel, so it
+  // never needs a key to notice new values.)
+  const showImportedFrom = (panel: Mode) => (values: CreateRecipeValues) => {
+    if (mode !== panel) return;
+    setImported(values);
+    setMode("form");
+  };
+  useOnImport(textState.values, showImportedFrom("paste"));
+  useOnImport(urlState.values, showImportedFrom("link"));
 
   function backToChoices() {
     setMode("choose");
@@ -283,7 +274,6 @@ export default function RecipeCreator({
       )}
 
       <RecipeForm
-        key={formKey}
         action={saveAction}
         cookbookId={cookbookId}
         initialValues={imported}

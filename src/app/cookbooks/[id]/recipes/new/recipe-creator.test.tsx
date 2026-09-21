@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RecipeCreator from "./recipe-creator";
 import type { ImportState } from "./import-actions";
@@ -106,9 +106,13 @@ describe("importing", () => {
     );
   });
 
-  it("passes the cookbook's own id to the importer, not one from the page", async () => {
+  it("sends what was pasted to the importer", async () => {
     const user = userEvent.setup();
-    const importTextAction = succeeds();
+    const importTextAction = vi.fn(
+      async (_state: ImportState, _formData: FormData): Promise<ImportState> => ({
+        values: carbonara,
+      }),
+    );
     renderCreator({ importTextAction });
 
     await user.click(screen.getByRole("button", { name: /paste a recipe/i }));
@@ -116,6 +120,55 @@ describe("importing", () => {
     await user.click(screen.getByRole("button", { name: /read it/i }));
 
     await waitFor(() => expect(importTextAction).toHaveBeenCalled());
+    const formData = importTextAction.mock.calls[0][1];
+    expect(formData.get("text")).toBe("Carbonara");
+  });
+
+  // Someone who gives up waiting and starts typing by hand must not have an
+  // import land on top of what they typed.
+  it("drops an import that finishes after the author has moved on", async () => {
+    const user = userEvent.setup();
+    let finish: (state: ImportState) => void = () => {};
+    const importTextAction = vi.fn(
+      () => new Promise<ImportState>((resolve) => (finish = resolve)),
+    );
+    renderCreator({ importTextAction });
+
+    await user.click(screen.getByRole("button", { name: /paste a recipe/i }));
+    await user.type(screen.getByRole("textbox"), "Carbonara");
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+    await waitFor(() => expect(importTextAction).toHaveBeenCalled());
+
+    await user.click(screen.getByRole("button", { name: /^back$/i }));
+    await user.click(screen.getByRole("button", { name: /fill in the form/i }));
+    await user.type(screen.getByLabelText("Title"), "My own");
+
+    await act(async () => finish({ values: carbonara }));
+
+    expect(screen.getByLabelText("Title")).toHaveValue("My own");
+    expect(screen.queryByText(/what we made of it/i)).not.toBeInTheDocument();
+  });
+
+  it("stays on the panel when a later import fails after an earlier one worked", async () => {
+    const user = userEvent.setup();
+    const importUrlAction = vi
+      .fn()
+      .mockResolvedValueOnce({ values: carbonara })
+      .mockResolvedValueOnce({ error: "That site won't let us read the page." });
+    renderCreator({ importUrlAction });
+
+    await user.click(screen.getByRole("button", { name: /from a link/i }));
+    await user.type(screen.getByRole("textbox"), "https://example.com/a");
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+    await waitFor(() => expect(screen.getByLabelText("Title")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: /start over/i }));
+    await user.click(screen.getByRole("button", { name: /from a link/i }));
+    await user.type(screen.getByRole("textbox"), "https://example.com/b");
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
   });
 
   // A failed import must leave the user where they were, with what they typed
@@ -176,9 +229,8 @@ describe("importing", () => {
     expect(screen.getByRole("button", { name: /from a link/i })).toBeInTheDocument();
   });
 
-  // The form seeds its ingredient and step lists once, when it mounts. Without
-  // a fresh key, starting over would show the previous import's rows under the
-  // new one's title — the bug this test exists to prevent.
+  // The form seeds its ingredient and step lists once, when it mounts, so
+  // starting over has to leave none of the previous import's rows behind.
   it("starting over leaves nothing of the last import behind", async () => {
     const user = userEvent.setup();
     renderCreator();

@@ -105,6 +105,37 @@ describe("parseIngredientLine", () => {
     expect(parsed.name).toBe("large eggs, at room temperature");
   });
 
+  // Lines as people type them rather than as publishers serve them.
+  it("round-trips the abbreviations people type, full stops and all", () => {
+    for (const line of [
+      "1 tbsp. sugar",
+      "2 lg. eggs",
+      "3 c. milk",
+      "1 oz. dark chocolate",
+      ".5 cup cream",
+      "1.0 lb beef",
+    ]) {
+      expect(formatIngredient(parseIngredientLine(line))).toBe(line);
+    }
+  });
+
+  it("keeps the full stop with the unit it belongs to", () => {
+    expect(parseIngredientLine("1 tbsp. sugar")).toEqual({
+      quantity: "1",
+      unit: "tbsp.",
+      name: "sugar",
+      note: "",
+    });
+    // Not a unit we know, so it stays in the name — full stop included.
+    expect(parseIngredientLine("2 lg. eggs").name).toBe("lg. eggs");
+  });
+
+  // Only the quantity is ever lifted, so the digits after it must not be
+  // mistaken for the start of the name.
+  it("never reads the whole number of a mixed fraction as the quantity", () => {
+    expect(parseIngredientLine("1 1/4 cups flour").quantity).toBe("");
+  });
+
   it("understands the fraction glyphs people paste", () => {
     expect(parseIngredientLine("½ cup butter").name).toBe("1/2 cup butter");
     expect(parseIngredientLine("1½ cups flour").name).toBe("1 1/2 cups flour");
@@ -145,6 +176,8 @@ describe("parseIsoDuration", () => {
     expect(parseIsoDuration(null)).toBe("");
     expect(parseIsoDuration("")).toBe("");
     expect(parseIsoDuration("about an hour")).toBe("");
+    // Zero is "not stated" as far as the form is concerned, not "no time".
+    expect(parseIsoDuration("PT0M")).toBe("");
   });
 });
 
@@ -223,6 +256,66 @@ describe("splitSections", () => {
   });
 });
 
+describe("splitSections — only one heading", () => {
+  // The heading says where the ingredients start, but nothing says where they
+  // stop — so the prose that follows is the method, not more ingredients.
+  it("finds the method after an Ingredients heading with no Method heading", () => {
+    const { intro, ingredients, steps } = splitSections(
+      [
+        "Pancakes",
+        "Ingredients",
+        "2 eggs",
+        "1 cup milk",
+        "Whisk everything together and fry in butter until golden.",
+      ].join("\n"),
+    );
+
+    expect(intro).toEqual(["Pancakes"]);
+    expect(ingredients).toEqual(["2 eggs", "1 cup milk"]);
+    expect(steps).toEqual([
+      "Whisk everything together and fry in butter until golden.",
+    ]);
+  });
+
+  // The heading says where the method starts; the ingredients are what sits
+  // between the title and it.
+  it("finds the ingredients above a Method heading with no Ingredients heading", () => {
+    const { intro, ingredients, steps } = splitSections(
+      ["Pancakes", "2 eggs", "1 cup milk", "Method", "Whisk it all."].join("\n"),
+    );
+
+    expect(intro).toEqual(["Pancakes"]);
+    expect(ingredients).toEqual(["2 eggs", "1 cup milk"]);
+    expect(steps).toEqual(["Whisk it all."]);
+  });
+
+  it("keeps a description between the title and the ingredients", () => {
+    const { intro, ingredients } = splitSections(
+      [
+        "Pancakes",
+        "Fluffy, quick, and the only thing my kids will eat on a Saturday morning.",
+        "2 eggs",
+        "Method",
+        "Whisk it all.",
+      ].join("\n"),
+    );
+
+    expect(intro).toEqual([
+      "Pancakes",
+      "Fluffy, quick, and the only thing my kids will eat on a Saturday morning.",
+    ]);
+    expect(ingredients).toEqual(["2 eggs"]);
+  });
+
+  it("doesn't take an ingredient for the title", () => {
+    const { intro, ingredients } = splitSections(
+      ["2 eggs", "1 cup milk", "Method", "Whisk it all."].join("\n"),
+    );
+    expect(intro).toEqual([]);
+    expect(ingredients).toEqual(["2 eggs", "1 cup milk"]);
+  });
+});
+
 describe("parseRecipeText", () => {
   it("fills in the form from a recipe someone pasted", () => {
     const values = parseRecipeText(
@@ -253,6 +346,22 @@ describe("parseRecipeText", () => {
       "Boil the pasta.",
       "Stir the eggs through off the heat.",
     ]);
+  });
+
+  // Long lines are method even without a full stop — nobody's shopping list
+  // entry runs to a paragraph.
+  it("reads a long unpunctuated line as a step, not an ingredient", () => {
+    const long =
+      "Bring a large pot of generously salted water to a rolling boil and cook the pasta until al dente";
+    const values = parseRecipeText(["200g spaghetti", long, "Serve at once."].join("\n"));
+    expect(values.ingredients.map((i) => i.name)).toEqual(["spaghetti"]);
+    expect(values.steps).toEqual([long, "Serve at once."]);
+  });
+
+  it("leaves the title empty when nothing reads like one", () => {
+    const values = parseRecipeText("2 eggs\nScramble them slowly in butter until only just set.");
+    expect(values.title).toBe("");
+    expect(values.ingredients.map((i) => i.name)).toEqual(["eggs"]);
   });
 
   it("produces something the form can render from almost nothing", () => {

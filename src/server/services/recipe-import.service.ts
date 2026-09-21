@@ -1,6 +1,8 @@
 import type { CreateRecipeValues } from "@/app/cookbooks/[id]/recipes/recipe-form-data";
 import { parseRecipeText } from "@/lib/recipe-import";
 import { parseRecipeFromHtml } from "@/lib/recipe-jsonld";
+import { cookbookRepository } from "@/server/repositories/cookbook.repository";
+import { canAddRecipes } from "@/server/permissions";
 import { ok, err, type Result } from "@/server/result";
 
 // Getting a recipe out of somewhere that isn't our form.
@@ -12,7 +14,7 @@ import { ok, err, type Result } from "@/server/result";
 // nobody looked at.
 
 export type ImportError = {
-  kind: "invalid" | "blocked" | "unreachable" | "unparseable";
+  kind: "forbidden" | "invalid" | "blocked" | "unreachable" | "unparseable";
   message: string;
 };
 
@@ -36,6 +38,35 @@ const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+function isBlockedIpv4(a: number, b: number): boolean {
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  // Carrier-grade NAT — private in practice, and used inside cloud networks.
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  // Link-local — this is the cloud metadata range.
+  if (a === 169 && b === 254) return true;
+  return false;
+}
+
+/**
+ * `URL` has already canonicalised the address — compressed zeros, lowercase
+ * hex, an embedded IPv4 rewritten as two hextets — so only that one spelling
+ * of each needs recognising.
+ */
+function isBlockedIpv6(address: string): boolean {
+  // Leading zeros: loopback (::1), unspecified (::), and every form that
+  // embeds an IPv4 address (::ffff:7f00:1). All of 0::/8 is reserved, so no
+  // public host lives there and there is nothing to lose by refusing it whole.
+  if (address.startsWith("::")) return true;
+
+  const first = parseInt(address.split(":")[0], 16);
+  if ((first & 0xfe00) === 0xfc00) return true; // fc00::/7, unique-local
+  if ((first & 0xffc0) === 0xfe80) return true; // fe80::/10, link-local
+  if ((first & 0xff00) === 0xff00) return true; // ff00::/8, multicast
+  return false;
+}
+
 /**
  * Hostnames that must never be fetched.
  *
@@ -48,9 +79,11 @@ const USER_AGENT =
  *
  * ## What this does and does not stop
  *
- * Hostname and literal-IP forms are refused outright, and every redirect hop is
- * re-checked rather than trusted — a permitted URL redirecting to
- * `http://127.0.0.1` is the obvious way past a check that only runs once.
+ * Hostname and literal-IP forms are refused outright — including the IPv6
+ * spellings of an IPv4 address, like `[::ffff:127.0.0.1]`, which `URL`
+ * serialises as `::ffff:7f00:1` and which a check that only reads dotted quads
+ * would wave through. Every redirect hop is re-checked rather than
+ * trusted — a permitted URL redirecting to `http://127.0.0.1` is the obvious way past a check that only runs once.
  *
  * A hostname that resolves to a private address is NOT caught here, because
  * catching it properly means resolving the name, checking the address, and then
@@ -62,41 +95,41 @@ const USER_AGENT =
  * messages below. So the worst case is blind: a caller can learn roughly
  * whether something answered, and nothing about what it said.
  */
-const BLOCKED_HOSTNAMES = new Set([
-  "localhost",
-  "0.0.0.0",
-  "[::1]",
-  "::1",
-  "metadata.google.internal",
-]);
-
 function isBlockedHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  // Brackets are how `URL` marks an IPv6 address; a trailing dot is a fully
+  // qualified name that resolves exactly like the one without it, so
+  // "localhost." has to be read as "localhost".
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/, "");
 
-  if (BLOCKED_HOSTNAMES.has(host)) return true;
-  if (host.endsWith(".localhost")) return true;
-  if (host.endsWith(".internal") || host.endsWith(".local")) return true;
+  if (host.includes(":")) return isBlockedIpv6(host);
 
-  // IPv6 loopback and unique-local.
-  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd")) {
-    return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
+  if (ipv4) return isBlockedIpv4(Number(ipv4[1]), Number(ipv4[2]));
+
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".internal") || // includes metadata.google.internal
+    host.endsWith(".local")
+  );
+}
+
+/**
+ * Whether a URL may be fetched at all — run on what the user typed and again on
+ * every redirect, since a hop can change the scheme as easily as the host.
+ */
+function vetUrl(url: URL): ImportError | null {
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return { kind: "invalid", message: "Only web links can be imported." };
   }
-
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (ipv4) {
-    const [a, b] = ipv4.slice(1).map(Number);
-    if (a === 127 || a === 0 || a === 10) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    // Link-local — this is the cloud metadata range.
-    if (a === 169 && b === 254) return true;
+  if (isBlockedHost(url.hostname)) {
+    return { kind: "blocked", message: "That link can't be imported." };
   }
-
-  return false;
+  return null;
 }
 
 /** Parse and vet a URL the user typed. */
-function safeUrl(input: string): Result<URL, ImportError> {
+function parseUserUrl(input: string): Result<URL, ImportError> {
   const trimmed = input.trim();
   if (trimmed === "") {
     return err({ kind: "invalid", message: "Paste a link to import from." });
@@ -119,25 +152,41 @@ function safeUrl(input: string): Result<URL, ImportError> {
     return err({ kind: "invalid", message: "That doesn't look like a link." });
   }
 
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return err({ kind: "invalid", message: "Only web links can be imported." });
-  }
-
-  if (isBlockedHost(url.hostname)) {
-    return err({ kind: "blocked", message: "That link can't be imported." });
-  }
-
-  return ok(url);
+  const refusal = vetUrl(url);
+  return refusal ? err(refusal) : ok(url);
 }
 
-/** Read a response body, giving up rather than buffering something enormous. */
+const UNREACHABLE: ImportError = {
+  kind: "unreachable",
+  message: "We couldn't reach that page. Try pasting the recipe instead.",
+};
+
+/** The page's declared charset, if it names one this runtime can decode. */
+function decoderFor(response: Response): TextDecoder {
+  const charset = /charset=["']?([^"';\s]+)/i.exec(
+    response.headers.get("content-type") ?? "",
+  )?.[1];
+  try {
+    return new TextDecoder(charset ?? "utf-8");
+  } catch {
+    return new TextDecoder("utf-8");
+  }
+}
+
+/**
+ * Read a response body, giving up rather than buffering something enormous.
+ * Null means it was too big; a body that fails partway through — the timeout
+ * firing mid-stream, a dropped connection — throws, like `fetch` itself does.
+ */
 async function readCapped(response: Response): Promise<string | null> {
   const declared = Number(response.headers.get("content-length") ?? "0");
-  if (declared > MAX_BYTES) return null;
+  if (declared > MAX_BYTES) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.body) return "";
 
-  const reader = response.body?.getReader();
-  if (!reader) return null;
-
+  const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
 
@@ -152,14 +201,7 @@ async function readCapped(response: Response): Promise<string | null> {
     chunks.push(value);
   }
 
-  return new TextDecoder().decode(
-    chunks.reduce<Uint8Array>((joined, chunk) => {
-      const next = new Uint8Array(joined.length + chunk.length);
-      next.set(joined);
-      next.set(chunk, joined.length);
-      return next;
-    }, new Uint8Array()),
-  );
+  return decoderFor(response).decode(Buffer.concat(chunks));
 }
 
 /**
@@ -173,9 +215,8 @@ async function fetchPage(start: URL): Promise<Result<string, ImportError>> {
   let url = start;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    let response: Response;
     try {
-      response = await fetch(url, {
+      const response = await fetch(url, {
         redirect: "manual",
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         headers: {
@@ -184,56 +225,74 @@ async function fetchPage(start: URL): Promise<Result<string, ImportError>> {
           "accept-language": "en-US,en;q=0.9",
         },
       });
+
+      if (response.status >= 300 && response.status < 400) {
+        // Nothing here is read, and an unread body holds its connection open.
+        await response.body?.cancel();
+
+        const location = response.headers.get("location");
+        const next = location ? URL.parse(location, url) : null;
+        if (!next) return err(UNREACHABLE);
+
+        // The whole point of following by hand.
+        const refusal = vetUrl(next);
+        if (refusal) return err(refusal);
+
+        url = next;
+        continue;
+      }
+
+      if (!response.ok) {
+        await response.body?.cancel();
+        // 402 and 403 are what the big publishers answer a server-side request
+        // with. There is nothing to retry and nothing to work around, so say
+        // the useful thing instead.
+        return err({
+          kind: "unreachable",
+          message:
+            "That site won't let us read the page. Copy the recipe and paste it instead.",
+        });
+      }
+
+      const html = await readCapped(response);
+      if (html === null) {
+        return err({
+          kind: "unreachable",
+          message: "That page was too large to read.",
+        });
+      }
+      return ok(html);
     } catch {
-      return err({
-        kind: "unreachable",
-        message: "We couldn't reach that page. Try pasting the recipe instead.",
-      });
+      // A network failure, or the timeout — which can fire while the body is
+      // still arriving, not only while waiting for the headers.
+      return err(UNREACHABLE);
     }
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-      if (!location) break;
-
-      let next: URL;
-      try {
-        next = new URL(location, url);
-      } catch {
-        break;
-      }
-      // The whole point of following by hand.
-      if (isBlockedHost(next.hostname)) {
-        return err({ kind: "blocked", message: "That link can't be imported." });
-      }
-      url = next;
-      continue;
-    }
-
-    if (!response.ok) {
-      // 402 and 403 are what the big publishers answer a server-side request
-      // with. There is nothing to retry and nothing to work around, so say the
-      // useful thing instead.
-      return err({
-        kind: "unreachable",
-        message:
-          "That site won't let us read the page. Copy the recipe and paste it instead.",
-      });
-    }
-
-    const html = await readCapped(response);
-    if (html === null) {
-      return err({
-        kind: "unreachable",
-        message: "That page was too large to read.",
-      });
-    }
-    return ok(html);
   }
 
   return err({
     kind: "unreachable",
     message: "That link redirected too many times.",
   });
+}
+
+const FORBIDDEN: ImportError = {
+  kind: "forbidden",
+  message: "You don't have permission to add recipes to this cookbook.",
+};
+
+/**
+ * Importing is gated on being able to add recipes to *this* cookbook, which is
+ * stricter than it looks like it needs to be: importing doesn't write, so a
+ * membership check might seem like ceremony.
+ *
+ * It isn't. `importFromUrl` makes our server fetch a URL of the caller's
+ * choosing, and an endpoint that does that for any signed-in user is a fetching
+ * service we host for strangers. Tying it to a cookbook they can already write
+ * to keeps it in proportion to what it's for.
+ */
+async function canImportInto(userId: string, cookbookId: string) {
+  const membership = await cookbookRepository.findMembership(cookbookId, userId);
+  return Boolean(membership && canAddRecipes(membership.role));
 }
 
 /**
@@ -246,9 +305,14 @@ async function fetchPage(start: URL): Promise<Result<string, ImportError>> {
  * damage before they can fix it.
  */
 export async function importFromUrl(
+  userId: string,
+  cookbookId: string,
   input: string,
 ): Promise<Result<CreateRecipeValues, ImportError>> {
-  const url = safeUrl(input);
+  // Before anything else, so a stranger can't even learn whether a URL passes.
+  if (!(await canImportInto(userId, cookbookId))) return err(FORBIDDEN);
+
+  const url = parseUserUrl(input);
   if (!url.ok) return url;
 
   const page = await fetchPage(url.value);
@@ -267,9 +331,13 @@ export async function importFromUrl(
 }
 
 /** Import a recipe from text someone pasted. */
-export function importFromText(
+export async function importFromText(
+  userId: string,
+  cookbookId: string,
   text: string,
-): Result<CreateRecipeValues, ImportError> {
+): Promise<Result<CreateRecipeValues, ImportError>> {
+  if (!(await canImportInto(userId, cookbookId))) return err(FORBIDDEN);
+
   if (text.trim() === "") {
     return err({ kind: "invalid", message: "Paste a recipe to import." });
   }

@@ -1,8 +1,6 @@
 "use server";
 
 import { requireOnboardedUser } from "@/lib/user";
-import { cookbookRepository } from "@/server/repositories/cookbook.repository";
-import { canAddRecipes } from "@/server/permissions";
 import {
   importFromText,
   importFromUrl,
@@ -10,7 +8,8 @@ import {
 import type { CreateRecipeValues } from "../recipe-form-data";
 
 // Adapters for the two importers that need a server: one to read a link, one to
-// make sense of pasted text.
+// make sense of pasted text. Thin on purpose, like `createRecipeAction` — the
+// permission check and everything else lives in the service.
 //
 // Neither writes anything. Both hand back `CreateRecipeValues`, which the page
 // puts into the ordinary recipe form for the author to check — so the save path
@@ -32,39 +31,19 @@ export type ImportState = {
 };
 
 /**
- * Both actions are gated on being able to add recipes to *this* cookbook, which
- * is stricter than it looks like it needs to be: importing doesn't write, so a
- * membership check might seem like ceremony.
- *
- * It isn't. `importFromUrl` makes our server fetch a URL of the caller's
- * choosing, and an endpoint that does that for any signed-in user is a fetching
- * service we host for strangers. Tying it to a cookbook they can already write
- * to keeps it in proportion to what it's for.
+ * `cookbookId` is bound server-side by the page, not submitted by the form, so a
+ * crafted POST can't point an import at somebody else's cookbook.
  */
-async function requireImporter(cookbookId: string) {
-  const user = await requireOnboardedUser();
-  const membership = await cookbookRepository.findMembership(
-    cookbookId,
-    user.id,
-  );
-
-  return membership && canAddRecipes(membership.role);
-}
-
 export async function importFromTextAction(
   cookbookId: string,
   _prevState: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
-  if (!(await requireImporter(cookbookId))) {
-    return {
-      error: "You don't have permission to add recipes here.",
-      submitted: String(formData.get("text") ?? ""),
-    };
-  }
+  // Server Actions are reachable via direct POST — re-check auth here.
+  const user = await requireOnboardedUser();
 
   const text = String(formData.get("text") ?? "");
-  const result = importFromText(text);
+  const result = await importFromText(user.id, cookbookId, text);
 
   return result.ok
     ? { values: result.value }
@@ -76,15 +55,10 @@ export async function importFromUrlAction(
   _prevState: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
-  if (!(await requireImporter(cookbookId))) {
-    return {
-      error: "You don't have permission to add recipes here.",
-      submitted: String(formData.get("url") ?? ""),
-    };
-  }
+  const user = await requireOnboardedUser();
 
   const url = String(formData.get("url") ?? "");
-  const result = await importFromUrl(url);
+  const result = await importFromUrl(user.id, cookbookId, url);
 
   return result.ok
     ? { values: result.value }

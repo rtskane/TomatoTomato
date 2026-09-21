@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { formatIngredient } from "./recipe-display";
+import { normalizeText } from "./recipe-import";
 import { extractJsonLdBlocks, parseRecipeFromHtml } from "./recipe-jsonld";
 
 // The fixtures are the real structured data three publishers serve, trimmed to
@@ -12,6 +13,12 @@ import { extractJsonLdBlocks, parseRecipeFromHtml } from "./recipe-jsonld";
 // hand-written fixture would have quietly omitted.
 const fixture = (name: string) =>
   readFileSync(join(__dirname, "__fixtures__", `${name}.html`), "utf8");
+
+/** A page carrying one JSON-LD block, for the cases the fixtures don't cover. */
+const page = (...blocks: unknown[]) =>
+  blocks
+    .map((b) => `<script type="application/ld+json">${JSON.stringify(b)}</script>`)
+    .join("");
 
 describe("extractJsonLdBlocks", () => {
   it("finds the block in a page", () => {
@@ -64,10 +71,14 @@ describe("parseRecipeFromHtml", () => {
   // a publisher's line into has to join back into the line they published.
   it("round-trips every real ingredient line back to what was published", () => {
     for (const name of ["king-arthur", "bon-appetit", "food-com"]) {
-      const recipe = parseRecipeFromHtml(fixture(name))!;
-      for (const ingredient of recipe.ingredients) {
-        expect(formatIngredient(ingredient)).not.toBe("");
-      }
+      const html = fixture(name);
+      const [block] = extractJsonLdBlocks(html) as [{ recipeIngredient: string[] }];
+      const recipe = parseRecipeFromHtml(html)!;
+
+      const published = block.recipeIngredient.map((line) =>
+        normalizeText(line).trim(),
+      );
+      expect(recipe.ingredients.map(formatIngredient)).toEqual(published);
     }
   });
 
@@ -151,9 +162,82 @@ describe("parseRecipeFromHtml", () => {
     expect(recipe.steps).toEqual(["Visit our shop & scramble."]);
   });
 
-  // Null is the signal to fall back to reading the page as text, not an error.
+  // Null means "nothing to read here", which the importer turns into "paste it".
   it("returns null for a page with no recipe in it", () => {
     expect(parseRecipeFromHtml("<html><body>Not a recipe</body></html>")).toBeNull();
+  });
+
+  it("looks past blocks that aren't recipes to the one that is", () => {
+    const html = page(
+      [{ "@type": "Organization", name: "A publisher" }],
+      { "@type": "Recipe", name: "Second block", recipeIngredient: ["2 eggs"] },
+    );
+    expect(parseRecipeFromHtml(html)!.title).toBe("Second block");
+  });
+
+  // Some publishers list ingredients as objects rather than strings.
+  it("reads ingredients given as objects with a name, skipping ones without", () => {
+    const html = page({
+      "@type": "Recipe",
+      name: "Objects",
+      recipeIngredient: [{ name: "2 eggs" }, { amount: 3 }, null],
+    });
+    expect(parseRecipeFromHtml(html)!.ingredients.map((i) => i.name)).toEqual(["eggs"]);
+  });
+
+  it("reads ingredients given as one string rather than a list", () => {
+    const html = page({ "@type": "Recipe", name: "One line", recipeIngredient: "2 eggs" });
+    expect(parseRecipeFromHtml(html)!.ingredients).toEqual([
+      { quantity: "2", unit: "", name: "eggs", note: "" },
+    ]);
+  });
+
+  // HowToStep's `text` is the step; some publishers only fill in `name`.
+  it("falls back to a step's name when it has no text, and drops empty steps", () => {
+    const html = page({
+      "@type": "Recipe",
+      name: "Named steps",
+      recipeIngredient: ["2 eggs"],
+      recipeInstructions: [
+        { "@type": "HowToStep", name: "Whisk the eggs." },
+        { "@type": "HowToStep", text: "" },
+      ],
+    });
+    expect(parseRecipeFromHtml(html)!.steps).toEqual(["Whisk the eggs."]);
+  });
+
+  // A walk over a stranger's JSON has to end. These depths are far past
+  // anything a real publisher nests; past them, the parser stops looking.
+  it("gives up on absurdly deep nesting rather than walking it", () => {
+    let recipe: unknown = { "@type": "Recipe", name: "Buried", recipeIngredient: ["2 eggs"] };
+    for (let i = 0; i < 20; i++) recipe = { wrapper: recipe };
+    expect(parseRecipeFromHtml(page(recipe))).toBeNull();
+
+    let steps: unknown = "Buried step.";
+    for (let i = 0; i < 10; i++) steps = [steps];
+    const html = page({
+      "@type": "Recipe",
+      name: "Deep steps",
+      recipeIngredient: ["2 eggs"],
+      recipeInstructions: steps,
+    });
+    expect(parseRecipeFromHtml(html)!.steps).toEqual([]);
+  });
+
+  it("splits instructions given as one string into a step per line", () => {
+    const html = page({
+      "@type": "Recipe",
+      name: "One string",
+      recipeIngredient: ["2 eggs"],
+      recipeInstructions:
+        "1. Whisk the eggs.\n2. Heat the pan.<br>3. Scramble.<p>Serve.</p>",
+    });
+    expect(parseRecipeFromHtml(html)!.steps).toEqual([
+      "Whisk the eggs.",
+      "Heat the pan.",
+      "Scramble.",
+      "Serve.",
+    ]);
   });
 
   it("skips a stub Recipe that has no ingredients or steps", () => {

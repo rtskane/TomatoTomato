@@ -15,10 +15,10 @@ import {
 // steps as separate steps — the exact shape this app stores — so where it
 // exists there is nothing to guess at and no model to ask.
 //
-// Where it doesn't exist, this returns null and the caller falls back to
-// treating the page as text. That split is the whole design: the cheap,
-// exact path runs first and the expensive, approximate one only picks up what
-// it drops.
+// Where it doesn't exist, this returns null, and the link importer tells the
+// author to paste the recipe instead. It deliberately doesn't scrape the page's
+// visible text: that is mostly navigation, comments and advertising, and a
+// recipe assembled out of them is worse than none.
 
 /** The handful of fields we read. Everything else in the object is ignored. */
 type JsonLdRecipe = {
@@ -97,6 +97,12 @@ function findRecipe(node: unknown, depth = 0): JsonLdRecipe | null {
   return null;
 }
 
+/** One step's text, clean: no markup, no author's own "1." in front. */
+const toStep = (html: string) => stripListMarker(stripHtml(html));
+
+/** Line breaks as they appear in a blob of instructions, plain or marked up. */
+const LINE_BREAKS = /\n+|<br\s*\/?>|<\/?(?:p|li|div)\b[^>]*>/i;
+
 /**
  * Flatten `recipeInstructions` into plain step text.
  *
@@ -106,29 +112,39 @@ function findRecipe(node: unknown, depth = 0): JsonLdRecipe | null {
  * wild; a section's own name is dropped because the recipe page has nowhere to
  * put a subheading, and printing "For the sauce" as though it were an
  * instruction would read as a step you were meant to perform.
+ *
+ * Only the single-string form is split into lines. Everywhere else the
+ * publisher has already said where each step ends, and a paragraph break
+ * inside one of their steps is still one step.
  */
-function readInstructions(value: unknown, depth = 0): string[] {
+function readInstructions(value: unknown): string[] {
+  if (typeof value === "string") {
+    return value
+      .split(LINE_BREAKS)
+      .map(toStep)
+      .filter((step) => step !== "");
+  }
+  return readStepList(value, 0);
+}
+
+function readStepList(value: unknown, depth: number): string[] {
   if (depth > 4) return [];
 
   if (typeof value === "string") {
-    // A single blob of prose: split on newlines if it has them, else keep whole.
-    return stripHtml(value)
-      .split(/\n+/)
-      .map((line) => stripListMarker(line))
-      .filter((line) => line !== "");
+    const step = toStep(value);
+    return step === "" ? [] : [step];
   }
 
   if (Array.isArray(value)) {
-    return value.flatMap((item) => readInstructions(item, depth + 1));
+    return value.flatMap((item) => readStepList(item, depth + 1));
   }
 
   if (value !== null && typeof value === "object") {
     const record = value as Record<string, unknown>;
     if (record.itemListElement !== undefined) {
-      return readInstructions(record.itemListElement, depth + 1);
+      return readStepList(record.itemListElement, depth + 1);
     }
-    const text = stripHtml(asString(record.text) || asString(record.name));
-    return text === "" ? [] : [stripListMarker(text)];
+    return readStepList(asString(record.text) || asString(record.name), depth);
   }
 
   return [];
@@ -172,8 +188,8 @@ export function extractJsonLdBlocks(html: string): unknown[] {
 /**
  * A page's embedded recipe as form values, or null if it hasn't got one.
  *
- * Null is the signal to fall back to reading the page as text; it is not an
- * error, and a great many perfectly good recipe pages return it.
+ * Null means the page publishes no recipe we can read. It is not an error, and
+ * a great many perfectly good recipe pages return it.
  */
 export function parseRecipeFromHtml(html: string): CreateRecipeValues | null {
   for (const block of extractJsonLdBlocks(html)) {
