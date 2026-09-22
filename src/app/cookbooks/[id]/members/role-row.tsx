@@ -4,11 +4,9 @@ import { useActionState, useState, startTransition } from "react";
 import type { MemberActionState } from "./actions";
 import type { CookbookRole } from "@/generated/prisma/enums";
 
-// One row of a people list, with the controls to re-role or remove whoever it
-// names. Shared by accepted members and outstanding invites: the two differ
-// only in which id they act on (`userId` vs `inviteId`) and what removal is
-// called, so everything else — the auto-submitting select, the pending state,
-// the error reporting — lives here once.
+// One row of the people list, with the controls to re-role or remove whoever
+// it names — the auto-submitting select, the pending state, the error
+// reporting — in one place.
 
 type RowAction = (
   state: MemberActionState,
@@ -50,26 +48,21 @@ export default function RoleRow({
   name,
   sublabel,
   avatarUrl = null,
-  idField,
   id,
   role,
   editable,
   changeRoleAction,
   removeAction,
-  removeLabel,
 }: {
   name: string;
   sublabel?: string;
   avatarUrl?: string | null;
-  /** Which id the actions act on — `userId` for members, `inviteId` for invites. */
-  idField: "userId" | "inviteId";
   id: string;
   role: CookbookRole;
   /** False for the owner and for anyone viewing without manage permission. */
   editable: boolean;
   changeRoleAction: RowAction;
   removeAction: RowAction;
-  removeLabel: string;
 }) {
   const [roleState, submitRole, rolePending] = useActionState(
     changeRoleAction,
@@ -99,7 +92,7 @@ export default function RoleRow({
   function changeRole(next: CookbookRole) {
     setSelected(next);
     const formData = new FormData();
-    formData.set(idField, id);
+    formData.set("userId", id);
     formData.set("role", next);
     startTransition(() => submitRole(formData));
   }
@@ -151,14 +144,14 @@ export default function RoleRow({
           {/* Removal stays a real form: it's a submit button, so it still works
               without JavaScript, and there's no value left to reset afterwards. */}
           <form action={submitRemove}>
-            <input type="hidden" name={idField} value={id} />
+            <input type="hidden" name="userId" value={id} />
             <button
               type="submit"
               disabled={rolePending || removePending}
-              aria-label={`${removeLabel} ${name}`}
+              aria-label={`Remove ${name}`}
               className="rounded-md px-2 py-1 text-subheadline text-foreground-muted hover:bg-background-secondary hover:text-error disabled:opacity-40"
             >
-              {removePending ? "…" : removeLabel}
+              {removePending ? "…" : "Remove"}
             </button>
           </form>
         </>

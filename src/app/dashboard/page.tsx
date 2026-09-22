@@ -5,11 +5,8 @@ import {
   listUserCookbooks,
   listArchivedCookbooks,
 } from "@/server/services/cookbook.service";
-import { listPendingInvites } from "@/server/services/member.service";
 import CookbookLibrary from "./cookbook-library";
-import PendingInvites from "./pending-invites";
 import ArchivedCookbooks from "./archived-cookbooks";
-import { acceptInviteAction, declineInviteAction } from "./actions";
 import { restoreCookbookAction } from "../cookbooks/[id]/settings-actions";
 import { LIBRARY_VIEW_COOKIE, parseLibraryView } from "./library-view";
 
@@ -18,9 +15,8 @@ import { LIBRARY_VIEW_COOKIE, parseLibraryView } from "./library-view";
 // un-onboarded users to /onboarding.
 export default async function DashboardPage() {
   const user = await requireOnboardedUser();
-  const [cookbooks, invites, archived, cookieStore] = await Promise.all([
+  const [cookbooks, archived, cookieStore] = await Promise.all([
     listUserCookbooks(user.id),
-    listPendingInvites(user.id),
     listArchivedCookbooks(user.id),
     // Reading a cookie makes the route dynamic, which this one already is:
     // it is behind auth and reads the database on every request.
@@ -48,14 +44,6 @@ export default async function DashboardPage() {
           New cookbook
         </Link>
       </div>
-
-      {/* Above the library on purpose: an invite is a thing to act on, and it
-          renders nothing when there's nothing pending. */}
-      <PendingInvites
-        invites={invites}
-        acceptAction={acceptInviteAction}
-        declineAction={declineInviteAction}
-      />
 
       <CookbookLibrary cookbooks={cookbooks} initialView={view} />
 

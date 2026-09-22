@@ -3,19 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { requireOnboardedUser } from "@/lib/user";
 import {
-  inviteMembers,
   changeMemberRole,
   removeMember,
-  changeInviteRole,
-  cancelInvite,
   setJoinLinkEnabled,
   setJoinLinkRole,
   resetJoinLink,
   createOneTimeLink,
-  type InviteOutcome,
+  revokeOneTimeLink,
   type JoinLinkView,
   type OneTimeLinkView,
-  type InviteRowInput,
 } from "@/server/services/member.service";
 
 // Thin adapter: the only layer that knows about HTTP/FormData and auth. It
@@ -24,15 +20,8 @@ import {
 //
 // Every action re-checks auth and re-derives the actor from the session, never
 // from the form — Server Actions are reachable by direct POST, so the only
-// thing the client is trusted to say is *which* cookbook or invite to act on.
-
-export type InviteState = {
-  error?: string;
-  outcomes?: InviteOutcome[];
-};
-
-const all = (formData: FormData, key: string) =>
-  formData.getAll(key).map((v) => String(v));
+// thing the client is trusted to say is *which* cookbook, member or link to act
+// on.
 
 /**
  * Refresh both places this UI is rendered.
@@ -47,42 +36,11 @@ function revalidateMembers(cookbookId: string) {
 }
 
 /**
- * Rebuild the invite rows from repeated form fields.
- *
- * Each row renders a username input and a role select, so the browser submits
- * two parallel lists in DOM order — zipping them by index reconstructs the
- * rows. Same shape as parseIngredients in the recipe form.
- */
-function parseRows(formData: FormData): InviteRowInput[] {
-  const usernames = all(formData, "inviteUsername");
-  const roles = all(formData, "inviteRole");
-
-  return usernames.map((username, i) => ({
-    username,
-    role: roles[i] ?? "VIEWER",
-  }));
-}
-
-/**
  * `cookbookId` is bound server-side by the page rather than submitted as a
- * hidden field, so a crafted POST can't retarget the invites at another
+ * hidden field, so a crafted POST can't retarget an action at another
  * cookbook. (The service checks permission regardless; this removes the
  * question.)
  */
-export async function inviteMembersAction(
-  cookbookId: string,
-  _prevState: InviteState,
-  formData: FormData,
-): Promise<InviteState> {
-  const user = await requireOnboardedUser();
-
-  const result = await inviteMembers(user.id, cookbookId, parseRows(formData));
-  if (!result.ok) return { error: result.error.message };
-
-  revalidateMembers(cookbookId);
-  return { outcomes: result.value };
-}
-
 export type MemberActionState = { error?: string };
 
 export async function changeMemberRoleAction(
@@ -115,41 +73,6 @@ export async function removeMemberAction(
     user.id,
     cookbookId,
     String(formData.get("userId") ?? ""),
-  );
-  if (!result.ok) return { error: result.error.message };
-
-  revalidateMembers(cookbookId);
-  return {};
-}
-
-export async function changeInviteRoleAction(
-  cookbookId: string,
-  _prevState: MemberActionState,
-  formData: FormData,
-): Promise<MemberActionState> {
-  const user = await requireOnboardedUser();
-
-  const result = await changeInviteRole(
-    user.id,
-    String(formData.get("inviteId") ?? ""),
-    String(formData.get("role") ?? ""),
-  );
-  if (!result.ok) return { error: result.error.message };
-
-  revalidateMembers(cookbookId);
-  return {};
-}
-
-export async function cancelInviteAction(
-  cookbookId: string,
-  _prevState: MemberActionState,
-  formData: FormData,
-): Promise<MemberActionState> {
-  const user = await requireOnboardedUser();
-
-  const result = await cancelInvite(
-    user.id,
-    String(formData.get("inviteId") ?? ""),
   );
   if (!result.ok) return { error: result.error.message };
 
@@ -215,7 +138,7 @@ export async function resetJoinLinkAction(
 }
 
 // ---------------------------------------------------------------------------
-// One-time links. Revoking one is `cancelInviteAction` — it is an invite row.
+// One-time links
 // ---------------------------------------------------------------------------
 
 /** What the create form shows: the link just made, or why it wasn't. */
@@ -238,4 +161,21 @@ export async function createOneTimeLinkAction(
 
   revalidateMembers(cookbookId);
   return { created: result.value };
+}
+
+export async function revokeOneTimeLinkAction(
+  cookbookId: string,
+  _prevState: MemberActionState,
+  formData: FormData,
+): Promise<MemberActionState> {
+  const user = await requireOnboardedUser();
+
+  const result = await revokeOneTimeLink(
+    user.id,
+    String(formData.get("linkId") ?? ""),
+  );
+  if (!result.ok) return { error: result.error.message };
+
+  revalidateMembers(cookbookId);
+  return {};
 }

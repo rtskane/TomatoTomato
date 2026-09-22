@@ -1,23 +1,24 @@
-import InviteForm from "./invite-form";
 import RoleRow from "./role-row";
 import JoinLinkControls from "./join-link-controls";
 import OneTimeLinks from "./one-time-links";
 import type { MembersView } from "@/server/services/member.service";
 import {
-  inviteMembersAction,
   changeMemberRoleAction,
   removeMemberAction,
-  changeInviteRoleAction,
-  cancelInviteAction,
   setJoinLinkEnabledAction,
   setJoinLinkRoleAction,
   resetJoinLinkAction,
   createOneTimeLinkAction,
+  revokeOneTimeLinkAction,
 } from "./actions";
 
-// The people-management UI itself, with no opinion about where it's shown.
-// Rendered both inside the share dialog on the cookbook page and as the whole
-// of /cookbooks/[id]/members — so the two can't drift apart.
+// The sharing UI itself, with no opinion about where it's shown. Rendered
+// inside the share dialog on the cookbook page, as the whole of
+// /cookbooks/[id]/members, and as the last step of setting a cookbook up — so
+// the three can't drift apart.
+//
+// Laid out the way Google Docs lays out sharing: the ways in first (the
+// cookbook's link, then links for one person each), then who has access.
 //
 // Deliberately a Server Component: only the individual controls need to be
 // interactive, so the list markup ships as HTML rather than JS. It reaches the
@@ -25,31 +26,15 @@ import {
 //
 // It binds its own actions to the cookbook it's showing. Binding server-side
 // means the id never rides along in a form, so a crafted POST can't retarget
-// an action at a different cookbook — and doing it here, once, means neither
-// page that renders the panel can forget one.
+// an action at a different cookbook — and doing it here, once, means no page
+// that renders the panel can forget one.
 
 export default function MembersPanel({ view }: { view: MembersView }) {
   const id = view.cookbookId;
-  const actions = {
-    invite: inviteMembersAction.bind(null, id),
-    changeMemberRole: changeMemberRoleAction.bind(null, id),
-    removeMember: removeMemberAction.bind(null, id),
-    changeInviteRole: changeInviteRoleAction.bind(null, id),
-    cancelInvite: cancelInviteAction.bind(null, id),
-  };
 
   return (
     <div className="space-y-8">
-      {/* Inviting comes first: it's why someone opens this. Owners only —
-          everyone else sees just the roster below. */}
-      {view.canManageMembers ? (
-        <section>
-          <InviteForm action={actions.invite} />
-        </section>
-      ) : null}
-
-      {/* The link sits with the other ways in, above the roster. Owners only:
-          the token is itself the permission to join. */}
+      {/* Owners only: a link's token is itself the permission to join. */}
       {view.joinLink ? (
         <section>
           <JoinLinkControls
@@ -66,8 +51,7 @@ export default function MembersPanel({ view }: { view: MembersView }) {
           <OneTimeLinks
             links={view.oneTimeLinks}
             createAction={createOneTimeLinkAction.bind(null, id)}
-            // A one-time link is an invite row, so revoking one is cancelling it.
-            revokeAction={actions.cancelInvite}
+            revokeAction={revokeOneTimeLinkAction.bind(null, id)}
           />
         </section>
       ) : null}
@@ -83,43 +67,17 @@ export default function MembersPanel({ view }: { view: MembersView }) {
               // showing both made the owner's own row read "Owner" twice.
               sublabel={member.isSelf ? "You" : undefined}
               avatarUrl={member.avatarUrl}
-              idField="userId"
               id={member.userId}
               role={member.role}
               // The owner's row is fixed: Cookbook.ownerId is a scalar column
               // that a demoted or deleted OWNER membership would contradict.
               editable={view.canManageMembers && !member.isOwner}
-              changeRoleAction={actions.changeMemberRole}
-              removeAction={actions.removeMember}
-              removeLabel="Remove"
+              changeRoleAction={changeMemberRoleAction.bind(null, id)}
+              removeAction={removeMemberAction.bind(null, id)}
             />
           ))}
         </ul>
       </section>
-
-      {view.outstandingInvites.length > 0 ? (
-        <section>
-          <h3 className="text-subheadline font-medium">Waiting to accept</h3>
-          <p className="mt-0.5 text-caption-1 text-foreground-tertiary">
-            They don&rsquo;t have access yet.
-          </p>
-          <ul className="mt-1 divide-y divide-border-faint">
-            {view.outstandingInvites.map((invite) => (
-              <RoleRow
-                key={invite.id}
-                name={invite.name}
-                idField="inviteId"
-                id={invite.id}
-                role={invite.role}
-                editable
-                changeRoleAction={actions.changeInviteRole}
-                removeAction={actions.cancelInvite}
-                removeLabel="Cancel"
-              />
-            ))}
-          </ul>
-        </section>
-      ) : null}
     </div>
   );
 }

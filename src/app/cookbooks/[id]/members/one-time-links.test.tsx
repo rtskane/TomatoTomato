@@ -129,7 +129,7 @@ describe("OneTimeLinks — the unused ones", () => {
     await userEvent.click(screen.getByRole("button", { name: "Revoke link for Mum" }));
 
     await waitFor(() => expect(revokeAction).toHaveBeenCalled());
-    expect(revokeAction.mock.calls[0][1].get("inviteId")).toBe("inv9");
+    expect(revokeAction.mock.calls[0][1].get("linkId")).toBe("inv9");
   });
 
   it("says why a link couldn't be revoked", async () => {

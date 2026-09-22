@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the Prisma boundary so we assert *how* the repository calls it, without
 // a database. vi.hoisted lets the mock factory reference these safely.
-const { cookbook, cookbookMember, cookbookInvite, $transaction } = vi.hoisted(() => ({
+const { cookbook, cookbookMember } = vi.hoisted(() => ({
   cookbook: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   cookbookMember: {
     findMany: vi.fn(),
@@ -10,12 +10,8 @@ const { cookbook, cookbookMember, cookbookInvite, $transaction } = vi.hoisted(()
     findFirst: vi.fn(),
     upsert: vi.fn(),
   },
-  cookbookInvite: { updateMany: vi.fn() },
-  $transaction: vi.fn(),
 }));
-vi.mock("@/lib/prisma", () => ({
-  prisma: { cookbook, cookbookMember, cookbookInvite, $transaction },
-}));
+vi.mock("@/lib/prisma", () => ({ prisma: { cookbook, cookbookMember } }));
 
 import { cookbookRepository } from "./cookbook.repository";
 import { DEFAULT_COVER_DESIGN } from "@/lib/book-covers";
@@ -242,30 +238,14 @@ describe("cookbookRepository — join link", () => {
     });
   });
 
-  describe("joinByLink", () => {
-    beforeEach(async () => {
-      await cookbookRepository.joinByLink("cb1", "u2", "VIEWER");
-    });
+  // An owner opening their own Viewer link must stay the owner.
+  it("joins without changing the role of someone already in the cookbook", async () => {
+    await cookbookRepository.joinByLink("cb1", "u2", "VIEWER");
 
-    it("adds and settles in one transaction", () => {
-      expect($transaction).toHaveBeenCalledTimes(1);
-      expect($transaction.mock.calls[0][0]).toHaveLength(2);
-    });
-
-    // An owner opening their own Viewer link must stay the owner.
-    it("never changes the role of someone already in the cookbook", () => {
-      expect(cookbookMember.upsert.mock.calls[0][0]).toEqual({
-        where: { cookbookId_userId: { cookbookId: "cb1", userId: "u2" } },
-        create: { cookbookId: "cb1", userId: "u2", role: "VIEWER" },
-        update: {},
-      });
-    });
-
-    it("settles any invite still waiting for them in that cookbook", () => {
-      expect(cookbookInvite.updateMany.mock.calls[0][0]).toEqual({
-        where: { cookbookId: "cb1", invitedUserId: "u2", status: "PENDING" },
-        data: { status: "ACCEPTED" },
-      });
+    expect(cookbookMember.upsert.mock.calls[0][0]).toEqual({
+      where: { cookbookId_userId: { cookbookId: "cb1", userId: "u2" } },
+      create: { cookbookId: "cb1", userId: "u2", role: "VIEWER" },
+      update: {},
     });
   });
 });

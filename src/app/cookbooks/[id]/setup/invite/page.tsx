@@ -46,8 +46,8 @@ export default async function SetupInvitePage({
         <div className="min-w-0">
           <h1 className="text-title-1">{cookbook.title} is ready</h1>
           <p className="mt-2 text-subheadline text-foreground-secondary">
-            Cook with other people by inviting them now — or add recipes first
-            and invite whenever you like.
+            Cook with other people by sharing a link now — or add recipes
+            first and share whenever you like.
           </p>
         </div>
       </div>

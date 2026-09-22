@@ -24,13 +24,11 @@ function setup({
   return render(
     <RoleRow
       name="alice"
-      idField="userId"
       id="u_alice"
       role={role}
       editable={editable}
       changeRoleAction={changeRoleAction}
       removeAction={removeAction}
-      removeLabel="Remove"
     />,
   );
 }
@@ -93,13 +91,11 @@ describe("RoleRow", () => {
     rerender(
       <RoleRow
         name="alice"
-        idField="userId"
         id="u_alice"
         role={"EDITOR" as CookbookRole}
         editable
         changeRoleAction={noop}
         removeAction={noop}
-        removeLabel="Remove"
       />,
     );
 
@@ -125,26 +121,5 @@ describe("RoleRow", () => {
       screen.queryByRole("button", { name: "Remove alice" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Owner")).toBeInTheDocument();
-  });
-
-  it("uses the invite id field when it's an invite row", async () => {
-    const user = userEvent.setup();
-    const action = vi.fn<Action>(async () => ({}));
-    render(
-      <RoleRow
-        name="bob"
-        idField="inviteId"
-        id="inv1"
-        role={"VIEWER" as CookbookRole}
-        editable
-        changeRoleAction={action}
-        removeAction={noop}
-        removeLabel="Cancel"
-      />,
-    );
-
-    await user.selectOptions(screen.getByLabelText("Role for bob"), "EDITOR");
-
-    expect(action.mock.calls[0][1].get("inviteId")).toBe("inv1");
   });
 });

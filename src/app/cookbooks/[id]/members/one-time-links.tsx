@@ -79,7 +79,7 @@ function OneTimeLinkRow({
             disabled={pending}
             onClick={() => {
               const formData = new FormData();
-              formData.set("inviteId", link.id);
+              formData.set("linkId", link.id);
               startTransition(() => submitRevoke(formData));
             }}
             aria-label={`Revoke link for ${name}`}
