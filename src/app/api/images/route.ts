@@ -1,9 +1,14 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { ensureUser } from "@/lib/user";
+import {
+  ACCEPTED_IMAGE_TYPES,
+  MAX_IMAGE_BYTES,
+  isAllowedUploadPath,
+} from "@/lib/image-uploads";
 
 /**
- * Issues the short-lived tokens the browser needs to upload a cover image
- * straight to Vercel Blob.
+ * Issues the short-lived tokens the browser needs to upload an image — a
+ * cookbook's cover or a recipe's photo — straight to Vercel Blob.
  *
  * The file never passes through this route — only the permission to send it
  * does. That is the reason for the client-upload flow rather than posting the
@@ -14,8 +19,8 @@ import { ensureUser } from "@/lib/user";
  * ## What this checks, and what it doesn't
  *
  * It checks that the caller is a signed-in, onboarded user, and constrains
- * what their token can do: image types only, 8 MB, and a pathname under
- * `cookbook-covers/`.
+ * what their token can do: image types only, 8 MB, and a pathname in one of
+ * the folders `IMAGE_FOLDERS` names.
  *
  * The sign-in check runs *before* `handleUpload`, not inside its
  * `onBeforeGenerateToken` callback where it would read more naturally. The SDK
@@ -25,25 +30,12 @@ import { ensureUser } from "@/lib/user";
  * is the first thing that happens, and an anonymous request is refused whatever
  * the SDK is doing.
  *
- * It does NOT check which cookbook the image is for, because at this point
- * there may not be one — the create form uploads before the cookbook exists.
- * A URL is just bytes in a bucket until `updateCookbook`/`createCookbook`
- * attaches it, and those enforce ownership. So the worst an authenticated
+ * It does NOT check which cookbook or recipe the image is for, because at this
+ * point there may not be one — both create forms upload before the thing they
+ * are creating exists. A URL is just bytes in a bucket until a save attaches
+ * it, and the save is what enforces permission. So the worst an authenticated
  * caller can do here is spend a little of our storage.
  */
-
-const ALLOWED_CONTENT_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/avif",
-  "image/gif",
-];
-
-/** Comfortably above a phone photo, far below what a function could stream. */
-const MAX_BYTES = 8 * 1024 * 1024;
-
-const PATH_PREFIX = "cookbook-covers/";
 
 export async function POST(request: Request): Promise<Response> {
   // Route handlers are public by default — this is the auth boundary.
@@ -63,13 +55,13 @@ export async function POST(request: Request): Promise<Response> {
       onBeforeGenerateToken: async (pathname) => {
         // The client names the file, so the name is checked rather than
         // trusted: without this an upload could be aimed anywhere in the store.
-        if (!pathname.startsWith(PATH_PREFIX)) {
+        if (!isAllowedUploadPath(pathname)) {
           throw new Error("Unexpected upload path.");
         }
 
         return {
-          allowedContentTypes: ALLOWED_CONTENT_TYPES,
-          maximumSizeInBytes: MAX_BYTES,
+          allowedContentTypes: ACCEPTED_IMAGE_TYPES,
+          maximumSizeInBytes: MAX_IMAGE_BYTES,
           // Two people uploading "cover.jpg" must not overwrite each other.
           addRandomSuffix: true,
         };

@@ -20,6 +20,7 @@ const input = {
   servings: 4,
   prepTimeMinutes: 15,
   cookTimeMinutes: 20,
+  coverImageUrl: null,
   ingredients: [
     { name: "spaghetti", quantity: 200, unit: "g", note: null },
     { name: "egg", quantity: 2, unit: null, note: "yolks only" },
@@ -38,6 +39,7 @@ describe("recipeRepository.create", () => {
       servings: 4,
       prepTimeMinutes: 15,
       cookTimeMinutes: 20,
+      coverImageUrl: null,
     });
   });
 

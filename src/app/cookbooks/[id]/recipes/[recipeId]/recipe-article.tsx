@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { formatIngredient, formatMinutes } from "@/lib/recipe-display";
 import type { RecipeDetail } from "@/server/services/recipe-detail.service";
@@ -6,6 +7,17 @@ import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 // a recipe — a masthead, a stats strip, then ingredients beside the method —
 // because that's the order a cook actually reads in: what is this, how long
 // will it take, what do I need, what do I do.
+//
+// A recipe with a photo is set the way NYT Cooking sets one: the title and
+// byline on the left, the photograph beside them on the right, on a page wide
+// enough to give it room. On a phone the photo drops under the byline at full
+// width. Without a photo the page keeps its narrower single column — a wide
+// page with nothing in the second column would just be an empty margin.
+
+/** How wide the recipe page is — shared with the page's back link above it. */
+export function articleWidth(recipe: Pick<RecipeDetail, "coverImageUrl">) {
+  return recipe.coverImageUrl ? "max-w-5xl" : "max-w-3xl";
+}
 
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
@@ -44,34 +56,65 @@ function Stats({ recipe }: { recipe: RecipeDetail }) {
 
 export default function RecipeArticle({ recipe }: { recipe: RecipeDetail }) {
   return (
-    <article className="mx-auto max-w-3xl px-4 py-10">
-      <header>
-        <div className="flex items-start justify-between gap-4">
+    <article className={`mx-auto ${articleWidth(recipe)} px-4 py-10`}>
+      <header
+        className={
+          recipe.coverImageUrl
+            ? "grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-center lg:gap-12"
+            : undefined
+        }
+      >
+        <div>
           <h1 className="font-serif text-large-title leading-tight tracking-tight">
             {recipe.title}
           </h1>
+          <div className="mt-4 flex items-center gap-3">
+            <p className="text-subheadline text-foreground-tertiary">
+              By {recipe.authorName}
+            </p>
 
-          {/* Only for the author or the cookbook's owner — `canModify` is the
-              same rule the update and delete actions enforce, so this link can
-              never offer something the server would refuse. */}
-          {recipe.canModify ? (
-            <Link
-              href={`/cookbooks/${recipe.cookbook.id}/recipes/${recipe.id}/edit`}
-              className="mt-2 shrink-0 rounded-md px-3 py-1.5 text-subheadline font-medium text-foreground-secondary hover:bg-background-secondary"
-            >
-              Edit
-            </Link>
-          ) : null}
+            {/* Beside the byline rather than out at the column's edge, where
+                beside a photo it would float free of anything it belongs to.
+                Only for the author or the cookbook's owner — `canModify` is the
+                same rule the update and delete actions enforce, so this link
+                can never offer something the server would refuse. */}
+            {recipe.canModify ? (
+              <Link
+                href={`/cookbooks/${recipe.cookbook.id}/recipes/${recipe.id}/edit`}
+                className="rounded-md border border-border px-2.5 py-1 text-caption-1 font-medium text-foreground-secondary hover:bg-background-secondary"
+              >
+                Edit
+              </Link>
+            ) : null}
+          </div>
         </div>
-        <p className="mt-4 text-subheadline text-foreground-tertiary">
-          By {recipe.authorName}
-        </p>
-        {recipe.description ? (
-          <p className="mt-5 font-serif text-headline leading-relaxed text-foreground-secondary">
-            {recipe.description}
-          </p>
+
+        {recipe.coverImageUrl ? (
+          // Edge to edge on a phone, where the page's own gutter would only
+          // shrink it; inside the column from `sm` up.
+          <div className="relative -mx-4 aspect-3/2 overflow-hidden bg-background-secondary sm:mx-0 sm:rounded-md">
+            <Image
+              src={recipe.coverImageUrl}
+              // The heading beside it already names the dish, and the photo
+              // has no caption of its own to add, so it's announced as nothing
+              // rather than as the title a second time.
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 600px, 100vw"
+              // The largest thing on the page, and the first thing seen.
+              loading="eager"
+              fetchPriority="high"
+              className="object-cover"
+            />
+          </div>
         ) : null}
       </header>
+
+      {recipe.description ? (
+        <p className="mt-6 max-w-3xl font-serif text-headline leading-relaxed text-foreground-secondary">
+          {recipe.description}
+        </p>
+      ) : null}
 
       <Stats recipe={recipe} />
 

@@ -32,6 +32,7 @@ export default async function EditRecipePage({
     servings: recipe.servings?.toString() ?? "",
     prepTimeMinutes: recipe.prepTimeMinutes?.toString() ?? "",
     cookTimeMinutes: recipe.cookTimeMinutes?.toString() ?? "",
+    coverImageUrl: recipe.coverImageUrl ?? "",
     ingredients: recipe.ingredients.map((ingredient) => ({
       name: ingredient.name,
       quantity: ingredient.quantity,

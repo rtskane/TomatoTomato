@@ -156,6 +156,7 @@ export const cookbookRepository = {
                 servings: true,
                 prepTimeMinutes: true,
                 cookTimeMinutes: true,
+                coverImageUrl: true,
                 author: {
                   select: { username: true, firstName: true, lastName: true },
                 },

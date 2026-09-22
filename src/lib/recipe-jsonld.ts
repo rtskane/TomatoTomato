@@ -211,6 +211,9 @@ export function parseRecipeFromHtml(html: string): CreateRecipeValues | null {
       servings: parseYield(recipe.recipeYield),
       prepTimeMinutes: parseIsoDuration(asString(recipe.prepTime)),
       cookTimeMinutes: parseIsoDuration(asString(recipe.cookTime)),
+      // Never the publisher's own photo: it isn't ours to copy, and the
+      // image rule only admits pictures in our own store anyway.
+      coverImageUrl: "",
       ingredients: ingredientLines
         .map(parseIngredientLine)
         .filter((ingredient) => ingredient.name !== ""),

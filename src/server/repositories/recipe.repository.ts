@@ -15,6 +15,7 @@ type RecipeFields = {
   servings: number | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
+  coverImageUrl: string | null;
   ingredients: IngredientInput[];
   steps: string[];
 };
@@ -45,6 +46,7 @@ export const recipeRepository = {
     servings,
     prepTimeMinutes,
     cookTimeMinutes,
+    coverImageUrl,
     ingredients,
     steps,
   }: CreateRecipeInput) {
@@ -57,6 +59,7 @@ export const recipeRepository = {
         servings,
         prepTimeMinutes,
         cookTimeMinutes,
+        coverImageUrl,
         ingredients: {
           create: ingredients.map((ingredient, position) => ({
             position,
@@ -105,6 +108,7 @@ export const recipeRepository = {
         servings: true,
         prepTimeMinutes: true,
         cookTimeMinutes: true,
+        coverImageUrl: true,
         createdAt: true,
         // Needed to decide whether the viewer may edit it, not just to name it.
         authorId: true,
@@ -162,6 +166,7 @@ export const recipeRepository = {
     servings,
     prepTimeMinutes,
     cookTimeMinutes,
+    coverImageUrl,
     ingredients,
     steps,
   }: UpdateRecipeInput) {
@@ -173,6 +178,7 @@ export const recipeRepository = {
         servings,
         prepTimeMinutes,
         cookTimeMinutes,
+        coverImageUrl,
         ingredients: {
           deleteMany: {},
           create: ingredients.map((ingredient, position) => ({

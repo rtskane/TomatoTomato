@@ -3,23 +3,27 @@
 import { useId, useRef, useState } from "react";
 import Image from "next/image";
 import { upload } from "@vercel/blob/client";
+import {
+  ACCEPTED_IMAGE_TYPES,
+  MAX_IMAGE_BYTES,
+  UPLOAD_ROUTE,
+  uploadPathname,
+  type ImageFolder,
+} from "@/lib/image-uploads";
 
 /**
- * Pick a cover image for a cookbook.
+ * Pick an image — a cookbook's cover, or a photo of a recipe.
  *
  * Controlled: the parent form owns the URL, because the parent is what has to
  * put it in a hidden field and what has to stop its own submit button while an
- * upload is still in flight. A cookbook saved mid-upload would silently lose
- * the picture the user just chose.
+ * upload is still in flight. A form saved mid-upload would silently lose the
+ * picture the user just chose.
  *
  * The file goes browser → blob store directly and never through our server;
- * `/api/cookbooks/cover` only issues the token that allows it. What comes back
+ * `/api/images` only issues the token that allows it. What comes back
  * is a URL, and that URL is re-validated server-side before it is stored — see
- * `coverImageUrlSchema`.
+ * `storedImageUrlSchema`.
  */
-
-/** Kept in step with the route handler, which enforces both for real. */
-const MAX_BYTES = 8 * 1024 * 1024;
 
 /**
  * How long to let an upload run before calling it failed.
@@ -32,36 +36,38 @@ const MAX_BYTES = 8 * 1024 * 1024;
  * percentage is ticking the whole time on a healthy one.
  */
 const TIMEOUT_MS = 90_000;
-const ACCEPTED = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/avif",
-  "image/gif",
-];
 
-/**
- * The uploaded file keeps its name so the store is browsable, but only the
- * parts of it that are safe in a URL path. The store adds a random suffix, so
- * two "cover.jpg" uploads still can't collide.
- */
-function safePathname(name: string): string {
-  const cleaned = name
-    .toLowerCase()
-    .replace(/[^a-z0-9.-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(-64);
+/** How each kind of image is shaped, and what an empty one is called. */
+const PREVIEWS: Record<
+  ImageFolder,
+  { aspect: string; width: string; sizes: string; empty: string }
+> = {
+  // A book stands portrait.
+  "cookbook-covers": {
+    aspect: "aspect-3/4",
+    width: "w-24",
+    sizes: "96px",
+    empty: "No cover",
+  },
+  // Food is photographed landscape, 3:2, the way recipe sites print it.
+  "recipe-photos": {
+    aspect: "aspect-3/2",
+    width: "w-36",
+    sizes: "144px",
+    empty: "No photo",
+  },
+};
 
-  return `cookbook-covers/${cleaned || "cover"}`;
-}
-
-export default function CoverImageField({
+export default function ImageUploadField({
+  folder,
   value,
   onChange,
   onUploadingChange,
   showPreview = true,
   heading = "Cover",
 }: {
+  /** Which kind of image this is — decides where it's stored and its shape. */
+  folder: ImageFolder;
   value: string;
   onChange: (url: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
@@ -86,6 +92,7 @@ export default function CoverImageField({
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const errorId = useId();
+  const preview = PREVIEWS[folder];
 
   function setBusy(busy: boolean) {
     setUploading(busy);
@@ -97,11 +104,11 @@ export default function CoverImageField({
 
     // Checked here for a fast, clear message, and again in the token the
     // server issues — this one is a courtesy, that one is the rule.
-    if (!ACCEPTED.includes(file.type)) {
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
       setError("Choose a JPEG, PNG, WebP, AVIF or GIF.");
       return;
     }
-    if (file.size > MAX_BYTES) {
+    if (file.size > MAX_IMAGE_BYTES) {
       setError("That image is larger than 8 MB.");
       return;
     }
@@ -110,9 +117,9 @@ export default function CoverImageField({
     setPercentage(0);
 
     try {
-      const blob = await upload(safePathname(file.name), file, {
+      const blob = await upload(uploadPathname(folder, file.name), file, {
         access: "public",
-        handleUploadUrl: "/api/cookbooks/cover",
+        handleUploadUrl: UPLOAD_ROUTE,
         abortSignal: AbortSignal.timeout(TIMEOUT_MS),
         onUploadProgress: (progress) => setPercentage(progress.percentage),
       });
@@ -129,7 +136,7 @@ export default function CoverImageField({
       );
       // Whatever it was, it is worth having in the console: the friendly text
       // above is deliberately uninformative to anyone debugging.
-      console.error("[cover] upload failed", cause);
+      console.error(`[${folder}] upload failed`, cause);
     } finally {
       setBusy(false);
       // Let the same file be chosen again after a failure — without this the
@@ -153,18 +160,20 @@ export default function CoverImageField({
         {showPreview ? (
           /* The preview doubles as the empty state, so the row doesn't reflow
              when a picture arrives. */
-          <div className="relative aspect-3/4 w-24 shrink-0 overflow-hidden rounded-md border border-border bg-background-control">
+          <div
+            className={`relative ${preview.aspect} ${preview.width} shrink-0 overflow-hidden rounded-md border border-border bg-background-control`}
+          >
             {value ? (
               <Image
                 src={value}
                 alt=""
                 fill
-                sizes="96px"
+                sizes={preview.sizes}
                 className="object-cover"
               />
             ) : (
               <span className="flex h-full items-center justify-center text-caption-2 text-foreground-muted">
-                No cover
+                {preview.empty}
               </span>
             )}
           </div>
@@ -181,7 +190,7 @@ export default function CoverImageField({
             ref={inputRef}
             id={inputId}
             type="file"
-            accept={ACCEPTED.join(",")}
+            accept={ACCEPTED_IMAGE_TYPES.join(",")}
             disabled={uploading}
             onChange={(e) => {
               const file = e.target.files?.[0];
