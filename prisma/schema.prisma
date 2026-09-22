@@ -239,13 +239,15 @@ model CookbookMember {
 /// accepts** — that's what stops an unwanted invite from putting a cookbook in
 /// someone's library.
 ///
-/// ## Two ways to address one
+/// ## Three ways to address one
 ///
 /// `invitedUserId` is set when the invitee already has an account (they're
 /// found by username, and see the invite in-app). `email` is set when they
-/// don't yet (a link is sent to them). **Exactly one of the two is non-null** —
-/// Prisma can't express a CHECK constraint, so `inviteRepository` is the
-/// chokepoint that enforces it, via a discriminated union on its input.
+/// don't yet (a link is sent to them). **Neither** is set for a one-time link:
+/// it's addressed to whoever holds its token, and the first to use it joins.
+/// **At most one of the two is ever non-null** — Prisma can't express a CHECK
+/// constraint, so `inviteRepository` is the chokepoint that enforces it, via a
+/// discriminated union on its input.
 ///
 /// ## One row per (cookbook, person)
 ///
@@ -259,6 +261,8 @@ model CookbookMember {
 /// Postgres treats NULLs as distinct in unique indexes, so the two `@@unique`
 /// rules below coexist: account-invites (email NULL) can only collide on the
 /// first, email-invites (invitedUserId NULL) only on the second.
+/// One-time links (both NULL) collide on neither, which is what lets an owner
+/// hold several at once — one per person they're sending one to.
 model CookbookInvite {
   id String @id @default(cuid())
 
@@ -269,6 +273,10 @@ model CookbookInvite {
   email       String?
   role        CookbookRole @default(VIEWER)
   invitedById String
+  /// Only for a one-time link — an invite addressed to neither an account nor
+  /// an email, which the first person holding its token can use. What the
+  /// owner wrote to tell their links apart ("Mum"), or null if they didn't.
+  label       String?
   /// Generated for every invite, including in-app ones. Costs nothing now and
   /// means any invite can become a shareable link once email delivery exists.
   token     String       @unique

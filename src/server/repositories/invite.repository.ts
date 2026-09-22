@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { newUrlToken } from "@/server/tokens";
+import { coverColumns } from "@/server/repositories/cookbook.repository";
 import { CookbookRole, InviteStatus } from "@/generated/prisma/enums";
 
 // The ONLY module that talks to Prisma for the CookbookInvite table.
 //
-// It also carries a rule the database can't: an invite is addressed to EITHER
-// an existing account OR an email, never both and never neither. Prisma has no
-// CHECK constraint, so `InviteTarget` below is the enforcement — there is no
-// way to call `upsert` with a shape that sets both or neither.
+// It also carries a rule the database can't: an invite is addressed to an
+// existing account, OR an email, OR — for a one-time link — to neither, but
+// never to both. Prisma has no CHECK constraint, so the shapes below are the
+// enforcement: `upsert` takes exactly one target, and `createLink` takes none.
 
 /** Addressed to someone who already has an account (found by username). */
 type UserTarget = { kind: "user"; invitedUserId: string };
@@ -31,6 +32,18 @@ function targetColumns(target: InviteTarget) {
     ? { invitedUserId: target.invitedUserId, email: null }
     : { invitedUserId: null, email: target.email };
 }
+
+/** What makes an invite row a one-time link: addressed to no one. */
+const oneTimeLinkRows = { invitedUserId: null, email: null } as const;
+
+/** What the owner's list of one-time links shows, and copies from. */
+const oneTimeLinkColumns = {
+  id: true,
+  token: true,
+  role: true,
+  label: true,
+  expiresAt: true,
+} as const;
 
 export const inviteRepository = {
   /**
@@ -112,13 +125,18 @@ export const inviteRepository = {
     });
   },
 
-  /** Outstanding invites for a cookbook, shown to whoever can manage members. */
+  /**
+   * Outstanding invites to people, for whoever can manage members. One-time
+   * links are listed separately (`listPendingLinks`): they name nobody, so in
+   * a list of names each would read as "Unknown".
+   */
   listPendingForCookbook(cookbookId: string, now: Date = new Date()) {
     return prisma.cookbookInvite.findMany({
       where: {
         cookbookId,
         status: InviteStatus.PENDING,
         expiresAt: { gt: now },
+        NOT: oneTimeLinkRows,
       },
       orderBy: { createdAt: "desc" },
       select: {
@@ -196,4 +214,123 @@ export const inviteRepository = {
   remove(inviteId: string) {
     return prisma.cookbookInvite.delete({ where: { id: inviteId } });
   },
+
+  // ---- One-time links -------------------------------------------------------
+
+  /** A new single-use link: an invite addressed to whoever holds its token. */
+  createLink({
+    cookbookId,
+    invitedById,
+    role,
+    expiresAt,
+    label,
+  }: {
+    cookbookId: string;
+    invitedById: string;
+    role: CookbookRole;
+    expiresAt: Date;
+    label: string | null;
+  }) {
+    return prisma.cookbookInvite.create({
+      data: {
+        cookbookId,
+        invitedById,
+        role,
+        expiresAt,
+        label,
+        token: newUrlToken(),
+        ...oneTimeLinkRows,
+      },
+      select: oneTimeLinkColumns,
+    });
+  },
+
+  /** A cookbook's unused, unexpired one-time links, newest first. */
+  listPendingLinks(cookbookId: string, now: Date = new Date()) {
+    return prisma.cookbookInvite.findMany({
+      where: {
+        cookbookId,
+        status: InviteStatus.PENDING,
+        expiresAt: { gt: now },
+        ...oneTimeLinkRows,
+      },
+      orderBy: { createdAt: "desc" },
+      select: oneTimeLinkColumns,
+    });
+  },
+
+  /**
+   * The unused one-time link a token opens, with what the join page shows —
+   * or null for a token that's unknown, used, revoked, expired, belongs to an
+   * archived cookbook, or is an in-app invite's (those are accepted by id and
+   * their tokens are never handed out, so they must not work as links).
+   */
+  findPendingLinkByToken(token: string, now: Date = new Date()) {
+    return prisma.cookbookInvite.findFirst({
+      where: {
+        token,
+        status: InviteStatus.PENDING,
+        expiresAt: { gt: now },
+        ...oneTimeLinkRows,
+        cookbook: { archivedAt: null },
+      },
+      select: {
+        id: true,
+        role: true,
+        cookbook: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            ...coverColumns,
+            owner: { select: { username: true, firstName: true, lastName: true } },
+            _count: { select: { members: true } },
+          },
+        },
+      },
+    });
+  },
+
+  /**
+   * Use a one-time link: claim it and add the member, in one transaction.
+   * Returns false when the link was no longer there to claim.
+   *
+   * The claim is a conditional update — only a row still PENDING and unexpired
+   * matches — so when two people press Join at the same moment, exactly one
+   * update changes a row and the other finds nothing. Checking first and
+   * writing after would let both through. An existing membership is left as it
+   * is, and any invite still waiting for them in the cookbook is settled, the
+   * same as joining through the cookbook's shared link.
+   */
+  claimLink(
+    inviteId: string,
+    userId: string,
+    cookbookId: string,
+    role: CookbookRole,
+    now: Date = new Date(),
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const claimed = await tx.cookbookInvite.updateMany({
+        where: {
+          id: inviteId,
+          status: InviteStatus.PENDING,
+          expiresAt: { gt: now },
+        },
+        data: { status: InviteStatus.ACCEPTED },
+      });
+      if (claimed.count === 0) return false;
+
+      await tx.cookbookMember.upsert({
+        where: { cookbookId_userId: { cookbookId, userId } },
+        create: { cookbookId, userId, role },
+        update: {},
+      });
+      await tx.cookbookInvite.updateMany({
+        where: { cookbookId, invitedUserId: userId, status: InviteStatus.PENDING },
+        data: { status: InviteStatus.ACCEPTED },
+      });
+      return true;
+    });
+  },
+
 };

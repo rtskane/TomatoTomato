@@ -21,6 +21,10 @@ const repos = vi.hoisted(() => ({
   setJoinLink: vi.fn(),
   findByJoinToken: vi.fn(),
   joinByLink: vi.fn(),
+  createLink: vi.fn(),
+  listPendingLinks: vi.fn(),
+  findPendingLinkByToken: vi.fn(),
+  claimLink: vi.fn(),
 }));
 
 vi.mock("@/server/repositories/cookbook.repository", () => ({
@@ -47,6 +51,10 @@ vi.mock("@/server/repositories/invite.repository", () => ({
     decline: repos.decline,
     updateRole: repos.updateRole,
     remove: repos.remove,
+    createLink: repos.createLink,
+    listPendingLinks: repos.listPendingLinks,
+    findPendingLinkByToken: repos.findPendingLinkByToken,
+    claimLink: repos.claimLink,
   },
 }));
 vi.mock("@/server/repositories/user.repository", () => ({
@@ -68,6 +76,7 @@ import {
   resetJoinLink,
   previewJoinLink,
   joinWithLink,
+  createOneTimeLink,
 } from "./member.service";
 
 beforeEach(() => {
@@ -83,6 +92,10 @@ beforeEach(() => {
   repos.findManyByUsernames.mockResolvedValue([]);
   repos.inviteUpsert.mockResolvedValue({ id: "inv1" });
   repos.findJoinLink.mockResolvedValue({ joinLinkToken: null, joinLinkRole: "VIEWER" });
+  repos.listPendingLinks.mockResolvedValue([]);
+  // No one-time link unless a test says so.
+  repos.findPendingLinkByToken.mockResolvedValue(null);
+  repos.claimLink.mockResolvedValue(true);
   // Echo what was saved, as the real update's `select` does.
   repos.setJoinLink.mockImplementation(async (_id: string, link: { token: string | null; role: string }) => ({
     joinLinkToken: link.token,
@@ -867,5 +880,165 @@ describe("join link — previewing and joining", () => {
     await joinWithLink("u2", "tok");
 
     expect(repos.joinByLink).toHaveBeenCalledWith("cb1", "u2", "VIEWER");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// One-time links
+// ---------------------------------------------------------------------------
+
+const NOW = new Date("2026-09-22T12:00:00Z");
+const inDays = (days: number) => new Date(NOW.getTime() + days * 24 * 60 * 60 * 1000);
+
+describe("createOneTimeLink", () => {
+  beforeEach(() => {
+    repos.createLink.mockImplementation(async (input: { role: string; label: string | null; expiresAt: Date }) => ({
+      id: "inv9",
+      token: "once",
+      role: input.role,
+      label: input.label,
+      expiresAt: input.expiresAt,
+    }));
+  });
+
+  it("makes a link for one person, as the owner, that lasts a week", async () => {
+    const result = await createOneTimeLink("owner1", "cb1", "EDITOR", "  Mum ", NOW);
+
+    expect(repos.createLink).toHaveBeenCalledWith({
+      cookbookId: "cb1",
+      invitedById: "owner1",
+      role: "EDITOR",
+      expiresAt: inDays(7),
+      label: "Mum",
+    });
+    expect(result).toEqual({
+      ok: true,
+      value: { id: "inv9", token: "once", role: "EDITOR", label: "Mum", daysLeft: 7 },
+    });
+  });
+
+  it("treats a blank label as none", async () => {
+    await createOneTimeLink("owner1", "cb1", "VIEWER", "   ", NOW);
+    expect(repos.createLink.mock.calls[0][0].label).toBeNull();
+  });
+
+  it.each([
+    ["an editor", { role: "EDITOR" }],
+    ["a non-member", null],
+  ])("refuses %s, and creates nothing", async (_who, membership) => {
+    repos.findMembership.mockResolvedValue(membership);
+
+    const result = await createOneTimeLink("u1", "cb1", "VIEWER", "", NOW);
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(repos.createLink).not.toHaveBeenCalled();
+  });
+
+  it("never makes a link that grants Owner", async () => {
+    const result = await createOneTimeLink("owner1", "cb1", "OWNER", "", NOW);
+    expect(result).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(repos.createLink).not.toHaveBeenCalled();
+  });
+
+  it("refuses a label too long to read at a glance", async () => {
+    const result = await createOneTimeLink("owner1", "cb1", "VIEWER", "x".repeat(41), NOW);
+    expect(result).toMatchObject({ ok: false, error: { kind: "validation", message: expect.stringMatching(/40/) } });
+  });
+});
+
+describe("one-time links — in the members view", () => {
+  beforeEach(() => {
+    repos.listMembers.mockResolvedValue([]);
+    repos.listPendingForCookbook.mockResolvedValue([]);
+  });
+
+  it("lists the owner's unused links, with how long each has left", async () => {
+    repos.listPendingLinks.mockResolvedValue([
+      { id: "inv9", token: "once", role: "EDITOR", label: "Mum", expiresAt: new Date(Date.now() + 36 * 60 * 60 * 1000) },
+    ]);
+
+    const view = await getCookbookMembers("owner1", "cb1");
+
+    expect(view!.oneTimeLinks).toEqual([
+      { id: "inv9", token: "once", role: "EDITOR", label: "Mum", daysLeft: 2 },
+    ]);
+  });
+
+  it("shows no one else the links, and doesn't look them up", async () => {
+    repos.findMembership.mockResolvedValue({ role: "VIEWER" });
+
+    const view = await getCookbookMembers("u1", "cb1");
+
+    expect(view!.oneTimeLinks).toEqual([]);
+    expect(repos.listPendingLinks).not.toHaveBeenCalled();
+  });
+});
+
+const oneTimeInvite = {
+  id: "inv9",
+  role: "VIEWER",
+  cookbook: linkedCookbook,
+};
+
+describe("one-time links — previewing and joining", () => {
+  it("previews a one-time link as single-use", async () => {
+    repos.findByJoinToken.mockResolvedValue(null);
+    repos.findPendingLinkByToken.mockResolvedValue(oneTimeInvite);
+
+    const preview = await previewJoinLink("once");
+
+    // The invite's own role, not the cookbook's shared-link role.
+    expect(preview).toMatchObject({ cookbookId: "cb1", role: "VIEWER", singleUse: true });
+  });
+
+  it("says the shared link is reusable", async () => {
+    repos.findByJoinToken.mockResolvedValue(linkedCookbook);
+
+    expect((await previewJoinLink("tok"))!.singleUse).toBe(false);
+    expect(repos.findPendingLinkByToken).not.toHaveBeenCalled();
+  });
+
+  it("claims the link for the person joining, with its role", async () => {
+    repos.findByJoinToken.mockResolvedValue(null);
+    repos.findPendingLinkByToken.mockResolvedValue(oneTimeInvite);
+    repos.findMembership.mockResolvedValue(null);
+
+    const result = await joinWithLink("u2", "once");
+
+    expect(result).toEqual({ ok: true, value: { cookbookId: "cb1" } });
+    expect(repos.claimLink).toHaveBeenCalledWith("inv9", "u2", "cb1", "VIEWER");
+    expect(repos.joinByLink).not.toHaveBeenCalled();
+  });
+
+  // The owner checking a link before sending it mustn't use it up.
+  it("doesn't spend the link on someone already in the cookbook", async () => {
+    repos.findByJoinToken.mockResolvedValue(null);
+    repos.findPendingLinkByToken.mockResolvedValue(oneTimeInvite);
+    repos.findMembership.mockResolvedValue({ role: "OWNER" });
+
+    const result = await joinWithLink("owner1", "once");
+
+    expect(result).toEqual({ ok: true, value: { cookbookId: "cb1" } });
+    expect(repos.claimLink).not.toHaveBeenCalled();
+  });
+
+  // Two people pressing Join at once: the claim, not the lookup, decides.
+  it("turns away whoever loses the race to use it", async () => {
+    repos.findByJoinToken.mockResolvedValue(null);
+    repos.findPendingLinkByToken.mockResolvedValue(oneTimeInvite);
+    repos.findMembership.mockResolvedValue(null);
+    repos.claimLink.mockResolvedValue(false);
+
+    const result = await joinWithLink("u3", "once");
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "not-found" } });
+  });
+
+  it("treats a used, revoked or expired one-time link as dead", async () => {
+    repos.findByJoinToken.mockResolvedValue(null);
+    repos.findPendingLinkByToken.mockResolvedValue(null);
+
+    expect(await previewJoinLink("spent")).toBeNull();
+    expect(await joinWithLink("u2", "spent")).toMatchObject({ ok: false, error: { kind: "not-found" } });
   });
 });

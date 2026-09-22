@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  startTransition,
-  useActionState,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { startTransition, useActionState, useState } from "react";
+import { CopyLinkField, useJoinUrl } from "./copy-link";
 import type { JoinLinkState } from "./actions";
 import type { JoinLinkView } from "@/server/services/member.service";
 import type { GrantableRole } from "@/lib/invite";
@@ -34,22 +30,6 @@ const ROLE_LABELS: Record<GrantableRole, string> = {
 const selectClass =
   "rounded-lg border border-border bg-background-control px-2 py-1 text-subheadline " +
   "outline-none focus:border-border-input-strong disabled:opacity-50";
-
-const noSubscription = () => () => {};
-
-/**
- * The page's own origin. The server can't know which host the owner reached
- * the app on (preview, production, localhost), and the link has to be the one
- * they can actually send — so it's read in the browser. The server snapshot is
- * empty, and React swaps in the real origin after hydration without a mismatch.
- */
-function useOrigin() {
-  return useSyncExternalStore(
-    noSubscription,
-    () => window.location.origin,
-    () => "",
-  );
-}
 
 export default function JoinLinkControls({
   link,
@@ -104,28 +84,13 @@ export default function JoinLinkControls({
   }
 
   const [confirmingReset, setConfirmingReset] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const origin = useOrigin();
-
+  const url = useJoinUrl(current.token);
   const enabled = current.token !== null;
-  const url = current.token ? `${origin}/join/${current.token}` : "";
 
   function dispatch(submit: (formData: FormData) => void, fields: Record<string, string> = {}) {
     const formData = new FormData();
     for (const [key, value] of Object.entries(fields)) formData.set(key, value);
     startTransition(() => submit(formData));
-  }
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // No clipboard permission (or an insecure origin): the link is still on
-      // screen in a selectable field, so fall back to selecting it for them.
-      document.getElementById("join-link-url")?.focus();
-    }
   }
 
   return (
@@ -186,29 +151,7 @@ export default function JoinLinkControls({
             </select>
           </label>
 
-          <div className="flex gap-2">
-            <input
-              id="join-link-url"
-              readOnly
-              value={url}
-              aria-label="Invite link"
-              onFocus={(e) => e.currentTarget.select()}
-              className="min-w-0 flex-1 rounded-lg border border-border bg-background-control px-3 py-1.5 text-caption-1 text-foreground-secondary outline-none focus:border-border-input-strong"
-            />
-            <button
-              type="button"
-              onClick={copy}
-              disabled={!url}
-              className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-subheadline font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
-            >
-              {copied ? "Copied" : "Copy link"}
-            </button>
-          </div>
-          {/* Announced separately: the button's own text changing isn't
-              reliably read out while focus stays on it. */}
-          <p role="status" className="sr-only">
-            {copied ? "Link copied" : ""}
-          </p>
+          <CopyLinkField url={url} label="Invite link" />
 
           {confirmingReset ? (
             <div className="rounded-lg border border-border bg-background-secondary px-3 py-2.5">

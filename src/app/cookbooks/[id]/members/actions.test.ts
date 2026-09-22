@@ -6,6 +6,7 @@ const svc = vi.hoisted(() => ({
   setJoinLinkEnabled: vi.fn(),
   setJoinLinkRole: vi.fn(),
   resetJoinLink: vi.fn(),
+  createOneTimeLink: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: svc.revalidatePath }));
 vi.mock("@/lib/user", () => ({ requireOnboardedUser: svc.requireOnboardedUser }));
@@ -13,12 +14,14 @@ vi.mock("@/server/services/member.service", () => ({
   setJoinLinkEnabled: svc.setJoinLinkEnabled,
   setJoinLinkRole: svc.setJoinLinkRole,
   resetJoinLink: svc.resetJoinLink,
+  createOneTimeLink: svc.createOneTimeLink,
 }));
 
 import {
   setJoinLinkEnabledAction,
   setJoinLinkRoleAction,
   resetJoinLinkAction,
+  createOneTimeLinkAction,
 } from "./actions";
 
 const LINK = { token: "tok", role: "EDITOR" };
@@ -82,5 +85,35 @@ describe("join link actions", () => {
 
     await expect(resetJoinLinkAction("cb1", {}, form())).rejects.toThrow("REDIRECT:/sign-in");
     expect(svc.resetJoinLink).not.toHaveBeenCalled();
+  });
+});
+
+describe("createOneTimeLinkAction", () => {
+  const created = { id: "inv9", token: "once", role: "EDITOR", label: "Mum", daysLeft: 7 };
+
+  beforeEach(() => {
+    svc.createOneTimeLink.mockResolvedValue({ ok: true, value: created });
+  });
+
+  it("makes a link as the signed-in user, from the form's role and label", async () => {
+    const result = await createOneTimeLinkAction("cb1", {}, form({ role: "EDITOR", label: "Mum" }));
+
+    expect(svc.createOneTimeLink).toHaveBeenCalledWith("owner1", "cb1", "EDITOR", "Mum");
+    expect(result).toEqual({ created });
+    expect(svc.revalidatePath).toHaveBeenCalledWith("/cookbooks/cb1");
+  });
+
+  it("passes empty values through for the service to judge", async () => {
+    await createOneTimeLinkAction("cb1", {}, form());
+    expect(svc.createOneTimeLink).toHaveBeenCalledWith("owner1", "cb1", "", "");
+  });
+
+  it("reports a refusal and refreshes nothing", async () => {
+    svc.createOneTimeLink.mockResolvedValue({ ok: false, error: { kind: "forbidden", message: "Only the owner can." } });
+
+    expect(await createOneTimeLinkAction("cb1", {}, form({ role: "VIEWER" }))).toEqual({
+      error: "Only the owner can.",
+    });
+    expect(svc.revalidatePath).not.toHaveBeenCalled();
   });
 });

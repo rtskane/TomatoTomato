@@ -1,6 +1,7 @@
 import InviteForm from "./invite-form";
 import RoleRow from "./role-row";
 import JoinLinkControls from "./join-link-controls";
+import OneTimeLinks from "./one-time-links";
 import type { MembersView } from "@/server/services/member.service";
 import {
   inviteMembersAction,
@@ -11,6 +12,7 @@ import {
   setJoinLinkEnabledAction,
   setJoinLinkRoleAction,
   resetJoinLinkAction,
+  createOneTimeLinkAction,
 } from "./actions";
 
 // The people-management UI itself, with no opinion about where it's shown.
@@ -55,6 +57,17 @@ export default function MembersPanel({ view }: { view: MembersView }) {
             setEnabledAction={setJoinLinkEnabledAction.bind(null, id)}
             setRoleAction={setJoinLinkRoleAction.bind(null, id)}
             resetAction={resetJoinLinkAction.bind(null, id)}
+          />
+        </section>
+      ) : null}
+
+      {view.canManageMembers ? (
+        <section>
+          <OneTimeLinks
+            links={view.oneTimeLinks}
+            createAction={createOneTimeLinkAction.bind(null, id)}
+            // A one-time link is an invite row, so revoking one is cancelling it.
+            revokeAction={actions.cancelInvite}
           />
         </section>
       ) : null}

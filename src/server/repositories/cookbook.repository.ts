@@ -55,7 +55,7 @@ const liveCookbook = { cookbook: { archivedAt: null } } as const;
  * them now, and a cover column present in one read and missing from another is
  * a cookbook that looks different on the shelf than on its own page.
  */
-const coverColumns = {
+export const coverColumns = {
   coverImageUrl: true,
   coverColor: true,
   coverStyle: true,
