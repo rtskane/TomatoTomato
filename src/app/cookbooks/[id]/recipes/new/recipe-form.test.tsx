@@ -2,8 +2,14 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { upload } from "@vercel/blob/client";
 import RecipeForm from "./recipe-form";
-import type { CreateRecipeState } from "../recipe-form-data";
+import type { CreateRecipeState, CreateRecipeValues } from "../recipe-form-data";
+
+// The real one talks to Vercel; the photo field's own tests cover what it sends.
+vi.mock("@vercel/blob/client", () => ({ upload: vi.fn() }));
+const uploadMock = vi.mocked(upload);
+const BLOB = "https://abc123.public.blob.vercel-storage.com/recipe-photos/dinner.jpg";
 
 afterEach(cleanup);
 
@@ -262,6 +268,7 @@ describe("RecipeForm — submission", () => {
         servings: "",
         prepTimeMinutes: "",
         cookTimeMinutes: "",
+        coverImageUrl: "",
         ingredients: [],
         steps: [],
       },
@@ -288,6 +295,7 @@ describe("RecipeForm — submission", () => {
         servings: "4",
         prepTimeMinutes: "",
         cookTimeMinutes: "",
+        coverImageUrl: "",
         ingredients: [
           { name: "spaghetti", quantity: "200", unit: "g", note: "" },
           { name: "egg", quantity: "2", unit: "", note: "yolks only" },
@@ -306,5 +314,93 @@ describe("RecipeForm — submission", () => {
     expect(screen.getByText("yolks only")).toBeInTheDocument();
     expect(screen.getByText("Boil.")).toBeInTheDocument();
     expect(screen.getByText("Mix.")).toBeInTheDocument();
+  });
+});
+
+describe("RecipeForm — photo", () => {
+  const photo = () => new File(["x"], "dinner.jpg", { type: "image/jpeg" });
+
+  it("submits the uploaded photo's URL with the recipe", async () => {
+    uploadMock.mockResolvedValue({ url: BLOB } as Awaited<ReturnType<typeof upload>>);
+    const action = noop();
+    render(<RecipeForm action={action} cookbookId="cb1" />);
+
+    await userEvent.upload(screen.getByLabelText("Choose image"), photo());
+    await screen.findByRole("button", { name: "Remove" });
+    await userEvent.click(screen.getByRole("button", { name: /save recipe/i }));
+
+    expect(action.mock.calls[0][1].get("coverImageUrl")).toBe(BLOB);
+  });
+
+  it("submits no photo when none was chosen", async () => {
+    const action = noop();
+    render(<RecipeForm action={action} cookbookId="cb1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: /save recipe/i }));
+
+    expect(action.mock.calls[0][1].get("coverImageUrl")).toBe("");
+  });
+
+  // Saving mid-upload would store the recipe without the photo just chosen.
+  it("won't save while a photo is still uploading", async () => {
+    let finish: (value: Awaited<ReturnType<typeof upload>>) => void = () => {};
+    uploadMock.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+    render(<RecipeForm action={noop()} cookbookId="cb1" />);
+
+    await userEvent.upload(screen.getByLabelText("Choose image"), photo());
+
+    expect(screen.getByRole("button", { name: /save recipe/i })).toBeDisabled();
+    finish({ url: BLOB } as Awaited<ReturnType<typeof upload>>);
+    expect(await screen.findByRole("button", { name: /save recipe/i })).toBeEnabled();
+  });
+
+  it("starts with the recipe's photo when editing, and can remove it", async () => {
+    const action = noop();
+    const values: CreateRecipeValues = {
+      title: "Carbonara",
+      description: "",
+      servings: "",
+      prepTimeMinutes: "",
+      cookTimeMinutes: "",
+      coverImageUrl: BLOB,
+      ingredients: [{ name: "spaghetti", quantity: "200", unit: "g", note: "" }],
+      steps: ["Boil the pasta."],
+    };
+    render(<RecipeForm action={action} cookbookId="cb1" initialValues={values} />);
+
+    expect(screen.getByLabelText("Replace image")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await userEvent.click(screen.getByRole("button", { name: /save recipe/i }));
+
+    expect(action.mock.calls[0][1].get("coverImageUrl")).toBe("");
+  });
+
+  // React resets a form after its action resolves. A photo that vanished on a
+  // rejected save would look like the upload had failed.
+  it("keeps the photo after the server rejects the save", async () => {
+    uploadMock.mockResolvedValue({ url: BLOB } as Awaited<ReturnType<typeof upload>>);
+    const action = vi.fn<FormAction>(async (_state, formData) => ({
+      error: "Add at least one step.",
+      values: {
+        title: "",
+        description: "",
+        servings: "",
+        prepTimeMinutes: "",
+        cookTimeMinutes: "",
+        coverImageUrl: String(formData.get("coverImageUrl")),
+        ingredients: [],
+        steps: [],
+      },
+    }));
+    render(<RecipeForm action={action} cookbookId="cb1" />);
+
+    await userEvent.upload(screen.getByLabelText("Choose image"), photo());
+    await screen.findByRole("button", { name: "Remove" });
+    await userEvent.click(screen.getByRole("button", { name: /save recipe/i }));
+    await screen.findByRole("alert");
+
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /save recipe/i }));
+    expect(action.mock.calls[1][1].get("coverImageUrl")).toBe(BLOB);
   });
 });

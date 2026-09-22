@@ -194,6 +194,8 @@ export type RecipeSummary = {
   servings: number | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
+  /** A photo of the dish, or null — most recipes won't have one. */
+  coverImageUrl: string | null;
   authorName: string;
   ingredientCount: number;
   stepCount: number;
@@ -242,6 +244,7 @@ export async function getCookbookDetail(
       servings: recipe.servings,
       prepTimeMinutes: recipe.prepTimeMinutes,
       cookTimeMinutes: recipe.cookTimeMinutes,
+      coverImageUrl: recipe.coverImageUrl,
       authorName: displayName(recipe.author),
       ingredientCount: recipe._count.ingredients,
       stepCount: recipe._count.steps,

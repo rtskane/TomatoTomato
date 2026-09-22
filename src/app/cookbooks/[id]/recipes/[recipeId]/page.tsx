@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requireOnboardedUser } from "@/lib/user";
 import { getRecipeDetail } from "@/server/services/recipe-detail.service";
-import RecipeArticle from "./recipe-article";
+import RecipeArticle, { articleWidth } from "./recipe-article";
 
 type Params = { id: string; recipeId: string };
 
@@ -23,7 +23,7 @@ export default async function RecipePage({
 
   return (
     <>
-      <div className="mx-auto max-w-3xl px-4 pt-8">
+      <div className={`mx-auto ${articleWidth(recipe)} px-4 pt-8`}>
         <Link
           href={`/cookbooks/${recipe.cookbook.id}`}
           className="text-subheadline text-foreground-secondary hover:underline"

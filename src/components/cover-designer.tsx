@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import BookCover from "@/components/book-cover";
-import CoverImageField from "@/components/cover-image-field";
+import ImageUploadField from "@/components/image-upload-field";
 import {
   BOOK_COVERS,
   TEXTURES,
@@ -411,7 +411,8 @@ export default function CoverDesigner({
               image" sit under a cover that wasn't showing a photograph. */}
           {isPhotoStyle ? (
             <Field label="Photo">
-              <CoverImageField
+              <ImageUploadField
+                folder="cookbook-covers"
                 value={design.coverImageUrl ?? ""}
                 onChange={handleImageChange}
                 onUploadingChange={onUploadingChange}

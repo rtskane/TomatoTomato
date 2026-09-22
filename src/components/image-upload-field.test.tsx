@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import CoverImageField from "./cover-image-field";
+import ImageUploadField from "./image-upload-field";
 import { upload } from "@vercel/blob/client";
 
 // The real one talks to Vercel. What matters here is what we ask it for.
@@ -25,25 +25,25 @@ function imageFile(name = "cover.jpg", type = "image/jpeg", size = 1024) {
   return file;
 }
 
-describe("CoverImageField — empty", () => {
+describe("ImageUploadField — empty", () => {
   it("says there is no cover yet", () => {
-    render(<CoverImageField value="" onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={() => {}} />);
 
     expect(screen.getByText("No cover")).toBeInTheDocument();
     expect(screen.getByLabelText("Choose image")).toBeInTheDocument();
   });
 
   it("offers no Remove button when there is nothing to remove", () => {
-    render(<CoverImageField value="" onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={() => {}} />);
 
     expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
   });
 });
 
-describe("CoverImageField — uploading", () => {
+describe("ImageUploadField — uploading", () => {
   it("sends the file to our own upload route, publicly readable", async () => {
     const user = userEvent.setup();
-    render(<CoverImageField value="" onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={() => {}} />);
 
     await user.upload(screen.getByLabelText("Choose image"), imageFile());
 
@@ -52,13 +52,13 @@ describe("CoverImageField — uploading", () => {
     // The route handler refuses anything outside this prefix.
     expect(pathname).toBe("cookbook-covers/cover.jpg");
     expect(options.access).toBe("public");
-    expect(options.handleUploadUrl).toBe("/api/cookbooks/cover");
+    expect(options.handleUploadUrl).toBe("/api/images");
   });
 
   it("hands the resulting URL to the parent form", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<CoverImageField value="" onChange={onChange} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={onChange} />);
 
     await user.upload(screen.getByLabelText("Choose image"), imageFile());
 
@@ -71,7 +71,7 @@ describe("CoverImageField — uploading", () => {
     const user = userEvent.setup();
     const onUploadingChange = vi.fn();
     render(
-      <CoverImageField
+      <ImageUploadField folder="cookbook-covers"
         value=""
         onChange={() => {}}
         onUploadingChange={onUploadingChange}
@@ -87,7 +87,7 @@ describe("CoverImageField — uploading", () => {
 
   it("names the file safely, whatever the phone called it", async () => {
     const user = userEvent.setup();
-    render(<CoverImageField value="" onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={() => {}} />);
 
     await user.upload(
       screen.getByLabelText("Choose image"),
@@ -100,7 +100,7 @@ describe("CoverImageField — uploading", () => {
 
   it("passes an abort signal, so a hung upload can't spin forever", async () => {
     const user = userEvent.setup();
-    render(<CoverImageField value="" onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={() => {}} />);
 
     await user.upload(screen.getByLabelText("Choose image"), imageFile());
 
@@ -118,7 +118,7 @@ describe("CoverImageField — uploading", () => {
     uploadMock.mockRejectedValue(timeout);
 
     render(
-      <CoverImageField
+      <ImageUploadField folder="cookbook-covers"
         value=""
         onChange={() => {}}
         onUploadingChange={onUploadingChange}
@@ -135,7 +135,7 @@ describe("CoverImageField — uploading", () => {
   it("explains a failed upload without repeating the API's wording", async () => {
     const user = userEvent.setup();
     uploadMock.mockRejectedValue(new Error("No token found for store_abc123"));
-    render(<CoverImageField value="" onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={() => {}} />);
 
     await user.upload(screen.getByLabelText("Choose image"), imageFile());
 
@@ -145,11 +145,11 @@ describe("CoverImageField — uploading", () => {
   });
 });
 
-describe("CoverImageField — refusing a file before it leaves the browser", () => {
+describe("ImageUploadField — refusing a file before it leaves the browser", () => {
   it("refuses an image over 8 MB", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<CoverImageField value="" onChange={onChange} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={onChange} />);
 
     await user.upload(
       screen.getByLabelText("Choose image"),
@@ -167,7 +167,7 @@ describe("CoverImageField — refusing a file before it leaves the browser", () 
     // guarantee — a drag-and-drop, or "All files" in the picker, gets past it,
     // which is why the component checks the type itself.
     const user = userEvent.setup({ applyAccept: false });
-    render(<CoverImageField value="" onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value="" onChange={() => {}} />);
 
     await user.upload(
       screen.getByLabelText("Choose image"),
@@ -181,9 +181,9 @@ describe("CoverImageField — refusing a file before it leaves the browser", () 
   });
 });
 
-describe("CoverImageField — with a cover", () => {
+describe("ImageUploadField — with a cover", () => {
   it("shows the image and offers to replace or remove it", () => {
-    render(<CoverImageField value={BLOB} onChange={() => {}} />);
+    render(<ImageUploadField folder="cookbook-covers" value={BLOB} onChange={() => {}} />);
 
     expect(screen.getByLabelText("Replace image")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
@@ -193,7 +193,7 @@ describe("CoverImageField — with a cover", () => {
   // Decorative: the form field is labelled, and the cookbook is named beside it.
   it("gives the preview an empty alt", () => {
     const { container } = render(
-      <CoverImageField value={BLOB} onChange={() => {}} />,
+      <ImageUploadField folder="cookbook-covers" value={BLOB} onChange={() => {}} />,
     );
 
     const img = container.querySelector("img");
@@ -204,11 +204,28 @@ describe("CoverImageField — with a cover", () => {
   it("clears the cover without touching the upload route", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<CoverImageField value={BLOB} onChange={onChange} />);
+    render(<ImageUploadField folder="cookbook-covers" value={BLOB} onChange={onChange} />);
 
     await user.click(screen.getByRole("button", { name: "Remove" }));
 
     expect(onChange).toHaveBeenCalledWith("");
     expect(uploadMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ImageUploadField — recipe photos", () => {
+  it("stores a recipe photo in its own folder", async () => {
+    const user = userEvent.setup();
+    render(<ImageUploadField folder="recipe-photos" value="" onChange={() => {}} />);
+
+    await user.upload(screen.getByLabelText("Choose image"), imageFile("Dinner.JPG"));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalled());
+    expect(uploadMock.mock.calls[0][0]).toBe("recipe-photos/dinner.jpg");
+  });
+
+  it("calls an empty one a photo, not a cover", () => {
+    render(<ImageUploadField folder="recipe-photos" value="" onChange={() => {}} />);
+    expect(screen.getByText("No photo")).toBeInTheDocument();
   });
 });

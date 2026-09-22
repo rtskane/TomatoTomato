@@ -22,6 +22,7 @@ const carbonara: CreateRecipeValues = {
   servings: "",
   prepTimeMinutes: "",
   cookTimeMinutes: "",
+  coverImageUrl: "",
   ingredients: [{ name: "spaghetti", quantity: "200", unit: "g", note: "" }],
   steps: ["Boil the pasta."],
 };

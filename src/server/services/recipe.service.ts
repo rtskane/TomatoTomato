@@ -21,6 +21,7 @@ export type CreateRecipeInput = {
   servings: string;
   prepTimeMinutes: string;
   cookTimeMinutes: string;
+  coverImageUrl: string;
   ingredients: RecipeIngredientInput[];
   steps: string[];
 };
@@ -82,6 +83,7 @@ function toRecipeFields(data: ParsedRecipe) {
     servings: data.servings ?? null,
     prepTimeMinutes: data.prepTimeMinutes ?? null,
     cookTimeMinutes: data.cookTimeMinutes ?? null,
+    coverImageUrl: data.coverImageUrl ?? null,
     ingredients: data.ingredients.map((i) => ({
       name: i.name,
       quantity: i.quantity ?? null,

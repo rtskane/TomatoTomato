@@ -13,6 +13,8 @@ export type CreateRecipeValues = {
   servings: string;
   prepTimeMinutes: string;
   cookTimeMinutes: string;
+  /** A photo of the dish, as an uploaded blob URL — or "" for none. */
+  coverImageUrl: string;
   ingredients: RecipeIngredientInput[];
   steps: string[];
 };
@@ -56,6 +58,7 @@ export function parseRecipeForm(formData: FormData): CreateRecipeValues {
     servings: str(formData, "servings"),
     prepTimeMinutes: str(formData, "prepTimeMinutes"),
     cookTimeMinutes: str(formData, "cookTimeMinutes"),
+    coverImageUrl: str(formData, "coverImageUrl"),
     ingredients: parseIngredients(formData),
     steps: all(formData, "stepInstruction"),
   };

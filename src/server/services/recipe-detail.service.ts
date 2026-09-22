@@ -25,6 +25,8 @@ export type RecipeDetail = {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  /** A photo of the dish, or null. */
+  coverImageUrl: string | null;
   authorName: string;
   /** Whether this viewer may edit or delete it — author, or cookbook owner. */
   canModify: boolean;
@@ -82,6 +84,7 @@ export const getRecipeDetail = cache(async function getRecipeDetail(
       recipe.prepTimeMinutes,
       recipe.cookTimeMinutes,
     ),
+    coverImageUrl: recipe.coverImageUrl,
     authorName: displayName(recipe.author),
     cookbook: recipe.cookbook,
     ingredients: recipe.ingredients.map((i) => ({

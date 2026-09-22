@@ -335,6 +335,7 @@ export function parseRecipeText(text: string): CreateRecipeValues {
     servings: "",
     prepTimeMinutes: "",
     cookTimeMinutes: "",
+    coverImageUrl: "",
     ingredients: ingredients
       .map(parseIngredientLine)
       .filter((ingredient) => ingredient.name !== ""),

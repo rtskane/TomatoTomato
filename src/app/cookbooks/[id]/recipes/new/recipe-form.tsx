@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import ImageUploadField from "@/components/image-upload-field";
 import type { CreateRecipeState, CreateRecipeValues } from "../recipe-form-data";
 import IngredientEditor, { type IngredientItem } from "./ingredient-editor";
 import StepEditor, { type StepItem } from "./step-editor";
@@ -56,6 +57,13 @@ export default function RecipeForm({
   // recipe. Done during render — React's documented way to adjust state when a
   // prop changes — rather than in an effect, which would cost an extra commit
   // and flash the stale list.
+  // Held in state, unlike the text fields, because the upload field hands back
+  // a URL rather than typing into an input. That also means it survives React
+  // resetting the form after a rejected save, with no echo needed to re-seed it.
+  const [photoUrl, setPhotoUrl] = useState(initialValues?.coverImageUrl ?? "");
+  // Saving mid-upload would store the recipe without the photo just chosen.
+  const [photoUploading, setPhotoUploading] = useState(false);
+
   const [echoed, setEchoed] = useState(state.values);
   if (state.values !== echoed) {
     setEchoed(state.values);
@@ -124,6 +132,25 @@ export default function RecipeForm({
           />
         </div>
 
+        <div>
+          {/* The form's own label style, not the field's, so "optional" reads
+              the same here as on the description above it. */}
+          <span className="block text-subheadline font-medium">
+            Photo{" "}
+            <span className="font-normal text-foreground-muted">optional</span>
+          </span>
+          <div className="mt-2">
+            <ImageUploadField
+              folder="recipe-photos"
+              heading={null}
+              value={photoUrl}
+              onChange={setPhotoUrl}
+              onUploadingChange={setPhotoUploading}
+            />
+          </div>
+        </div>
+        <input type="hidden" name="coverImageUrl" value={photoUrl} />
+
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label htmlFor="servings" className="block text-subheadline font-medium">
@@ -185,7 +212,7 @@ export default function RecipeForm({
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || photoUploading}
           className={primaryButtonClass}
         >
           {pending ? pendingLabel : submitLabel}

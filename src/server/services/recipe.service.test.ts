@@ -52,6 +52,7 @@ function input(overrides: Partial<CreateRecipeInput> = {}): CreateRecipeInput {
     servings: "",
     prepTimeMinutes: "",
     cookTimeMinutes: "",
+    coverImageUrl: "",
     ingredients: [{ name: "spaghetti", quantity: "200", unit: "g", note: "" }],
     steps: ["Boil the pasta."],
     ...overrides,
@@ -190,6 +191,7 @@ describe("createRecipe — persistence", () => {
         servings: 4,
         prepTimeMinutes: 15,
         cookTimeMinutes: 20,
+        coverImageUrl: null,
       }),
     );
   });
@@ -202,6 +204,7 @@ describe("createRecipe — persistence", () => {
       servings: null,
       prepTimeMinutes: null,
       cookTimeMinutes: null,
+      coverImageUrl: null,
     });
     expect(create.mock.calls[0][0].ingredients[0]).toMatchObject({
       unit: "g",
@@ -410,5 +413,38 @@ describe("deleteRecipe", () => {
 
     expect(result.ok).toBe(false);
     expect(deleteRecipeRow).not.toHaveBeenCalled();
+  });
+});
+
+describe("createRecipe — photo", () => {
+  const BLOB = "https://abc123.public.blob.vercel-storage.com/recipe-photos/dinner.jpg";
+
+  it("stores a photo from our own blob store", async () => {
+    const result = await createRecipe("u1", "cb1", input({ coverImageUrl: BLOB }));
+
+    expect(result.ok).toBe(true);
+    expect(create.mock.calls[0][0]).toMatchObject({ coverImageUrl: BLOB });
+  });
+
+  // It arrives in a hidden field and is rendered straight into the page, so a
+  // crafted POST mustn't be able to point it anywhere else.
+  it.each([
+    "https://example.com/dinner.jpg",
+    "http://abc123.public.blob.vercel-storage.com/recipe-photos/dinner.jpg",
+    "javascript:alert(1)",
+  ])("refuses %s, and saves nothing", async (url) => {
+    const result = await createRecipe("u1", "cb1", input({ coverImageUrl: url }));
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateRecipe — photo", () => {
+  // Removing the photo in the form submits an empty field. That has to clear
+  // the column, not leave the old picture in place.
+  it("clears the photo when the form sends none", async () => {
+    await updateRecipe("u1", "cb1", "r1", input({ coverImageUrl: "" }));
+    expect(update.mock.calls[0][0]).toMatchObject({ coverImageUrl: null });
   });
 });

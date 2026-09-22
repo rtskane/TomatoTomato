@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { coverImageUrlSchema } from "./cookbook";
 
 // Validation for recipe input, including its ordered child collections.
 
@@ -66,6 +67,9 @@ export const createRecipeSchema = z.object({
   servings: optionalPositiveInt(100, "Servings"),
   prepTimeMinutes: optionalPositiveInt(10_000, "Prep time"),
   cookTimeMinutes: optionalPositiveInt(10_000, "Cook time"),
+  // The same rule as a cookbook's cover: only a URL in our own blob store, since
+  // it arrives from a hidden field and is rendered straight into the page.
+  coverImageUrl: coverImageUrlSchema,
   // A recipe with no ingredients or no steps isn't a recipe. Order is carried
   // by array position — the caller strips blank rows before validating, so an
   // index here is the final `position` value.

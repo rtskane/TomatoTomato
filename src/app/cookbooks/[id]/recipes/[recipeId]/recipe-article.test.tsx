@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, within } from "@testing-library/react";
-import RecipeArticle from "./recipe-article";
+import RecipeArticle, { articleWidth } from "./recipe-article";
 import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 
 afterEach(cleanup);
@@ -14,6 +14,7 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     servings: 4,
     prepTimeMinutes: 15,
     cookTimeMinutes: 30,
+    coverImageUrl: null,
     totalTimeMinutes: 45,
     authorName: "chef_ryan",
     canModify: false,
@@ -66,6 +67,7 @@ describe("RecipeArticle — stats", () => {
         recipe={detail({
           prepTimeMinutes: 15,
           cookTimeMinutes: null,
+          coverImageUrl: null,
           totalTimeMinutes: 15,
         })}
       />,
@@ -83,6 +85,7 @@ describe("RecipeArticle — stats", () => {
           servings: null,
           prepTimeMinutes: null,
           cookTimeMinutes: null,
+          coverImageUrl: null,
           totalTimeMinutes: null,
         })}
       />,
@@ -167,5 +170,41 @@ describe("RecipeArticle — method", () => {
     );
 
     expect(screen.getByText(/Line one/)).toHaveClass("whitespace-pre-wrap");
+  });
+});
+
+describe("RecipeArticle — photo", () => {
+  const BLOB = "https://abc123.public.blob.vercel-storage.com/recipe-photos/dinner.jpg";
+
+  it("shows the photo beside the title, loaded first", () => {
+    const { container } = render(
+      <RecipeArticle recipe={detail({ coverImageUrl: BLOB })} />,
+    );
+
+    const img = container.querySelector("header img")!;
+    expect(img).not.toBeNull();
+    expect(img.getAttribute("src")).toContain(encodeURIComponent(BLOB));
+    // It is the largest thing on the page, so it mustn't wait to lazy-load.
+    expect(img).toHaveAttribute("loading", "eager");
+    expect(img).toHaveAttribute("fetchpriority", "high");
+  });
+
+  // The heading beside it already names the dish.
+  it("doesn't announce the photo as the title a second time", () => {
+    const { container } = render(
+      <RecipeArticle recipe={detail({ coverImageUrl: BLOB })} />,
+    );
+    expect(container.querySelector("header img")).toHaveAttribute("alt", "");
+  });
+
+  it("has no image at all when there's no photo", () => {
+    const { container } = render(<RecipeArticle recipe={detail()} />);
+    expect(container.querySelector("img")).toBeNull();
+  });
+
+  // A wide page with nothing in its second column is just an empty margin.
+  it("widens the page only for a recipe with a photo", () => {
+    expect(articleWidth({ coverImageUrl: BLOB })).toBe("max-w-5xl");
+    expect(articleWidth({ coverImageUrl: null })).toBe("max-w-3xl");
   });
 });

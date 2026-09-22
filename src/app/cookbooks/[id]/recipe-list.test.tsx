@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import RecipeList from "./recipe-list";
 import type { RecipeSummary } from "@/server/services/cookbook.service";
 
@@ -14,6 +14,7 @@ function recipe(overrides: Partial<RecipeSummary> = {}): RecipeSummary {
     servings: 4,
     prepTimeMinutes: 15,
     cookTimeMinutes: 20,
+    coverImageUrl: null,
     authorName: "chef_ryan",
     ingredientCount: 5,
     stepCount: 3,
@@ -81,6 +82,7 @@ describe("RecipeList — populated", () => {
             servings: null,
             prepTimeMinutes: null,
             cookTimeMinutes: null,
+            coverImageUrl: null,
           }),
         ]}
         canAddRecipes cookbookId="cb1"
@@ -160,5 +162,79 @@ describe("RecipeList — whole card is clickable", () => {
     );
 
     expect(screen.getByRole("link", { name: "Carbonara" })).toBeInTheDocument();
+  });
+});
+
+describe("RecipeList — with photos", () => {
+  const BLOB = "https://abc123.public.blob.vercel-storage.com/recipe-photos/dinner.jpg";
+
+  it("shows each recipe's photo once any recipe has one", () => {
+    const { container } = render(
+      <RecipeList
+        recipes={[recipe({ id: "r1", coverImageUrl: BLOB })]}
+        canAddRecipes
+        cookbookId="cb1"
+      />,
+    );
+
+    const img = container.querySelector("li img")!;
+    expect(img.getAttribute("src")).toContain(encodeURIComponent(BLOB));
+    // The title under it names the dish, and the link is the card's label.
+    expect(img).toHaveAttribute("alt", "");
+  });
+
+  // The rows only line up if every card has something where the photo goes.
+  it("gives a recipe without a photo a tile in its place, hidden from assistive tech", () => {
+    const { container } = render(
+      <RecipeList
+        recipes={[
+          recipe({ id: "r1", coverImageUrl: BLOB }),
+          recipe({ id: "r2", title: "tomato soup", coverImageUrl: null }),
+        ]}
+        canAddRecipes
+        cookbookId="cb1"
+      />,
+    );
+
+    const tile = within(container.querySelectorAll("li")[1]).getByText("T");
+    expect(tile).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("keeps the title, author and detail line under the photo", () => {
+    render(
+      <RecipeList
+        recipes={[recipe({ coverImageUrl: BLOB })]}
+        canAddRecipes
+        cookbookId="cb1"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Carbonara" })).toBeInTheDocument();
+    expect(screen.getByText("by chef_ryan")).toBeInTheDocument();
+    expect(screen.getByText(/Serves 4/)).toBeInTheDocument();
+  });
+
+  it("still makes the whole card one link into the recipe", () => {
+    render(
+      <RecipeList
+        recipes={[recipe({ coverImageUrl: BLOB })]}
+        canAddRecipes
+        cookbookId="cb1"
+      />,
+    );
+
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/cookbooks/cb1/recipes/r1");
+    expect(links[0]).toHaveAccessibleName(/Carbonara/);
+  });
+
+  // A grid of empty tiles would be all placeholder and no recipe.
+  it("keeps the text cards when no recipe has a photo", () => {
+    const { container } = render(
+      <RecipeList recipes={[recipe()]} canAddRecipes cookbookId="cb1" />,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("Rich and fast.")).toBeInTheDocument();
   });
 });
