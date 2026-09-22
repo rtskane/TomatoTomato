@@ -1,7 +1,11 @@
-// The rules for an uploaded image, shared by the field that sends one and the
-// route that issues permission to. The route is what enforces them; the field
-// checks the same limits first only so a wrong file gets a clear message
-// instantly instead of a failed upload.
+// The rules for an uploaded image, shared by the field that sends one, the
+// route that issues permission to, and the check on what may be stored. The
+// route is what enforces the upload limits; the field checks them first only so
+// a wrong file gets a clear message instantly instead of a failed upload.
+//
+// No zod in here: the upload field runs in the browser and imports this file,
+// and nothing on the client parses with zod. The schema built on
+// `isStoredImageUrl` lives in `stored-image-url.ts` for that reason.
 
 export const UPLOAD_ROUTE = "/api/images";
 
@@ -50,4 +54,37 @@ export function isAllowedUploadPath(pathname: string): boolean {
     // One level only: no subfolders, no "..", no empty name.
     return name !== "" && !name.includes("/") && name !== "." && name !== "..";
   });
+}
+
+/**
+ * Where an uploaded image — a cover or a recipe photo — is allowed to live.
+ *
+ * Vercel Blob serves public files from `<store-id>.public.blob.vercel-storage.com`.
+ * Anything else is refused, and that refusal is the point: the URL is
+ * client-supplied — the browser uploads the file and posts the resulting URL
+ * back in a hidden field — so without this check a crafted POST could point a
+ * cover or a recipe photo at any URL on the internet, and every member's page
+ * would then fetch it. An allowlist of one host makes that impossible to
+ * express.
+ *
+ * `next.config.ts` allows the same host to the image optimizer. Both are
+ * needed: this one decides what may be *stored*, that one what may be *fetched*.
+ */
+const BLOB_HOST_SUFFIX = ".public.blob.vercel-storage.com";
+
+export function isStoredImageUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+
+  return (
+    url.protocol === "https:" &&
+    url.hostname.endsWith(BLOB_HOST_SUFFIX) &&
+    // A bare ".public.blob.vercel-storage.com" has no store id in front of it,
+    // and `endsWith` alone would accept it.
+    url.hostname.length > BLOB_HOST_SUFFIX.length
+  );
 }

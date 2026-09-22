@@ -22,7 +22,7 @@ import {
  * The file goes browser → blob store directly and never through our server;
  * `/api/images` only issues the token that allows it. What comes back
  * is a URL, and that URL is re-validated server-side before it is stored — see
- * `coverImageUrlSchema`.
+ * `storedImageUrlSchema`.
  */
 
 /**

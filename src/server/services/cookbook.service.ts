@@ -22,7 +22,7 @@ export type CreateCookbookInput = {
   description: string;
   /**
    * The blob URL the browser uploaded to, or "" for no cover. Validated
-   * against the blob host in `coverImageUrlSchema` — it arrives from the
+   * against the blob host in `storedImageUrlSchema` — it arrives from the
    * client, so it is never trusted as a URL.
    */
   coverImageUrl?: string;

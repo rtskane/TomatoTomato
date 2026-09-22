@@ -208,3 +208,21 @@ describe("RecipeArticle — photo", () => {
     expect(articleWidth({ coverImageUrl: null })).toBe("max-w-3xl");
   });
 });
+
+describe("RecipeArticle — editing", () => {
+  // `canModify` is the same rule the update and delete actions enforce, so the
+  // link can never offer something the server would refuse.
+  it("offers Edit to someone who may change the recipe, beside the byline", () => {
+    render(<RecipeArticle recipe={detail({ canModify: true })} />);
+
+    const edit = screen.getByRole("link", { name: "Edit" });
+    expect(edit).toHaveAttribute("href", "/cookbooks/cb1/recipes/r1/edit");
+    // Beside a photo, out at the column's edge, it floated free of the title.
+    expect(edit.parentElement).toHaveTextContent("By chef_ryan");
+  });
+
+  it("offers nothing to someone who may not", () => {
+    render(<RecipeArticle recipe={detail({ canModify: false })} />);
+    expect(screen.queryByRole("link", { name: "Edit" })).toBeNull();
+  });
+});
