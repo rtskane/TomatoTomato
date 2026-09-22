@@ -1,5 +1,5 @@
-import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { newUrlToken } from "@/server/tokens";
 import { CookbookRole, InviteStatus } from "@/generated/prisma/enums";
 
 // The ONLY module that talks to Prisma for the CookbookInvite table.
@@ -22,15 +22,6 @@ type UpsertInviteInput = {
   expiresAt: Date;
   target: InviteTarget;
 };
-
-/**
- * URL-safe, 256 bits of entropy. Generated for every invite even though in-app
- * ones are accepted by id — it costs one column and means any invite can become
- * a shareable link the day email delivery lands.
- */
-function newToken(): string {
-  return randomBytes(32).toString("base64url");
-}
 
 // Splits a target into the two mutually-exclusive columns. Whichever side isn't
 // used is explicitly null rather than left undefined, so an *upsert* over a row
@@ -76,7 +67,9 @@ export const inviteRepository = {
         invitedById,
         role,
         expiresAt,
-        token: newToken(),
+        // Generated for every invite even though in-app ones are accepted by
+        // id — it costs one column and means any invite can become a link.
+        token: newUrlToken(),
         ...columns,
       },
       update: {
@@ -84,7 +77,7 @@ export const inviteRepository = {
         role,
         expiresAt,
         status: InviteStatus.PENDING,
-        token: newToken(),
+        token: newUrlToken(),
       },
       select: { id: true },
     });

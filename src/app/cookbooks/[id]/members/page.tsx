@@ -3,13 +3,6 @@ import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getCookbookMembers } from "@/server/services/member.service";
 import MembersPanel from "./members-panel";
-import {
-  inviteMembersAction,
-  changeMemberRoleAction,
-  removeMemberAction,
-  changeInviteRoleAction,
-  cancelInviteAction,
-} from "./actions";
 
 /**
  * The share panel as a page of its own.
@@ -32,14 +25,6 @@ export default async function MembersPage({
   // itself something they shouldn't learn.
   if (!view) notFound();
 
-  const actions = {
-    invite: inviteMembersAction.bind(null, view.cookbookId),
-    changeMemberRole: changeMemberRoleAction.bind(null, view.cookbookId),
-    removeMember: removeMemberAction.bind(null, view.cookbookId),
-    changeInviteRole: changeInviteRoleAction.bind(null, view.cookbookId),
-    cancelInvite: cancelInviteAction.bind(null, view.cookbookId),
-  };
-
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <Link
@@ -53,7 +38,7 @@ export default async function MembersPage({
         Share &ldquo;{view.cookbookTitle}&rdquo;
       </h1>
 
-      <MembersPanel view={view} actions={actions} />
+      <MembersPanel view={view} />
     </div>
   );
 }

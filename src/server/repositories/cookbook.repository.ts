@@ -314,4 +314,73 @@ export const cookbookRepository = {
       },
     });
   },
+
+  // ---- The "anyone with this link can join" link ---------------------------
+
+  /** The link's current state, for the owner's controls. */
+  findJoinLink(cookbookId: string) {
+    return prisma.cookbook.findUnique({
+      where: { id: cookbookId },
+      select: { joinLinkToken: true, joinLinkRole: true },
+    });
+  },
+
+  /**
+   * Turn the link on or off, change what it grants, or replace its token.
+   * `token: null` turns it off; a new token kills whatever URL was out there.
+   */
+  setJoinLink(
+    cookbookId: string,
+    link: { token: string | null; role: CookbookRole },
+  ) {
+    return prisma.cookbook.update({
+      where: { id: cookbookId },
+      data: { joinLinkToken: link.token, joinLinkRole: link.role },
+      select: { joinLinkToken: true, joinLinkRole: true },
+    });
+  },
+
+  /**
+   * The live cookbook a link token opens, with what the join page shows —
+   * or null for a token that's unknown, turned off, reset, or belongs to an
+   * archived cookbook. All four are the same thing to someone holding it.
+   */
+  findByJoinToken(token: string) {
+    return prisma.cookbook.findFirst({
+      where: { joinLinkToken: token, archivedAt: null },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        joinLinkRole: true,
+        ...coverColumns,
+        owner: { select: { username: true, firstName: true, lastName: true } },
+        _count: { select: { members: true } },
+      },
+    });
+  },
+
+  /**
+   * Add someone through the link, in one transaction.
+   *
+   * An existing membership is left exactly as it is: the link grants a role
+   * to people who aren't in yet, and must never demote someone who is — an
+   * owner opening their own Viewer link included. Any in-app invite still
+   * waiting for them is marked accepted, so it doesn't sit on their dashboard
+   * asking them to join a cookbook they're already in.
+   */
+  joinByLink(cookbookId: string, userId: string, role: CookbookRole) {
+    return prisma.$transaction([
+      prisma.cookbookMember.upsert({
+        where: { cookbookId_userId: { cookbookId, userId } },
+        create: { cookbookId, userId, role },
+        update: {},
+      }),
+      prisma.cookbookInvite.updateMany({
+        where: { cookbookId, invitedUserId: userId, status: "PENDING" },
+        data: { status: "ACCEPTED" },
+      }),
+    ]);
+  },
+
 };

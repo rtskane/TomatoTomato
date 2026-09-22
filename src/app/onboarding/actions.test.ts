@@ -30,7 +30,7 @@ describe("completeOnboarding", () => {
     auth.mockResolvedValue({ userId: null });
 
     await expect(
-      completeOnboarding({}, formOf({ username: "chef_ryan" })),
+      completeOnboarding(null, {}, formOf({ username: "chef_ryan" })),
     ).rejects.toThrow("REDIRECT:/sign-in");
     expect(onboardUser).not.toHaveBeenCalled();
   });
@@ -42,6 +42,7 @@ describe("completeOnboarding", () => {
 
     await expect(
       completeOnboarding(
+        null,
         {},
         formOf({ username: "chef_ryan", firstName: "Ryan", lastName: "K" }),
       ),
@@ -64,7 +65,7 @@ describe("completeOnboarding", () => {
     });
 
     const values = { username: "taken", firstName: "", lastName: "" };
-    const result = await completeOnboarding({}, formOf(values));
+    const result = await completeOnboarding(null, {}, formOf(values));
 
     expect(result).toEqual({
       error: "That username is already taken.",
@@ -79,8 +80,31 @@ describe("completeOnboarding", () => {
     onboardUser.mockResolvedValue({ ok: true, value: { username: "chef_ryan" } });
 
     await expect(
-      completeOnboarding({}, formOf({ username: "chef_ryan" })),
+      completeOnboarding(null, {}, formOf({ username: "chef_ryan" })),
     ).rejects.toThrow("REDIRECT:/dashboard");
     expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 });
+
+describe("completeOnboarding — where it goes next", () => {
+  beforeEach(() => {
+    auth.mockResolvedValue({ userId: "clerk_1" });
+    ensureUser.mockResolvedValue({ id: "u1" });
+    onboardUser.mockResolvedValue({ ok: true, value: { username: "chef_ryan" } });
+  });
+
+  // A new user who arrived through a cookbook's invite link lands back on it.
+  it("returns to the page that sent them here", async () => {
+    await expect(
+      completeOnboarding("/join/tok", {}, formOf({ username: "chef_ryan" })),
+    ).rejects.toThrow("REDIRECT:/join/tok");
+  });
+
+  // Bound by the page, but an action can be called with anything.
+  it("refuses to send anyone off the site", async () => {
+    await expect(
+      completeOnboarding("//evil.example.com", {}, formOf({ username: "chef_ryan" })),
+    ).rejects.toThrow("REDIRECT:/dashboard");
+  });
+});
+

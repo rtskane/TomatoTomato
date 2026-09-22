@@ -17,6 +17,10 @@ const repos = vi.hoisted(() => ({
   updateRole: vi.fn(),
   remove: vi.fn(),
   findManyByUsernames: vi.fn(),
+  findJoinLink: vi.fn(),
+  setJoinLink: vi.fn(),
+  findByJoinToken: vi.fn(),
+  joinByLink: vi.fn(),
 }));
 
 vi.mock("@/server/repositories/cookbook.repository", () => ({
@@ -27,6 +31,10 @@ vi.mock("@/server/repositories/cookbook.repository", () => ({
     findMembershipsForUsers: repos.findMembershipsForUsers,
     updateMemberRole: repos.updateMemberRole,
     removeMember: repos.removeMember,
+    findJoinLink: repos.findJoinLink,
+    setJoinLink: repos.setJoinLink,
+    findByJoinToken: repos.findByJoinToken,
+    joinByLink: repos.joinByLink,
   },
 }));
 vi.mock("@/server/repositories/invite.repository", () => ({
@@ -55,6 +63,11 @@ import {
   removeMember,
   changeInviteRole,
   cancelInvite,
+  setJoinLinkEnabled,
+  setJoinLinkRole,
+  resetJoinLink,
+  previewJoinLink,
+  joinWithLink,
 } from "./member.service";
 
 beforeEach(() => {
@@ -69,6 +82,12 @@ beforeEach(() => {
   repos.findMembershipsForUsers.mockResolvedValue([]);
   repos.findManyByUsernames.mockResolvedValue([]);
   repos.inviteUpsert.mockResolvedValue({ id: "inv1" });
+  repos.findJoinLink.mockResolvedValue({ joinLinkToken: null, joinLinkRole: "VIEWER" });
+  // Echo what was saved, as the real update's `select` does.
+  repos.setJoinLink.mockImplementation(async (_id: string, link: { token: string | null; role: string }) => ({
+    joinLinkToken: link.token,
+    joinLinkRole: link.role,
+  }));
 });
 
 const row = (username: string, role = "VIEWER") => ({ username, role });
@@ -623,5 +642,230 @@ describe("changeInviteRole / cancelInvite", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe("not-found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The join link
+// ---------------------------------------------------------------------------
+
+describe("join link — owner controls", () => {
+  // The same rule as inviting: widening who can see a cookbook is the owner's call.
+  it.each([
+    ["an editor", { role: "EDITOR" }],
+    ["a viewer", { role: "VIEWER" }],
+    ["a non-member", null],
+  ])("refuses %s every control, and writes nothing", async (_who, membership) => {
+    repos.findMembership.mockResolvedValue(membership);
+
+    for (const result of [
+      await setJoinLinkEnabled("u1", "cb1", true),
+      await setJoinLinkRole("u1", "cb1", "EDITOR"),
+      await resetJoinLink("u1", "cb1"),
+    ]) {
+      expect(result).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    }
+    expect(repos.setJoinLink).not.toHaveBeenCalled();
+  });
+
+  it("turns the link on with a fresh token, keeping the chosen role", async () => {
+    repos.findJoinLink.mockResolvedValue({ joinLinkToken: null, joinLinkRole: "EDITOR" });
+
+    const result = await setJoinLinkEnabled("owner1", "cb1", true);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.role).toBe("EDITOR");
+    // URL-safe and long enough to be unguessable.
+    expect(result.value.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
+  it("leaves a link that's already on with the URL it had", async () => {
+    repos.findJoinLink.mockResolvedValue({ joinLinkToken: "existing", joinLinkRole: "VIEWER" });
+
+    const result = await setJoinLinkEnabled("owner1", "cb1", true);
+
+    expect(result).toMatchObject({ ok: true, value: { token: "existing" } });
+  });
+
+  it("turns the link off by dropping its token, and remembers the role", async () => {
+    repos.findJoinLink.mockResolvedValue({ joinLinkToken: "existing", joinLinkRole: "EDITOR" });
+
+    await setJoinLinkEnabled("owner1", "cb1", false);
+
+    expect(repos.setJoinLink).toHaveBeenCalledWith("cb1", { token: null, role: "EDITOR" });
+  });
+
+  // Anyone who kept the old URL from before it was turned off must stay out.
+  it("never revives an old URL when a link is turned back on", async () => {
+    repos.findJoinLink.mockResolvedValueOnce({ joinLinkToken: "old", joinLinkRole: "VIEWER" });
+    await setJoinLinkEnabled("owner1", "cb1", false);
+
+    repos.findJoinLink.mockResolvedValueOnce({ joinLinkToken: null, joinLinkRole: "VIEWER" });
+    const result = await setJoinLinkEnabled("owner1", "cb1", true);
+
+    expect(result.ok && result.value.token).not.toBe("old");
+  });
+
+  it("changes the role without changing the URL", async () => {
+    repos.findJoinLink.mockResolvedValue({ joinLinkToken: "existing", joinLinkRole: "VIEWER" });
+
+    const result = await setJoinLinkRole("owner1", "cb1", "EDITOR");
+
+    expect(result).toMatchObject({ ok: true, value: { token: "existing", role: "EDITOR" } });
+  });
+
+  // A link must never be a way to hand out ownership.
+  it.each(["OWNER", "ADMIN", ""])("refuses to make the link grant %j", async (role) => {
+    const result = await setJoinLinkRole("owner1", "cb1", role);
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(repos.setJoinLink).not.toHaveBeenCalled();
+  });
+
+  it("resets to a new URL, so the old one stops working", async () => {
+    repos.findJoinLink.mockResolvedValue({ joinLinkToken: "leaked", joinLinkRole: "EDITOR" });
+
+    const result = await resetJoinLink("owner1", "cb1");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.token).not.toBe("leaked");
+    expect(result.value.role).toBe("EDITOR");
+  });
+
+  it("won't reset a link that's turned off", async () => {
+    const result = await resetJoinLink("owner1", "cb1");
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(repos.setJoinLink).not.toHaveBeenCalled();
+  });
+
+  it("reports a cookbook that has gone as not found", async () => {
+    repos.findJoinLink.mockResolvedValue(null);
+
+    expect(await setJoinLinkEnabled("owner1", "cb1", true)).toMatchObject({ ok: false, error: { kind: "not-found" } });
+    expect(await setJoinLinkRole("owner1", "cb1", "EDITOR")).toMatchObject({ ok: false, error: { kind: "not-found" } });
+    expect(await resetJoinLink("owner1", "cb1")).toMatchObject({ ok: false, error: { kind: "not-found" } });
+  });
+});
+
+describe("join link — in the members view", () => {
+  beforeEach(() => {
+    repos.listMembers.mockResolvedValue([]);
+    repos.listPendingForCookbook.mockResolvedValue([]);
+  });
+
+  it("shows the owner the link, since they control it", async () => {
+    repos.findJoinLink.mockResolvedValue({ joinLinkToken: "tok", joinLinkRole: "EDITOR" });
+
+    const view = await getCookbookMembers("owner1", "cb1");
+
+    expect(view!.joinLink).toEqual({ token: "tok", role: "EDITOR" });
+  });
+
+  // The token is itself the permission to join; it isn't everyone's to pass on.
+  it("hides the link from everyone else", async () => {
+    repos.findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    const view = await getCookbookMembers("u1", "cb1");
+
+    expect(view!.joinLink).toBeNull();
+    expect(repos.findJoinLink).not.toHaveBeenCalled();
+  });
+});
+
+const linkedCookbook = {
+  id: "cb1",
+  title: "Weeknight Dinners",
+  description: "What we actually cook.",
+  joinLinkRole: "EDITOR",
+  coverImageUrl: null,
+  coverColor: 3,
+  coverStyle: "TITLED",
+  coverTexture: "NONE",
+  coverTitleFont: "SERIF",
+  coverTitleSize: "MEDIUM",
+  coverTitlePosition: "CENTER",
+  coverFocalX: 0.5,
+  coverFocalY: 0.5,
+  coverZoom: 1,
+  owner: { username: "ryan", firstName: "Ryan", lastName: null },
+  _count: { members: 3 },
+};
+
+describe("join link — previewing and joining", () => {
+  it("previews what the link opens, for someone not yet signed in", async () => {
+    repos.findByJoinToken.mockResolvedValue(linkedCookbook);
+
+    const preview = await previewJoinLink("tok");
+
+    expect(preview).toMatchObject({
+      cookbookId: "cb1",
+      title: "Weeknight Dinners",
+      role: "EDITOR",
+      memberCount: 3,
+      design: { coverColor: 3, coverStyle: "TITLED" },
+    });
+    expect(preview!.ownerName).toBe("ryan");
+  });
+
+  it("doesn't look anyone up for a visitor who isn't signed in", async () => {
+    repos.findByJoinToken.mockResolvedValue(linkedCookbook);
+
+    const preview = await previewJoinLink("tok");
+
+    expect(preview!.alreadyMember).toBe(false);
+    expect(repos.findMembership).not.toHaveBeenCalled();
+  });
+
+  it("says when the person looking is already in the cookbook", async () => {
+    repos.findByJoinToken.mockResolvedValue(linkedCookbook);
+    repos.findMembership.mockResolvedValue({ role: "EDITOR" });
+
+    expect((await previewJoinLink("tok", "u2"))!.alreadyMember).toBe(true);
+    expect(repos.findMembership).toHaveBeenCalledWith("cb1", "u2");
+  });
+
+  it("says when they aren't", async () => {
+    repos.findByJoinToken.mockResolvedValue(linkedCookbook);
+    repos.findMembership.mockResolvedValue(null);
+
+    expect((await previewJoinLink("tok", "u2"))!.alreadyMember).toBe(false);
+  });
+
+  it("has nothing to preview for a dead link", async () => {
+    repos.findByJoinToken.mockResolvedValue(null);
+    expect(await previewJoinLink("gone")).toBeNull();
+  });
+
+  it("joins with the role the link grants", async () => {
+    repos.findByJoinToken.mockResolvedValue(linkedCookbook);
+
+    const result = await joinWithLink("u2", "tok");
+
+    expect(result).toEqual({ ok: true, value: { cookbookId: "cb1" } });
+    expect(repos.joinByLink).toHaveBeenCalledWith("cb1", "u2", "EDITOR");
+  });
+
+  // The page may have been open while the owner reset or turned off the link.
+  it("refuses a link that stopped working after the page was shown", async () => {
+    repos.findByJoinToken.mockResolvedValue(null);
+
+    const result = await joinWithLink("u2", "tok");
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "not-found" } });
+    if (!result.ok) expect(result.error.message).toMatch(/ask .* for a new one/i);
+    expect(repos.joinByLink).not.toHaveBeenCalled();
+  });
+
+  // Should a stored role ever be something a link may not grant, it grants the
+  // least rather than trusting the column.
+  it("never grants more than Editor, whatever the column holds", async () => {
+    repos.findByJoinToken.mockResolvedValue({ ...linkedCookbook, joinLinkRole: "OWNER" });
+
+    await joinWithLink("u2", "tok");
+
+    expect(repos.joinByLink).toHaveBeenCalledWith("cb1", "u2", "VIEWER");
   });
 });

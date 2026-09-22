@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { ensureUser } from "@/lib/user";
 import { onboardUser } from "@/server/services/onboarding.service";
+import { safeReturnPath } from "@/lib/return-path";
 
 // Thin adapter: the only layer that knows about HTTP/FormData, auth, and
 // redirects. It translates the request into a service call and the service's
@@ -14,7 +15,13 @@ export type OnboardingState = {
   values?: { username: string; firstName: string; lastName: string };
 };
 
+/**
+ * `returnTo` is bound server-side by the page — typically the join link that
+ * sent a new user through sign-up — and checked again here, since a Server
+ * Action can be called with anything.
+ */
 export async function completeOnboarding(
+  returnTo: string | null,
   _prevState: OnboardingState,
   formData: FormData,
 ): Promise<OnboardingState> {
@@ -37,5 +44,5 @@ export async function completeOnboarding(
     return { error: result.error.message, values };
   }
 
-  redirect("/dashboard");
+  redirect(safeReturnPath(returnTo) ?? "/dashboard");
 }

@@ -8,7 +8,11 @@ import {
   removeMember,
   changeInviteRole,
   cancelInvite,
+  setJoinLinkEnabled,
+  setJoinLinkRole,
+  resetJoinLink,
   type InviteOutcome,
+  type JoinLinkView,
   type InviteRowInput,
 } from "@/server/services/member.service";
 
@@ -149,4 +153,61 @@ export async function cancelInviteAction(
 
   revalidateMembers(cookbookId);
   return {};
+}
+
+// ---------------------------------------------------------------------------
+// The "anyone with this link can join" link
+// ---------------------------------------------------------------------------
+
+/** What the link controls show: the saved link, or why a change didn't land. */
+export type JoinLinkState = { error?: string; link?: JoinLinkView };
+
+export async function setJoinLinkEnabledAction(
+  cookbookId: string,
+  _prevState: JoinLinkState,
+  formData: FormData,
+): Promise<JoinLinkState> {
+  const user = await requireOnboardedUser();
+
+  const result = await setJoinLinkEnabled(
+    user.id,
+    cookbookId,
+    formData.get("enabled") === "true",
+  );
+  if (!result.ok) return { error: result.error.message };
+
+  revalidateMembers(cookbookId);
+  return { link: result.value };
+}
+
+export async function setJoinLinkRoleAction(
+  cookbookId: string,
+  _prevState: JoinLinkState,
+  formData: FormData,
+): Promise<JoinLinkState> {
+  const user = await requireOnboardedUser();
+
+  const result = await setJoinLinkRole(
+    user.id,
+    cookbookId,
+    String(formData.get("role") ?? ""),
+  );
+  if (!result.ok) return { error: result.error.message };
+
+  revalidateMembers(cookbookId);
+  return { link: result.value };
+}
+
+export async function resetJoinLinkAction(
+  cookbookId: string,
+  _prevState: JoinLinkState,
+  _formData: FormData,
+): Promise<JoinLinkState> {
+  const user = await requireOnboardedUser();
+
+  const result = await resetJoinLink(user.id, cookbookId);
+  if (!result.ok) return { error: result.error.message };
+
+  revalidateMembers(cookbookId);
+  return { link: result.value };
 }

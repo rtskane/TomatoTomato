@@ -6,13 +6,6 @@ import { getCookbookMembers } from "@/server/services/member.service";
 import BookCover from "@/components/book-cover";
 import SetupProgress from "@/components/setup-progress";
 import MembersPanel from "../../members/members-panel";
-import {
-  inviteMembersAction,
-  changeMemberRoleAction,
-  removeMemberAction,
-  changeInviteRoleAction,
-  cancelInviteAction,
-} from "../../members/actions";
 
 // Container: owns auth + data. Step three of three.
 //
@@ -33,14 +26,6 @@ export default async function SetupInvitePage({
 
   const members = await getCookbookMembers(user.id, id);
   if (!members) notFound();
-
-  const actions = {
-    invite: inviteMembersAction.bind(null, id),
-    changeMemberRole: changeMemberRoleAction.bind(null, id),
-    removeMember: removeMemberAction.bind(null, id),
-    changeInviteRole: changeInviteRoleAction.bind(null, id),
-    cancelInvite: cancelInviteAction.bind(null, id),
-  };
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
@@ -68,7 +53,7 @@ export default async function SetupInvitePage({
       </div>
 
       <div className="mt-8">
-        <MembersPanel view={members} actions={actions} />
+        <MembersPanel view={members} />
       </div>
 
       <div className="mt-10 flex items-center gap-3 border-t border-border pt-6">

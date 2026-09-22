@@ -2,14 +2,23 @@ import { redirect } from "next/navigation";
 import { ensureUser } from "@/lib/user";
 import { completeOnboarding } from "./actions";
 import OnboardingForm from "./onboarding-form";
+import { safeReturnPath } from "@/lib/return-path";
 
 // Container: owns auth + data, decides whether onboarding is needed, and wires
 // the Server Action into the presentational form. No markup logic lives here.
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  // Where to go once this is done — set by a join link that sent a new user
+  // through sign-up, so they land back on the cookbook they were joining.
+  const next = safeReturnPath((await searchParams).next);
+
   const user = await ensureUser();
   if (!user) redirect("/sign-in");
   // Already onboarded — nothing to do here.
-  if (user.username) redirect("/dashboard");
+  if (user.username) redirect(next ?? "/dashboard");
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
@@ -20,7 +29,7 @@ export default async function OnboardingPage() {
 
       <div className="mt-8">
         <OnboardingForm
-          action={completeOnboarding}
+          action={completeOnboarding.bind(null, next)}
           defaultFirstName={user.firstName ?? undefined}
           defaultLastName={user.lastName ?? undefined}
         />

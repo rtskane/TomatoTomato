@@ -1,7 +1,17 @@
 import InviteForm from "./invite-form";
 import RoleRow from "./role-row";
+import JoinLinkControls from "./join-link-controls";
 import type { MembersView } from "@/server/services/member.service";
-import type { InviteState, MemberActionState } from "./actions";
+import {
+  inviteMembersAction,
+  changeMemberRoleAction,
+  removeMemberAction,
+  changeInviteRoleAction,
+  cancelInviteAction,
+  setJoinLinkEnabledAction,
+  setJoinLinkRoleAction,
+  resetJoinLinkAction,
+} from "./actions";
 
 // The people-management UI itself, with no opinion about where it's shown.
 // Rendered both inside the share dialog on the cookbook page and as the whole
@@ -10,34 +20,22 @@ import type { InviteState, MemberActionState } from "./actions";
 // Deliberately a Server Component: only the individual controls need to be
 // interactive, so the list markup ships as HTML rather than JS. It reaches the
 // dialog (a Client Component) as `children`.
+//
+// It binds its own actions to the cookbook it's showing. Binding server-side
+// means the id never rides along in a form, so a crafted POST can't retarget
+// an action at a different cookbook — and doing it here, once, means neither
+// page that renders the panel can forget one.
 
-type BoundActions = {
-  invite: (state: InviteState, formData: FormData) => Promise<InviteState>;
-  changeMemberRole: (
-    state: MemberActionState,
-    formData: FormData,
-  ) => Promise<MemberActionState>;
-  removeMember: (
-    state: MemberActionState,
-    formData: FormData,
-  ) => Promise<MemberActionState>;
-  changeInviteRole: (
-    state: MemberActionState,
-    formData: FormData,
-  ) => Promise<MemberActionState>;
-  cancelInvite: (
-    state: MemberActionState,
-    formData: FormData,
-  ) => Promise<MemberActionState>;
-};
+export default function MembersPanel({ view }: { view: MembersView }) {
+  const id = view.cookbookId;
+  const actions = {
+    invite: inviteMembersAction.bind(null, id),
+    changeMemberRole: changeMemberRoleAction.bind(null, id),
+    removeMember: removeMemberAction.bind(null, id),
+    changeInviteRole: changeInviteRoleAction.bind(null, id),
+    cancelInvite: cancelInviteAction.bind(null, id),
+  };
 
-export default function MembersPanel({
-  view,
-  actions,
-}: {
-  view: MembersView;
-  actions: BoundActions;
-}) {
   return (
     <div className="space-y-8">
       {/* Inviting comes first: it's why someone opens this. Owners only —
@@ -45,6 +43,19 @@ export default function MembersPanel({
       {view.canManageMembers ? (
         <section>
           <InviteForm action={actions.invite} />
+        </section>
+      ) : null}
+
+      {/* The link sits with the other ways in, above the roster. Owners only:
+          the token is itself the permission to join. */}
+      {view.joinLink ? (
+        <section>
+          <JoinLinkControls
+            link={view.joinLink}
+            setEnabledAction={setJoinLinkEnabledAction.bind(null, id)}
+            setRoleAction={setJoinLinkRoleAction.bind(null, id)}
+            resetAction={resetJoinLinkAction.bind(null, id)}
+          />
         </section>
       ) : null}
 
