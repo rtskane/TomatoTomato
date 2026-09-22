@@ -41,6 +41,14 @@ const NOT_FOUND: MemberError = {
   message: "That link is no longer available.",
 };
 
+/** A role as the owner picked it in a form, or why it can't be granted. */
+function parseGrantableRole(raw: string): Result<GrantableRole, MemberError> {
+  const parsed = grantableRoleSchema.safeParse(raw);
+  return parsed.success
+    ? ok(parsed.data)
+    : err({ kind: "validation", message: "Pick a valid role." });
+}
+
 /** Resolve the actor's role and confirm they may manage members. */
 async function requireManager(
   actorUserId: string,
@@ -120,9 +128,7 @@ export async function getCookbookMembers(
       isOwner: member.user.id === cookbook.ownerId,
       isSelf: member.user.id === userId,
     })),
-    joinLink: link
-      ? { token: link.joinLinkToken, role: grantableOrViewer(link.joinLinkRole) }
-      : null,
+    joinLink: link ? toJoinLinkView(link) : null,
     oneTimeLinks: oneTimeLinks.map((row) => toOneTimeLinkView(row, now)),
   };
 }
@@ -165,17 +171,11 @@ export async function changeMemberRole(
   );
   if (!allowed.ok) return allowed;
 
-  const parsed = grantableRoleSchema.safeParse(role);
-  if (!parsed.success) {
-    return err({ kind: "validation", message: "Pick a valid role." });
-  }
+  const parsed = parseGrantableRole(role);
+  if (!parsed.ok) return parsed;
 
-  await cookbookRepository.updateMemberRole(
-    cookbookId,
-    targetUserId,
-    parsed.data,
-  );
-  return ok({ role: parsed.data });
+  await cookbookRepository.updateMemberRole(cookbookId, targetUserId, parsed.value);
+  return ok({ role: parsed.value });
 }
 
 /**
@@ -216,78 +216,80 @@ function grantableOrViewer(role: CookbookRole): GrantableRole {
   return parsed.success ? parsed.data : "VIEWER";
 }
 
+function toJoinLinkView(row: {
+  joinLinkToken: string | null;
+  joinLinkRole: CookbookRole;
+}): JoinLinkView {
+  return { token: row.joinLinkToken, role: grantableOrViewer(row.joinLinkRole) };
+}
+
+type JoinLink = { token: string | null; role: CookbookRole };
+
+/**
+ * Every change to the link is the same shape: the owner may, the cookbook is
+ * there, `change` says what it becomes (or why it can't), and the result is
+ * saved and handed back.
+ */
+async function updateJoinLink(
+  actorUserId: string,
+  cookbookId: string,
+  change: (current: JoinLink) => Result<JoinLink, MemberError>,
+): Promise<Result<JoinLinkView, MemberError>> {
+  const allowed = await requireManager(actorUserId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  const row = await cookbookRepository.findJoinLink(cookbookId);
+  if (!row) return err(NOT_FOUND);
+
+  const next = change({ token: row.joinLinkToken, role: row.joinLinkRole });
+  if (!next.ok) return next;
+
+  return ok(toJoinLinkView(await cookbookRepository.setJoinLink(cookbookId, next.value)));
+}
+
 /**
  * Turn the link on or off. Turning it on always mints a fresh token rather
  * than reviving the last one, so a URL that was out there before it was turned
  * off stays dead. Off → on is how an owner starts over, the same as a reset.
  */
-export async function setJoinLinkEnabled(
+export function setJoinLinkEnabled(
   actorUserId: string,
   cookbookId: string,
   enabled: boolean,
 ): Promise<Result<JoinLinkView, MemberError>> {
-  const allowed = await requireManager(actorUserId, cookbookId);
-  if (!allowed.ok) return allowed;
-
-  const current = await cookbookRepository.findJoinLink(cookbookId);
-  if (!current) return err(NOT_FOUND);
-
-  const saved = await cookbookRepository.setJoinLink(cookbookId, {
-    token: enabled ? (current.joinLinkToken ?? newUrlToken()) : null,
-    role: current.joinLinkRole,
-  });
-  return ok({ token: saved.joinLinkToken, role: grantableOrViewer(saved.joinLinkRole) });
+  return updateJoinLink(actorUserId, cookbookId, (current) =>
+    ok({ token: enabled ? (current.token ?? newUrlToken()) : null, role: current.role }),
+  );
 }
 
 /**
  * Change what the link grants. The URL doesn't change: whoever already has it
  * simply gets the new role from now on. Nobody who joined earlier is touched.
  */
-export async function setJoinLinkRole(
+export function setJoinLinkRole(
   actorUserId: string,
   cookbookId: string,
   rawRole: string,
 ): Promise<Result<JoinLinkView, MemberError>> {
-  const allowed = await requireManager(actorUserId, cookbookId);
-  if (!allowed.ok) return allowed;
-
-  const role = grantableRoleSchema.safeParse(rawRole);
-  if (!role.success) {
-    return err({ kind: "validation", message: "Pick a valid role." });
-  }
-
-  const current = await cookbookRepository.findJoinLink(cookbookId);
-  if (!current) return err(NOT_FOUND);
-
-  const saved = await cookbookRepository.setJoinLink(cookbookId, {
-    token: current.joinLinkToken,
-    role: role.data,
+  return updateJoinLink(actorUserId, cookbookId, (current) => {
+    const role = parseGrantableRole(rawRole);
+    return role.ok ? ok({ token: current.token, role: role.value }) : role;
   });
-  return ok({ token: saved.joinLinkToken, role: grantableOrViewer(saved.joinLinkRole) });
 }
 
 /**
  * Replace the token, so the old URL stops working — for a link that has gone
  * further than it was meant to. Only meaningful while it's on.
  */
-export async function resetJoinLink(
+export function resetJoinLink(
   actorUserId: string,
   cookbookId: string,
 ): Promise<Result<JoinLinkView, MemberError>> {
-  const allowed = await requireManager(actorUserId, cookbookId);
-  if (!allowed.ok) return allowed;
-
-  const current = await cookbookRepository.findJoinLink(cookbookId);
-  if (!current) return err(NOT_FOUND);
-  if (!current.joinLinkToken) {
-    return err({ kind: "validation", message: "The link is turned off." });
-  }
-
-  const saved = await cookbookRepository.setJoinLink(cookbookId, {
-    token: newUrlToken(),
-    role: current.joinLinkRole,
-  });
-  return ok({ token: saved.joinLinkToken, role: grantableOrViewer(saved.joinLinkRole) });
+  return updateJoinLink(actorUserId, cookbookId, (current) =>
+    current.token
+      ? ok({ token: newUrlToken(), role: current.role })
+      : err({ kind: "validation", message: "The link is turned off." }),
+  );
 }
 
 /** What the join page shows someone holding a link, before they join. */
@@ -325,7 +327,7 @@ async function resolveJoinToken(token: string) {
   if (oneTime) {
     return {
       singleUse: true as const,
-      inviteId: oneTime.id,
+      linkId: oneTime.id,
       role: grantableOrViewer(oneTime.role),
       cookbook: oneTime.cookbook,
     };
@@ -396,7 +398,7 @@ export async function joinWithLink(
   if (membership) return ok({ cookbookId });
 
   const claimed = await inviteRepository.claimLink(
-    link.inviteId,
+    link.linkId,
     userId,
     cookbookId,
     link.role,
@@ -447,10 +449,8 @@ export async function createOneTimeLink(
   const allowed = await requireManager(actorUserId, cookbookId);
   if (!allowed.ok) return allowed;
 
-  const role = grantableRoleSchema.safeParse(rawRole);
-  if (!role.success) {
-    return err({ kind: "validation", message: "Pick a valid role." });
-  }
+  const role = parseGrantableRole(rawRole);
+  if (!role.ok) return role;
   const label = oneTimeLinkLabelSchema.safeParse(rawLabel);
   if (!label.success) {
     return err({
@@ -462,7 +462,7 @@ export async function createOneTimeLink(
   const created = await inviteRepository.createLink({
     cookbookId,
     invitedById: actorUserId,
-    role: role.data,
+    role: role.value,
     expiresAt: oneTimeLinkExpiry(now),
     label: label.data,
   });

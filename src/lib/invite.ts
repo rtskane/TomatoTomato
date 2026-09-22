@@ -17,6 +17,12 @@ export const grantableRoleSchema = z.enum(["EDITOR", "VIEWER"], {
 
 export type GrantableRole = z.infer<typeof grantableRoleSchema>;
 
+/** How each grantable role is named wherever the owner picks one. */
+export const GRANTABLE_ROLE_LABELS: Record<GrantableRole, string> = {
+  VIEWER: "Viewer",
+  EDITOR: "Editor",
+};
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -38,6 +44,9 @@ export function daysLeft(expiresAt: Date, now: Date = new Date()): number {
   return Math.max(1, Math.ceil((expiresAt.getTime() - now.getTime()) / DAY_MS));
 }
 
+/** Long enough for a name and a note, short enough to read at a glance. */
+export const ONE_TIME_LINK_LABEL_MAX = 40;
+
 /**
  * The owner's note on a one-time link, so a list of them can be told apart —
  * "Mum", "Uncle J". Optional: empty means no label.
@@ -45,5 +54,8 @@ export function daysLeft(expiresAt: Date, now: Date = new Date()): number {
 export const oneTimeLinkLabelSchema = z
   .string()
   .trim()
-  .max(40, "Keep the label under 40 characters.")
+  .max(
+    ONE_TIME_LINK_LABEL_MAX,
+    `Keep the label under ${ONE_TIME_LINK_LABEL_MAX} characters.`,
+  )
   .transform((v) => (v === "" ? null : v));

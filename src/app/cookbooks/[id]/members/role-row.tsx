@@ -3,6 +3,8 @@
 import { useActionState, useState, startTransition } from "react";
 import type { MemberActionState } from "./actions";
 import type { CookbookRole } from "@/generated/prisma/enums";
+import { GRANTABLE_ROLE_LABELS, type GrantableRole } from "@/lib/invite";
+import { controlClass } from "./control-classes";
 
 // One row of the people list, with the controls to re-role or remove whoever
 // it names — the auto-submitting select, the pending state, the error
@@ -14,10 +16,6 @@ type RowAction = (
 ) => Promise<MemberActionState>;
 
 const initialState: MemberActionState = {};
-
-const selectClass =
-  "rounded-lg border border-border bg-background-control px-2 py-1 text-subheadline " +
-  "outline-none focus:border-border-input-strong disabled:opacity-50";
 
 function Avatar({ url, name }: { url: string | null; name: string }) {
   // A plain <img>, not next/image: `avatarUrl` is whatever host Clerk hands us
@@ -135,10 +133,13 @@ export default function RoleRow({
             aria-label={`Role for ${name}`}
             // Applying on change avoids a Save button per row.
             onChange={(e) => changeRole(e.target.value as CookbookRole)}
-            className={selectClass}
+            className={controlClass}
           >
-            <option value="VIEWER">Viewer</option>
-            <option value="EDITOR">Editor</option>
+            {(Object.keys(GRANTABLE_ROLE_LABELS) as GrantableRole[]).map((role) => (
+              <option key={role} value={role}>
+                {GRANTABLE_ROLE_LABELS[role]}
+              </option>
+            ))}
           </select>
 
           {/* Removal stays a real form: it's a submit button, so it still works
