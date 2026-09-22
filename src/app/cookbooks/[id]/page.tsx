@@ -68,7 +68,11 @@ export default async function CookbookPage({
         ← Your library
       </Link>
 
-      <div className="mt-4 flex items-start justify-between gap-4">
+      {/* Side by side from `sm` up. On a phone the actions drop to their own row
+          under the title: the three of them are wider than what's left beside
+          the book, and they must never shrink — so beside it they'd overrun
+          the title, and did. */}
+      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-4">
           {/* The book itself, not just its photograph. Every cookbook has a
               designed cover now, so this is never an empty frame — which is
@@ -82,7 +86,8 @@ export default async function CookbookPage({
           />
 
           <div className="min-w-0">
-            <h1 className="text-title-1">{cookbook.title}</h1>
+            {/* A single long word still has to wrap in the space it's given. */}
+            <h1 className="text-title-1 wrap-break-word">{cookbook.title}</h1>
             {cookbook.description ? (
               <p className="mt-2 text-foreground-secondary">
                 {cookbook.description}
