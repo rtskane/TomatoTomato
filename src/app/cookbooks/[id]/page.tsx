@@ -13,13 +13,6 @@ import {
   archiveCookbookAction,
 } from "./settings-actions";
 import MembersPanel from "./members/members-panel";
-import {
-  inviteMembersAction,
-  changeMemberRoleAction,
-  removeMemberAction,
-  changeInviteRoleAction,
-  cancelInviteAction,
-} from "./members/actions";
 
 // Container: owns auth + data, hands rows to the presentational list.
 export default async function CookbookPage({
@@ -48,17 +41,6 @@ export default async function CookbookPage({
   const impact = cookbook.canEditCookbook
     ? await getArchiveImpact(user.id, cookbook.id)
     : null;
-
-  // Binding the id server-side means it never rides along in the form, so a
-  // crafted POST can't retarget these at a different cookbook.
-  const actions = {
-    invite: inviteMembersAction.bind(null, cookbook.id),
-    changeMemberRole: changeMemberRoleAction.bind(null, cookbook.id),
-    removeMember: removeMemberAction.bind(null, cookbook.id),
-    changeInviteRole: changeInviteRoleAction.bind(null, cookbook.id),
-    cancelInvite: cancelInviteAction.bind(null, cookbook.id),
-  };
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <Link
@@ -104,7 +86,7 @@ export default async function CookbookPage({
             cookbookTitle={cookbook.title}
             memberCount={members.members.length}
           >
-            <MembersPanel view={members} actions={actions} />
+            <MembersPanel view={members} />
           </ShareDialog>
 
           {cookbook.canEditCookbook && impact?.ok ? (

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import {
   inviteRowSchema,
   grantableRoleSchema,
@@ -9,6 +10,8 @@ import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { inviteRepository } from "@/server/repositories/invite.repository";
 import { userRepository } from "@/server/repositories/user.repository";
 import { canManageMembers } from "@/server/permissions";
+import { newUrlToken } from "@/server/tokens";
+import { toCoverDesign, type CoverDesign } from "@/lib/book-covers";
 import { ok, err, type Result } from "@/server/result";
 import type { CookbookRole } from "@/generated/prisma/enums";
 
@@ -16,8 +19,9 @@ import type { CookbookRole } from "@/generated/prisma/enums";
 // invites, and adjusting who has what role. Framework-free — no next/*, no
 // @clerk/* — so every rule below is unit-testable by calling it directly.
 //
-// The governing rule: **an invite never creates a membership.** Only
-// `acceptInvite` does. That's what keeps an unwanted invite from putting a
+// The governing rule: **an invite never creates a membership.** Only the
+// person joining can — by accepting an invite (`acceptInvite`), or by pressing
+// Join on a cookbook's link (`joinWithLink`). That's what keeps an unwanted invite from putting a
 // cookbook in someone's library.
 
 export type MemberError =
@@ -307,6 +311,9 @@ export type MembersView = {
   /** Empty unless the viewer can manage members — outstanding invites are
    * administrative detail, not something every member needs to see. */
   outstandingInvites: OutstandingInvite[];
+  /** The join link's state — null unless the viewer can manage members, since
+   * the token itself is the permission to join. */
+  joinLink: JoinLinkView | null;
 };
 
 /**
@@ -330,11 +337,12 @@ export async function getCookbookMembers(
   if (!cookbook) return null;
 
   const manages = canManageMembers(membership.role);
-  const [members, invites] = await Promise.all([
+  const [members, invites, link] = await Promise.all([
     cookbookRepository.listMembers(cookbookId),
     manages
       ? inviteRepository.listPendingForCookbook(cookbookId)
       : Promise.resolve([]),
+    manages ? cookbookRepository.findJoinLink(cookbookId) : Promise.resolve(null),
   ]);
 
   return {
@@ -358,6 +366,9 @@ export async function getCookbookMembers(
         : (invite.email ?? "Unknown"),
       role: invite.role,
     })),
+    joinLink: link
+      ? { token: link.joinLinkToken, role: grantableOrViewer(link.joinLinkRole) }
+      : null,
   };
 }
 
@@ -475,4 +486,162 @@ export async function cancelInvite(
 
   await inviteRepository.remove(loaded.value.id);
   return ok(true);
+}
+
+// ---------------------------------------------------------------------------
+// The "anyone with this link can join" link
+// ---------------------------------------------------------------------------
+
+/** The link as its owner sees it. `token` is null while it's turned off. */
+export type JoinLinkView = { token: string | null; role: GrantableRole };
+
+/**
+ * A link may only grant what an invite may — never OWNER. The column is the
+ * wider `CookbookRole`, so anything else read back from it is treated as the
+ * safe default rather than trusted.
+ */
+function grantableOrViewer(role: CookbookRole): GrantableRole {
+  const parsed = grantableRoleSchema.safeParse(role);
+  return parsed.success ? parsed.data : "VIEWER";
+}
+
+/**
+ * Turn the link on or off. Turning it on always mints a fresh token rather
+ * than reviving the last one, so a URL that was out there before it was turned
+ * off stays dead. Off → on is how an owner starts over, the same as a reset.
+ */
+export async function setJoinLinkEnabled(
+  actorUserId: string,
+  cookbookId: string,
+  enabled: boolean,
+): Promise<Result<JoinLinkView, MemberError>> {
+  const allowed = await requireManager(actorUserId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  const current = await cookbookRepository.findJoinLink(cookbookId);
+  if (!current) return err(NOT_FOUND);
+
+  const saved = await cookbookRepository.setJoinLink(cookbookId, {
+    token: enabled ? (current.joinLinkToken ?? newUrlToken()) : null,
+    role: current.joinLinkRole,
+  });
+  return ok({ token: saved.joinLinkToken, role: grantableOrViewer(saved.joinLinkRole) });
+}
+
+/**
+ * Change what the link grants. The URL doesn't change: whoever already has it
+ * simply gets the new role from now on. Nobody who joined earlier is touched.
+ */
+export async function setJoinLinkRole(
+  actorUserId: string,
+  cookbookId: string,
+  rawRole: string,
+): Promise<Result<JoinLinkView, MemberError>> {
+  const allowed = await requireManager(actorUserId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  const role = grantableRoleSchema.safeParse(rawRole);
+  if (!role.success) {
+    return err({ kind: "validation", message: "Pick a valid role." });
+  }
+
+  const current = await cookbookRepository.findJoinLink(cookbookId);
+  if (!current) return err(NOT_FOUND);
+
+  const saved = await cookbookRepository.setJoinLink(cookbookId, {
+    token: current.joinLinkToken,
+    role: role.data,
+  });
+  return ok({ token: saved.joinLinkToken, role: grantableOrViewer(saved.joinLinkRole) });
+}
+
+/**
+ * Replace the token, so the old URL stops working — for a link that has gone
+ * further than it was meant to. Only meaningful while it's on.
+ */
+export async function resetJoinLink(
+  actorUserId: string,
+  cookbookId: string,
+): Promise<Result<JoinLinkView, MemberError>> {
+  const allowed = await requireManager(actorUserId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  const current = await cookbookRepository.findJoinLink(cookbookId);
+  if (!current) return err(NOT_FOUND);
+  if (!current.joinLinkToken) {
+    return err({ kind: "validation", message: "The link is turned off." });
+  }
+
+  const saved = await cookbookRepository.setJoinLink(cookbookId, {
+    token: newUrlToken(),
+    role: current.joinLinkRole,
+  });
+  return ok({ token: saved.joinLinkToken, role: grantableOrViewer(saved.joinLinkRole) });
+}
+
+/** What the join page shows someone holding a link, before they join. */
+export type JoinLinkPreview = {
+  cookbookId: string;
+  title: string;
+  description: string | null;
+  design: CoverDesign;
+  role: GrantableRole;
+  ownerName: string;
+  memberCount: number;
+  /** Whether the person looking is in already — they skip straight in. */
+  alreadyMember: boolean;
+};
+
+/**
+ * Look a link up without joining. Cached per request, so the page and its
+ * metadata share one lookup. `viewerId` is optional because the page
+ * shows this to people who haven't signed up yet: holding the token is the
+ * permission, and it reveals only what the owner chose to share by sending it.
+ */
+export const previewJoinLink = cache(async function previewJoinLink(
+  token: string,
+  viewerId?: string,
+): Promise<JoinLinkPreview | null> {
+  const cookbook = await cookbookRepository.findByJoinToken(token);
+  if (!cookbook) return null;
+
+  const membership = viewerId
+    ? await cookbookRepository.findMembership(cookbook.id, viewerId)
+    : null;
+
+  return {
+    cookbookId: cookbook.id,
+    title: cookbook.title,
+    description: cookbook.description,
+    design: toCoverDesign(cookbook),
+    role: grantableOrViewer(cookbook.joinLinkRole),
+    ownerName: displayName(cookbook.owner),
+    memberCount: cookbook._count.members,
+    alreadyMember: membership !== null,
+  };
+});
+
+const DEAD_LINK: MemberError = {
+  kind: "not-found",
+  message: "This link doesn't work any more. Ask whoever sent it for a new one.",
+};
+
+/**
+ * Join a cookbook through its link. The token is looked up again here rather
+ * than trusted from the page: it may have been reset or turned off since the
+ * page was shown. Someone already in the cookbook keeps the role they have.
+ */
+export async function joinWithLink(
+  userId: string,
+  token: string,
+): Promise<Result<{ cookbookId: string }, MemberError>> {
+  const cookbook = await cookbookRepository.findByJoinToken(token);
+  if (!cookbook) return err(DEAD_LINK);
+
+  await cookbookRepository.joinByLink(
+    cookbook.id,
+    userId,
+    grantableOrViewer(cookbook.joinLinkRole),
+  );
+  return ok({ cookbookId: cookbook.id });
 }

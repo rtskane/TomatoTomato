@@ -179,6 +179,21 @@ model Cookbook {
   coverFocalY Float @default(0.5)
   coverZoom   Float @default(1)
 
+  /// The "anyone with this link can join" link, as the token in its URL — or
+  /// null when the owner hasn't turned it on (or has turned it off).
+  ///
+  /// A column rather than a CookbookInvite row: there is exactly one such link
+  /// per cookbook, it is never "accepted" (it lets in as many people as hold
+  /// it), and resetting it means replacing the token so the old URL dies. None
+  /// of that is what an invite row models. Unique, so a token finds its
+  /// cookbook with an index rather than a scan.
+  joinLinkToken String? @unique
+
+  /// The role the link grants. Kept when the link is off, so turning it back
+  /// on remembers the owner's last choice. VIEWER by default — the safer of the
+  /// two, as Google Docs defaults to. Never OWNER; see grantableRoleSchema.
+  joinLinkRole CookbookRole @default(VIEWER)
+
   /// Set when the owner archives the cookbook; null means live.
   ///
   /// Archiving is a *soft* delete, chosen over a real one because deleting a

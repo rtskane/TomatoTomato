@@ -2,11 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the Prisma boundary so we assert *how* the repository calls it, without
 // a database. vi.hoisted lets the mock factory reference these safely.
-const { cookbook, cookbookMember } = vi.hoisted(() => ({
-  cookbook: { create: vi.fn() },
-  cookbookMember: { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
+const { cookbook, cookbookMember, cookbookInvite, $transaction } = vi.hoisted(() => ({
+  cookbook: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+  cookbookMember: {
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    upsert: vi.fn(),
+  },
+  cookbookInvite: { updateMany: vi.fn() },
+  $transaction: vi.fn(),
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: { cookbook, cookbookMember } }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: { cookbook, cookbookMember, cookbookInvite, $transaction },
+}));
 
 import { cookbookRepository } from "./cookbook.repository";
 import { DEFAULT_COVER_DESIGN } from "@/lib/book-covers";
@@ -201,5 +210,62 @@ describe("cookbookRepository.findMembership", () => {
     await expect(
       cookbookRepository.findMembership("cb1", "stranger"),
     ).resolves.toBeNull();
+  });
+});
+
+describe("cookbookRepository — join link", () => {
+  // Unknown, turned off, reset and archived must all look the same: dead.
+  it("only finds a live cookbook by its link token", async () => {
+    await cookbookRepository.findByJoinToken("tok");
+
+    expect(cookbook.findFirst.mock.calls[0][0].where).toEqual({
+      joinLinkToken: "tok",
+      archivedAt: null,
+    });
+  });
+
+  it("reads the link's state for its owner", async () => {
+    await cookbookRepository.findJoinLink("cb1");
+
+    expect(cookbook.findUnique.mock.calls[0][0]).toEqual({
+      where: { id: "cb1" },
+      select: { joinLinkToken: true, joinLinkRole: true },
+    });
+  });
+
+  it("turns a link off by clearing its token", async () => {
+    await cookbookRepository.setJoinLink("cb1", { token: null, role: "EDITOR" });
+
+    expect(cookbook.update.mock.calls[0][0]).toMatchObject({
+      where: { id: "cb1" },
+      data: { joinLinkToken: null, joinLinkRole: "EDITOR" },
+    });
+  });
+
+  describe("joinByLink", () => {
+    beforeEach(async () => {
+      await cookbookRepository.joinByLink("cb1", "u2", "VIEWER");
+    });
+
+    it("adds and settles in one transaction", () => {
+      expect($transaction).toHaveBeenCalledTimes(1);
+      expect($transaction.mock.calls[0][0]).toHaveLength(2);
+    });
+
+    // An owner opening their own Viewer link must stay the owner.
+    it("never changes the role of someone already in the cookbook", () => {
+      expect(cookbookMember.upsert.mock.calls[0][0]).toEqual({
+        where: { cookbookId_userId: { cookbookId: "cb1", userId: "u2" } },
+        create: { cookbookId: "cb1", userId: "u2", role: "VIEWER" },
+        update: {},
+      });
+    });
+
+    it("settles any invite still waiting for them in that cookbook", () => {
+      expect(cookbookInvite.updateMany.mock.calls[0][0]).toEqual({
+        where: { cookbookId: "cb1", invitedUserId: "u2", status: "PENDING" },
+        data: { status: "ACCEPTED" },
+      });
+    });
   });
 });
