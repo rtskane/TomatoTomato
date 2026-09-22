@@ -11,8 +11,10 @@ import {
   setJoinLinkEnabled,
   setJoinLinkRole,
   resetJoinLink,
+  createOneTimeLink,
   type InviteOutcome,
   type JoinLinkView,
+  type OneTimeLinkView,
   type InviteRowInput,
 } from "@/server/services/member.service";
 
@@ -210,4 +212,30 @@ export async function resetJoinLinkAction(
 
   revalidateMembers(cookbookId);
   return { link: result.value };
+}
+
+// ---------------------------------------------------------------------------
+// One-time links. Revoking one is `cancelInviteAction` — it is an invite row.
+// ---------------------------------------------------------------------------
+
+/** What the create form shows: the link just made, or why it wasn't. */
+export type OneTimeLinkState = { error?: string; created?: OneTimeLinkView };
+
+export async function createOneTimeLinkAction(
+  cookbookId: string,
+  _prevState: OneTimeLinkState,
+  formData: FormData,
+): Promise<OneTimeLinkState> {
+  const user = await requireOnboardedUser();
+
+  const result = await createOneTimeLink(
+    user.id,
+    cookbookId,
+    String(formData.get("role") ?? ""),
+    String(formData.get("label") ?? ""),
+  );
+  if (!result.ok) return { error: result.error.message };
+
+  revalidateMembers(cookbookId);
+  return { created: result.value };
 }

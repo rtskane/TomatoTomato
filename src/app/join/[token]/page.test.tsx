@@ -29,6 +29,7 @@ const preview = {
   ownerName: "ryan",
   memberCount: 3,
   alreadyMember: false,
+  singleUse: false,
 };
 
 const params = (token = "tok") => ({ params: Promise.resolve({ token }) });
@@ -104,6 +105,17 @@ describe("JoinPage — signed in", () => {
     previewJoinLink.mockResolvedValue({ ...preview, description: null });
     await renderPage();
     expect(screen.queryByText("What we actually cook.")).toBeNull();
+  });
+
+  it("says when a link works only once", async () => {
+    previewJoinLink.mockResolvedValue({ ...preview, singleUse: true });
+    await renderPage();
+    expect(screen.getByText(/stops working once it.s used/)).toBeInTheDocument();
+  });
+
+  it("says nothing about single use for the cookbook's shared link", async () => {
+    await renderPage();
+    expect(screen.queryByText(/stops working once/)).toBeNull();
   });
 
   it("counts one other person in the singular", async () => {

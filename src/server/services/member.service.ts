@@ -3,6 +3,9 @@ import {
   inviteRowSchema,
   grantableRoleSchema,
   inviteExpiry,
+  oneTimeLinkExpiry,
+  oneTimeLinkLabelSchema,
+  daysLeft,
   type GrantableRole,
 } from "@/lib/invite";
 import { displayName } from "@/lib/display-name";
@@ -314,6 +317,9 @@ export type MembersView = {
   /** The join link's state — null unless the viewer can manage members, since
    * the token itself is the permission to join. */
   joinLink: JoinLinkView | null;
+  /** Unused one-time links, newest first — empty unless the viewer manages
+   * members, for the same reason as `joinLink`. */
+  oneTimeLinks: OneTimeLinkView[];
 };
 
 /**
@@ -337,13 +343,15 @@ export async function getCookbookMembers(
   if (!cookbook) return null;
 
   const manages = canManageMembers(membership.role);
-  const [members, invites, link] = await Promise.all([
+  const [members, invites, link, oneTimeLinks] = await Promise.all([
     cookbookRepository.listMembers(cookbookId),
     manages
       ? inviteRepository.listPendingForCookbook(cookbookId)
       : Promise.resolve([]),
     manages ? cookbookRepository.findJoinLink(cookbookId) : Promise.resolve(null),
+    manages ? inviteRepository.listPendingLinks(cookbookId) : Promise.resolve([]),
   ]);
+  const now = new Date();
 
   return {
     cookbookId: cookbook.id,
@@ -369,6 +377,7 @@ export async function getCookbookMembers(
     joinLink: link
       ? { token: link.joinLinkToken, role: grantableOrViewer(link.joinLinkRole) }
       : null,
+    oneTimeLinks: oneTimeLinks.map((row) => toOneTimeLinkView(row, now)),
   };
 }
 
@@ -590,7 +599,38 @@ export type JoinLinkPreview = {
   memberCount: number;
   /** Whether the person looking is in already — they skip straight in. */
   alreadyMember: boolean;
+  /** A one-time link, spent by whoever joins with it first. */
+  singleUse: boolean;
 };
+
+/**
+ * What a token opens: the cookbook's shared link, or one of its one-time
+ * links. The two live in different tables — a cookbook column, an invite row —
+ * but the person holding one sees the same page and presses the same button,
+ * so everything past this lookup treats them alike.
+ */
+async function resolveJoinToken(token: string) {
+  const shared = await cookbookRepository.findByJoinToken(token);
+  if (shared) {
+    return {
+      singleUse: false as const,
+      role: grantableOrViewer(shared.joinLinkRole),
+      cookbook: shared,
+    };
+  }
+
+  const oneTime = await inviteRepository.findPendingLinkByToken(token);
+  if (oneTime) {
+    return {
+      singleUse: true as const,
+      inviteId: oneTime.id,
+      role: grantableOrViewer(oneTime.role),
+      cookbook: oneTime.cookbook,
+    };
+  }
+
+  return null;
+}
 
 /**
  * Look a link up without joining. Cached per request, so the page and its
@@ -602,8 +642,9 @@ export const previewJoinLink = cache(async function previewJoinLink(
   token: string,
   viewerId?: string,
 ): Promise<JoinLinkPreview | null> {
-  const cookbook = await cookbookRepository.findByJoinToken(token);
-  if (!cookbook) return null;
+  const link = await resolveJoinToken(token);
+  if (!link) return null;
+  const { cookbook } = link;
 
   const membership = viewerId
     ? await cookbookRepository.findMembership(cookbook.id, viewerId)
@@ -614,10 +655,11 @@ export const previewJoinLink = cache(async function previewJoinLink(
     title: cookbook.title,
     description: cookbook.description,
     design: toCoverDesign(cookbook),
-    role: grantableOrViewer(cookbook.joinLinkRole),
+    role: link.role,
     ownerName: displayName(cookbook.owner),
     memberCount: cookbook._count.members,
     alreadyMember: membership !== null,
+    singleUse: link.singleUse,
   };
 });
 
@@ -627,21 +669,100 @@ const DEAD_LINK: MemberError = {
 };
 
 /**
- * Join a cookbook through its link. The token is looked up again here rather
- * than trusted from the page: it may have been reset or turned off since the
- * page was shown. Someone already in the cookbook keeps the role they have.
+ * Join a cookbook through a link — its shared one, or a one-time one. The
+ * token is looked up again here rather than trusted from the page: it may have
+ * been reset, revoked or used since the page was shown. Someone already in the
+ * cookbook keeps the role they have.
  */
 export async function joinWithLink(
   userId: string,
   token: string,
 ): Promise<Result<{ cookbookId: string }, MemberError>> {
-  const cookbook = await cookbookRepository.findByJoinToken(token);
-  if (!cookbook) return err(DEAD_LINK);
+  const link = await resolveJoinToken(token);
+  if (!link) return err(DEAD_LINK);
+  const cookbookId = link.cookbook.id;
 
-  await cookbookRepository.joinByLink(
-    cookbook.id,
+  if (!link.singleUse) {
+    await cookbookRepository.joinByLink(cookbookId, userId, link.role);
+    return ok({ cookbookId });
+  }
+
+  // A one-time link is only spent on someone it lets in. A member opening it
+  // by mistake — or the owner checking what they're about to send — mustn't
+  // use it up before the person it was meant for gets there.
+  const membership = await cookbookRepository.findMembership(cookbookId, userId);
+  if (membership) return ok({ cookbookId });
+
+  const claimed = await inviteRepository.claimLink(
+    link.inviteId,
     userId,
-    grantableOrViewer(cookbook.joinLinkRole),
+    cookbookId,
+    link.role,
   );
-  return ok({ cookbookId: cookbook.id });
+  // Someone else used it between the lookup and the claim.
+  if (!claimed) return err(DEAD_LINK);
+  return ok({ cookbookId });
+}
+
+// ---------------------------------------------------------------------------
+// One-time links
+// ---------------------------------------------------------------------------
+
+/** A one-time link as its owner sees it in the Share dialog. */
+export type OneTimeLinkView = {
+  id: string;
+  token: string;
+  role: GrantableRole;
+  label: string | null;
+  /** Whole days until it stops working — 1 means "expires within a day". */
+  daysLeft: number;
+};
+
+function toOneTimeLinkView(
+  row: { id: string; token: string; role: CookbookRole; label: string | null; expiresAt: Date },
+  now: Date,
+): OneTimeLinkView {
+  return {
+    id: row.id,
+    token: row.token,
+    role: grantableOrViewer(row.role),
+    label: row.label,
+    daysLeft: daysLeft(row.expiresAt, now),
+  };
+}
+
+/**
+ * Make a link that lets one person in, once. Owners only, like every other
+ * way of widening who can see a cookbook.
+ */
+export async function createOneTimeLink(
+  actorUserId: string,
+  cookbookId: string,
+  rawRole: string,
+  rawLabel: string,
+  now: Date = new Date(),
+): Promise<Result<OneTimeLinkView, MemberError>> {
+  const allowed = await requireManager(actorUserId, cookbookId);
+  if (!allowed.ok) return allowed;
+
+  const role = grantableRoleSchema.safeParse(rawRole);
+  if (!role.success) {
+    return err({ kind: "validation", message: "Pick a valid role." });
+  }
+  const label = oneTimeLinkLabelSchema.safeParse(rawLabel);
+  if (!label.success) {
+    return err({
+      kind: "validation",
+      message: label.error.issues[0]?.message ?? "Check the label.",
+    });
+  }
+
+  const created = await inviteRepository.createLink({
+    cookbookId,
+    invitedById: actorUserId,
+    role: role.data,
+    expiresAt: oneTimeLinkExpiry(now),
+    label: label.data,
+  });
+  return ok(toOneTimeLinkView(created, now));
 }

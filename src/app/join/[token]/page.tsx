@@ -76,6 +76,12 @@ export default async function JoinPage({
             ? ` ${others} ${others === 1 ? "other person is" : "other people are"} already in it.`
             : ""}
         </p>
+        {/* So nobody forwards it on expecting it to work twice. */}
+        {preview.singleUse ? (
+          <p className="mt-2 text-caption-1 text-foreground-tertiary">
+            This link is just for you — it stops working once it&rsquo;s used.
+          </p>
+        ) : null}
       </div>
 
       <div className="mt-8">

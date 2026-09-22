@@ -14,6 +14,7 @@ vi.mock("./actions", () => {
     setJoinLinkEnabledAction: action(),
     setJoinLinkRoleAction: action(),
     resetJoinLinkAction: action(),
+    createOneTimeLinkAction: action(),
   };
 });
 
@@ -31,6 +32,7 @@ const view = (overrides: Partial<MembersView> = {}): MembersView => ({
   ],
   outstandingInvites: [],
   joinLink: { token: null, role: "VIEWER" },
+  oneTimeLinks: [],
   ...overrides,
 });
 
@@ -45,5 +47,28 @@ describe("MembersPanel — invite link", () => {
     render(<MembersPanel view={view({ canManageMembers: false, joinLink: null })} />);
     expect(screen.queryByRole("switch")).toBeNull();
     expect(screen.queryByText("Invite link")).toBeNull();
+  });
+});
+
+describe("MembersPanel — one-time links", () => {
+  it("lets the owner make them, and lists the unused ones", () => {
+    render(
+      <MembersPanel
+        view={view({
+          oneTimeLinks: [{ id: "inv9", token: "once", role: "EDITOR", label: "Mum", daysLeft: 6 }],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Create link" })).toBeInTheDocument();
+    expect(screen.getByText("Mum")).toBeInTheDocument();
+    // Not in the list of people: it names nobody.
+    expect(screen.queryByText("Waiting to accept")).toBeNull();
+  });
+
+  it("shows no one else how to make or find them", () => {
+    render(<MembersPanel view={view({ canManageMembers: false, joinLink: null })} />);
+    expect(screen.queryByText("One-time links")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create link" })).toBeNull();
   });
 });
