@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getCookbookDetail } from "@/server/services/cookbook.service";
 import { createRecipeAction } from "./actions";
-import { importFromTextAction, importFromUrlAction } from "./import-actions";
+import {
+  importFromTextAction,
+  importFromUrlAction,
+  importFromPhotoAction,
+} from "./import-actions";
 import RecipeCreator from "./recipe-creator";
 
 // Container: owns auth + data, and gates the whole page on permission before
@@ -27,6 +31,7 @@ export default async function NewRecipePage({
   const action = createRecipeAction.bind(null, cookbook.id);
   const importText = importFromTextAction.bind(null, cookbook.id);
   const importUrl = importFromUrlAction.bind(null, cookbook.id);
+  const importPhoto = importFromPhotoAction.bind(null, cookbook.id);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -48,6 +53,7 @@ export default async function NewRecipePage({
           saveAction={action}
           importTextAction={importText}
           importUrlAction={importUrl}
+          importPhotoAction={importPhoto}
         />
       </div>
     </div>

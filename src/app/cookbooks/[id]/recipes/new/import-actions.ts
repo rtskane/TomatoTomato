@@ -5,11 +5,13 @@ import {
   importFromText,
   importFromUrl,
 } from "@/server/services/recipe-import.service";
+import { importFromPhoto } from "@/server/services/recipe-photo-import.service";
 import type { CreateRecipeValues } from "../recipe-form-data";
 
-// Adapters for the two importers that need a server: one to read a link, one to
-// make sense of pasted text. Thin on purpose, like `createRecipeAction` — the
-// permission check and everything else lives in the service.
+// Adapters for the importers that need a server: one to read a link, one to
+// make sense of pasted text, one to ask AI to read a photo. Thin on purpose,
+// like `createRecipeAction` — the permission check and everything else lives
+// in the service.
 //
 // Neither writes anything. Both hand back `CreateRecipeValues`, which the page
 // puts into the ordinary recipe form for the author to check — so the save path
@@ -63,4 +65,20 @@ export async function importFromUrlAction(
   return result.ok
     ? { values: result.value }
     : { error: result.error.message, submitted: url };
+}
+
+export async function importFromPhotoAction(
+  cookbookId: string,
+  _prevState: ImportState,
+  formData: FormData,
+): Promise<ImportState> {
+  const user = await requireOnboardedUser();
+
+  const photo = formData.get("photo");
+  if (!(photo instanceof File) || photo.size === 0) {
+    return { error: "Choose a photo first." };
+  }
+
+  const result = await importFromPhoto(user.id, cookbookId, photo);
+  return result.ok ? { values: result.value } : { error: result.error.message };
 }
