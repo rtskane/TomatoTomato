@@ -27,38 +27,43 @@
    To try a different palette, change the values in this block and nothing else.
    -------------------------------------------------------------------------- */
 :root {
-  /* Accent ramp — Garnet Crystal.
-     Only -500 is a given colour; the tints and shades around it are
-     extrapolated so the accent has hover, wash and text variants. */
-  --accent-200: #f7d5d4;
-  --accent-300: #ee9e9c;
-  --accent-400: #e56b68;
-  --accent-500: #dd423e; /* GIVEN — Garnet Crystal */
-  --accent-600: #c1332f; /* hover/pressed: white on it is 5.6:1 */
-  /* "Ink" = the accent darkened until it is legible as *text or an icon* on a
-     light surface. Garnet itself is 4.3:1 on white, just under the 4.5:1
-     minimum, so accent-coloured type uses this instead. 7.7:1. */
-  --accent-800: #9c2723;
-  --accent-contrast: #ffffff; /* text on an accent fill — 4.3:1, see note below */
+  /* EXPERIMENTAL PALETTE — trying a 4-colour set (background / secondary /
+     accent / primary) from Ryan + partner. Only these four are "given"; every
+     other primitive below is derived from them with color-mix() rather than
+     hand-picked, so the contrast ratios noted elsewhere in this file no
+     longer apply verbatim — re-check before this goes anywhere near main. */
+
+  /* Accent ramp — now anchored on the given "Primary" red (was Garnet
+     Crystal). Only -500 is given; the rest are derived. */
+  --accent-200: color-mix(in srgb, #cf1b1b 18%, white);
+  --accent-300: color-mix(in srgb, #cf1b1b 38%, white);
+  --accent-400: color-mix(in srgb, #cf1b1b 70%, white);
+  --accent-500: #cf1b1b; /* GIVEN — Primary */
+  --accent-600: color-mix(in srgb, #cf1b1b 85%, black); /* hover/pressed */
+  /* "Ink" = the accent darkened until it is legible as text/an icon. */
+  --accent-800: color-mix(in srgb, #cf1b1b 60%, black);
+  --accent-contrast: #ffffff; /* text on an accent fill */
 
   /* The rest of the given palette, in supporting roles. */
-  --amber-100: #fbeed7; /* extrapolated wash of Alpine Amber, kept deep
-                          enough to read against the cream page */
-  --amber-300: #eac388; /* GIVEN — Alpine Amber. A fill, never text (1.7:1). */
-  --ochre-500: #c5ad4b; /* GIVEN — Forest Ochre. A fill, never text (2.2:1). */
-  --ochre-800: #7d6a1f; /* extrapolated: ochre as text, 5.3:1 */
-  --bronze-400: #a2a384; /* GIVEN — Dusty Bronze. 2.6:1, so muted text at most. */
-  --bronze-800: #5c5e42; /* extrapolated: bronze as text, 6.7:1 */
+  --amber-100: #fbeed7; /* unchanged — Alpine Amber wash, no replacement given */
+  --amber-300: #eac388; /* unchanged — Alpine Amber. A fill, never text (1.7:1). */
+  --ochre-500: #d9bf4e; /* GIVEN — "Accent" (mustard), was Forest Ochre */
+  --ochre-800: color-mix(in srgb, #d9bf4e 55%, black); /* derived ink */
+  --bronze-400: #a2a384; /* unchanged — Dusty Bronze, no replacement given */
+  --bronze-800: #5c5e42; /* unchanged — bronze as text */
 
-  /* Neutral ramp, warmed toward Worn Ruby so the greys belong to the palette
-     rather than sitting under it as cold slate. 900 is the given colour and
-     carries all primary text at 13.1:1; the rest are extrapolated.
-     300 is Dusty Bronze — note it is sage where its neighbours are brown, so
-     it reads slightly off-ramp. That is deliberate: it keeps the given colour
-     in play at the one step whose only job is muted, low-contrast text. */
+  /* Secondary — new: the given light blue had no home in the old palette
+     (status-info used to be a stock, off-palette blue; now it's this).
+     Matched to the banner artwork's actual background pixel, not the
+     original hex, since the banner is the reference now. */
+  --secondary-500: #7298d4; /* GIVEN — Secondary, sampled from banner.png */
+
+  /* Neutral ramp. 050 is now the given Background; 100 is derived one step
+     down from it instead of hand-tuned. 900/300 anchors (Worn Ruby / Dusty
+     Bronze) are unchanged since no replacement was given for them. */
   --neutral-000: #ffffff; /* true white — only for text on dark surfaces */
-  --neutral-050: #fcf8f3; /* the page itself: warm cream, not white */
-  --neutral-100: #f6efe5; /* secondary surface — hover fills */
+  --neutral-050: #f6efe9; /* GIVEN — Background */
+  --neutral-100: color-mix(in srgb, #f6efe9 90%, black); /* secondary surface — hover fills */
   --neutral-150: #f1e8db; /* control surface — inputs; also the faintest line */
   --neutral-200: #e7dbca; /* default lines, skeleton blocks */
   --neutral-250: #d8c9b5; /* strong lines */
@@ -81,7 +86,7 @@
   --status-error-strong: #7d1e1a; /* extrapolated: hover/pressed for destructive fills */
   --status-warning: var(--ochre-500);
   --status-warning-ink: var(--ochre-800);
-  --status-info: #3b82f6; /* NOT from the palette — no blue was supplied */
+  --status-info: var(--secondary-500); /* now sourced from the palette */
 
   /* Corner radius — Figma "03 — Spacing & Radius".
      Larger than Tailwind's stock values (4/6/8/12px). Held in :root rather
@@ -248,6 +253,10 @@
   --color-on-accent: var(--on-accent);
   --color-accent-ink: var(--accent-ink);
   --color-scrim: var(--scrim);
+
+  /* Secondary → bg-secondary. Exposed straight from the primitive since it
+     has no ramp of its own yet — just the one given blue. */
+  --color-secondary: var(--secondary-500);
 
   /* Status → bg-success (fills), text-success-ink (type) … */
   --color-success: var(--success);

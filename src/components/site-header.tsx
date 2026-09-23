@@ -2,6 +2,8 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import UserMenu from "@/components/user-menu";
+import HeaderChrome from "@/components/header-chrome";
+import HeaderLogo from "@/components/header-logo";
 
 // Server component: reads auth state directly instead of using client
 // <SignedIn>/<SignedOut> control components (not exported in this SDK version).
@@ -9,11 +11,9 @@ export default async function SiteHeader() {
   const { userId } = await auth();
 
   return (
-    <header className="border-b border-border">
+    <HeaderChrome>
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-headline font-semibold tracking-tight">
-          🍅 Tomato&nbsp;Tomato
-        </Link>
+        <HeaderLogo />
 
         <nav className="flex items-center gap-3 text-subheadline">
           {userId ? (
@@ -39,6 +39,6 @@ export default async function SiteHeader() {
           )}
         </nav>
       </div>
-    </header>
+    </HeaderChrome>
   );
 }
