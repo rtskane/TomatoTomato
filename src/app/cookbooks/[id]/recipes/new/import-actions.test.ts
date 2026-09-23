@@ -1,19 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { requireOnboardedUser, importFromText, importFromUrl } = vi.hoisted(
-  () => ({
+const { requireOnboardedUser, importFromText, importFromUrl, importFromPhoto } =
+  vi.hoisted(() => ({
     requireOnboardedUser: vi.fn(),
     importFromText: vi.fn(),
     importFromUrl: vi.fn(),
-  }),
-);
+    importFromPhoto: vi.fn(),
+  }));
 vi.mock("@/lib/user", () => ({ requireOnboardedUser }));
 vi.mock("@/server/services/recipe-import.service", () => ({
   importFromText,
   importFromUrl,
 }));
+vi.mock("@/server/services/recipe-photo-import.service", () => ({
+  importFromPhoto,
+}));
 
-import { importFromTextAction, importFromUrlAction } from "./import-actions";
+import {
+  importFromTextAction,
+  importFromUrlAction,
+  importFromPhotoAction,
+} from "./import-actions";
 import type { CreateRecipeValues } from "../recipe-form-data";
 
 const carbonara: CreateRecipeValues = {
@@ -38,6 +45,7 @@ beforeEach(() => {
   requireOnboardedUser.mockResolvedValue({ id: "u1", username: "chef_ryan" });
   importFromText.mockResolvedValue({ ok: true, value: carbonara });
   importFromUrl.mockResolvedValue({ ok: true, value: carbonara });
+  importFromPhoto.mockResolvedValue({ ok: true, value: carbonara });
 });
 
 // The two actions are the same adapter around different services, so every
@@ -88,5 +96,64 @@ describe.each([
   it("treats a missing field as an empty submission", async () => {
     await action("cb1", {}, new FormData());
     expect(service).toHaveBeenCalledWith("u1", "cb1", "");
+  });
+});
+
+// The photo importer takes a File, not a string, and has nothing to echo back
+// on failure — there's no text field for `submitted` to rescue — so it gets
+// its own cases rather than joining the table above.
+describe("importFromPhotoAction", () => {
+  const photoForm = (file?: File) => {
+    const fd = new FormData();
+    if (file) fd.set("photo", file);
+    return fd;
+  };
+  const photo = () => new File(["fake-jpeg-bytes"], "card.jpg", { type: "image/jpeg" });
+
+  it("lets the auth gate's redirect propagate and never calls the service", async () => {
+    requireOnboardedUser.mockRejectedValue(new Error("REDIRECT:/sign-in"));
+
+    await expect(
+      importFromPhotoAction("cb1", {}, photoForm(photo())),
+    ).rejects.toThrow("REDIRECT:/sign-in");
+    expect(importFromPhoto).not.toHaveBeenCalled();
+  });
+
+  it("imports as the signed-in user, into the bound cookbook", async () => {
+    const file = photo();
+    await importFromPhotoAction("cb1", {}, photoForm(file));
+    expect(importFromPhoto).toHaveBeenCalledWith("u1", "cb1", file);
+  });
+
+  it("hands back the values for the form on success", async () => {
+    expect(await importFromPhotoAction("cb1", {}, photoForm(photo()))).toEqual({
+      values: carbonara,
+    });
+  });
+
+  it("returns the service's message on failure", async () => {
+    importFromPhoto.mockResolvedValue({
+      ok: false,
+      error: { kind: "unparseable", message: "We couldn't make a recipe out of that photo." },
+    });
+
+    expect(await importFromPhotoAction("cb1", {}, photoForm(photo()))).toEqual({
+      error: "We couldn't make a recipe out of that photo.",
+    });
+  });
+
+  it("rejects a missing photo without calling the service", async () => {
+    expect(await importFromPhotoAction("cb1", {}, photoForm())).toEqual({
+      error: "Choose a photo first.",
+    });
+    expect(importFromPhoto).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty file without calling the service", async () => {
+    const empty = new File([], "card.jpg", { type: "image/jpeg" });
+    expect(await importFromPhotoAction("cb1", {}, photoForm(empty))).toEqual({
+      error: "Choose a photo first.",
+    });
+    expect(importFromPhoto).not.toHaveBeenCalled();
   });
 });

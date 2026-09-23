@@ -6,7 +6,18 @@ import RecipeCreator from "./recipe-creator";
 import type { ImportState } from "./import-actions";
 import type { CreateRecipeValues } from "../recipe-form-data";
 
-afterEach(cleanup);
+// `prepareForVision` is canvas work jsdom can't do — mocked so the photo
+// panel's own logic (picking a file, wiring up the submit) is what's under
+// test here, not image resizing.
+const { prepareForVision } = vi.hoisted(() => ({
+  prepareForVision: vi.fn(async () => new Blob(["fake-jpeg"], { type: "image/jpeg" })),
+}));
+vi.mock("./photo-preprocessing", () => ({ prepareForVision }));
+
+afterEach(() => {
+  cleanup();
+  prepareForVision.mockClear();
+});
 
 const carbonara: CreateRecipeValues = {
   title: "Weeknight Carbonara",
@@ -42,6 +53,7 @@ function renderCreator(overrides: Partial<Parameters<typeof RecipeCreator>[0]> =
       saveAction={vi.fn()}
       importTextAction={succeeds()}
       importUrlAction={succeeds()}
+      importPhotoAction={succeeds()}
       {...overrides}
     />,
   );
@@ -249,5 +261,70 @@ describe("importing", () => {
 
     expect(screen.getByLabelText("Title")).toHaveValue("");
     expect(screen.queryByText("200 g spaghetti")).not.toBeInTheDocument();
+  });
+});
+
+// Unlike paste/link, the photo panel isn't a `<form action={...}>` — picking
+// a file has to be resized client-side (mocked above) before there's
+// anything to hand the server action, so it gets its own coverage rather
+// than joining the shared "importing" cases.
+describe("photo mode", () => {
+  const photoFile = () => new File(["card bytes"], "card.jpg", { type: "image/jpeg" });
+
+  it("shows just a picker, with Read it disabled until a photo is chosen", async () => {
+    const user = userEvent.setup();
+    renderCreator();
+
+    await user.click(screen.getByRole("button", { name: /from a photo/i }));
+
+    expect(screen.getByText(/^choose a photo$/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /read it/i })).toBeDisabled();
+    // No leftover OCR UI: no textbox to review, no raw text to correct.
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("resizes the chosen photo and sends it to the AI importer", async () => {
+    const user = userEvent.setup();
+    const importPhotoAction = vi.fn(
+      async (_state: ImportState, _formData: FormData): Promise<ImportState> => ({
+        values: carbonara,
+      }),
+    );
+    renderCreator({ importPhotoAction });
+
+    await user.click(screen.getByRole("button", { name: /from a photo/i }));
+    const file = photoFile();
+    await user.upload(screen.getByLabelText(/choose a photo/i), file);
+    expect(screen.getByRole("button", { name: /read it/i })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+
+    await waitFor(() => expect(importPhotoAction).toHaveBeenCalled());
+    expect(prepareForVision).toHaveBeenCalledWith(file);
+    const formData = importPhotoAction.mock.calls[0][1];
+    expect(formData.get("photo")).toBeInstanceOf(Blob);
+
+    // And it lands in the form, same as every other importer.
+    await waitFor(() =>
+      expect(screen.getByLabelText("Title")).toHaveValue("Weeknight Carbonara"),
+    );
+  });
+
+  it("shows an error and stays on the panel when the AI reading fails", async () => {
+    const user = userEvent.setup();
+    renderCreator({
+      importPhotoAction: vi.fn(async (): Promise<ImportState> => ({
+        error: "We couldn't make a recipe out of that photo.",
+      })),
+    });
+
+    await user.click(screen.getByRole("button", { name: /from a photo/i }));
+    await user.upload(screen.getByLabelText(/choose a photo/i), photoFile());
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/couldn't make a recipe/i),
+    );
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
   });
 });

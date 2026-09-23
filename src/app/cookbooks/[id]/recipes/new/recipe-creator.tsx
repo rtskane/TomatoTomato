@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useId, useState } from "react";
 import RecipeForm, { type RecipeFormAction } from "./recipe-form";
 import type { CreateRecipeValues } from "../recipe-form-data";
 import type { ImportState } from "./import-actions";
 import { fieldClass, primaryButtonClass } from "./form-classes";
+import { prepareForVision } from "./photo-preprocessing";
+import { ACCEPTED_IMAGE_TYPES } from "@/lib/image-uploads";
 
 // Three ways to start a recipe, one recipe at the end of them.
 //
@@ -19,7 +21,7 @@ type ImportAction = (
   formData: FormData,
 ) => Promise<ImportState>;
 
-type Mode = "choose" | "form" | "paste" | "link";
+type Mode = "choose" | "form" | "paste" | "link" | "photo";
 
 const CHOICES: {
   mode: Mode;
@@ -44,6 +46,12 @@ const CHOICES: {
     title: "From a link",
     blurb: "Paste a link and we'll read the recipe off the page.",
     icon: "↗",
+  },
+  {
+    mode: "photo",
+    title: "From a photo",
+    blurb: "A recipe card, a cookbook page, handwriting — we'll read it with AI.",
+    icon: "▣",
   },
 ];
 
@@ -71,7 +79,9 @@ function ImportPanel({
   hint,
   error,
   pending,
+  disabled = false,
   submitLabel,
+  onSubmit,
   onBack,
   children,
 }: {
@@ -79,7 +89,15 @@ function ImportPanel({
   hint: string;
   error?: string;
   pending: boolean;
+  /** Blocks submit without a "Reading…" label — nothing to submit yet. */
+  disabled?: boolean;
   submitLabel: string;
+  /**
+   * Set when the panel isn't wrapped in a `<form action={...}>` — the photo
+   * importer has to preprocess the file client-side before it has anything to
+   * hand a server action, so its button calls this instead of submitting.
+   */
+  onSubmit?: () => void;
   onBack: () => void;
   children: React.ReactNode;
 }) {
@@ -98,7 +116,12 @@ function ImportPanel({
         ) : null}
 
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={pending} className={primaryButtonClass}>
+          <button
+            type={onSubmit ? "button" : "submit"}
+            onClick={onSubmit}
+            disabled={pending || disabled}
+            className={primaryButtonClass}
+          >
             {pending ? "Reading…" : submitLabel}
           </button>
           <button
@@ -119,14 +142,22 @@ export default function RecipeCreator({
   saveAction,
   importTextAction,
   importUrlAction,
+  importPhotoAction,
 }: {
   cookbookId: string;
   saveAction: RecipeFormAction;
   importTextAction: ImportAction;
   importUrlAction: ImportAction;
+  importPhotoAction: ImportAction;
 }) {
   const [mode, setMode] = useState<Mode>("choose");
   const [imported, setImported] = useState<CreateRecipeValues | undefined>();
+  const photoInputId = useId();
+  // The chosen file, undefined until a photo is picked.
+  const [photoFile, setPhotoFile] = useState<File | undefined>();
+  // Covers preparing the file client-side, before there's anything to hand
+  // `photoFormAction` — `photoPending` alone would miss that gap.
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
 
   const [textState, textFormAction, textPending] = useActionState(
     importTextAction,
@@ -136,6 +167,10 @@ export default function RecipeCreator({
     importUrlAction,
     {} as ImportState,
   );
+  const [photoState, photoFormAction, photoPending] = useActionState(
+    importPhotoAction,
+    {} as ImportState,
+  );
 
   // An import that succeeded is a form waiting to be checked — but only if the
   // author is still waiting on it. Someone who backed out while it was reading
@@ -143,17 +178,42 @@ export default function RecipeCreator({
   // that would overwrite their work. (It also keeps the form's one-time
   // seeding honest: the form is only ever mounted fresh from a panel, so it
   // never needs a key to notice new values.)
-  const showImportedFrom = (panel: Mode) => (values: CreateRecipeValues) => {
-    if (mode !== panel) return;
-    setImported(values);
-    setMode("form");
-  };
+  const showImportedFrom =
+    (...panels: Mode[]) =>
+    (values: CreateRecipeValues) => {
+      if (!panels.includes(mode)) return;
+      setImported(values);
+      setMode("form");
+    };
   useOnImport(textState.values, showImportedFrom("paste"));
   useOnImport(urlState.values, showImportedFrom("link"));
+  useOnImport(photoState.values, showImportedFrom("photo"));
 
   function backToChoices() {
     setMode("choose");
     setImported(undefined);
+    setPhotoFile(undefined);
+  }
+
+  /**
+   * The photo importer can't just be `<form action={photoFormAction}>` like
+   * the others — the file has to be resized and re-encoded client-side first,
+   * and that's async, so there's nothing to hand the server action until this
+   * finishes.
+   */
+  async function submitPhoto() {
+    if (!photoFile) return;
+    setPreparingPhoto(true);
+    try {
+      const blob = await prepareForVision(photoFile);
+      const formData = new FormData();
+      formData.set("photo", blob, "photo.jpg");
+      startTransition(() => {
+        photoFormAction(formData);
+      });
+    } finally {
+      setPreparingPhoto(false);
+    }
   }
 
   if (mode === "choose") {
@@ -242,6 +302,49 @@ export default function RecipeCreator({
           />
         </ImportPanel>
       </form>
+    );
+  }
+
+  if (mode === "photo") {
+    const photoBusy = preparingPhoto || photoPending;
+    return (
+      <ImportPanel
+        title="From a photo"
+        hint="A recipe card, a cookbook page, handwriting — Claude reads it and fills in the form below for you to check over."
+        error={photoState.error}
+        pending={photoBusy}
+        disabled={!photoFile}
+        submitLabel="Read it"
+        onSubmit={submitPhoto}
+        onBack={backToChoices}
+      >
+        <div>
+          <label
+            htmlFor={photoInputId}
+            className="inline-block cursor-pointer rounded-md border border-border-strong px-3 py-1.5 text-subheadline font-medium hover:bg-background-secondary"
+          >
+            {photoFile ? "Choose a different photo" : "Choose a photo"}
+          </label>
+          <input
+            id={photoInputId}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES.join(",")}
+            disabled={photoBusy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) setPhotoFile(file);
+            }}
+            className="sr-only"
+          />
+
+          {photoFile ? (
+            <p className="mt-2 text-caption-1 text-foreground-secondary">
+              {photoFile.name}
+            </p>
+          ) : null}
+        </div>
+      </ImportPanel>
     );
   }
 

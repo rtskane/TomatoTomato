@@ -275,7 +275,7 @@ async function fetchPage(start: URL): Promise<Result<string, ImportError>> {
   });
 }
 
-const FORBIDDEN: ImportError = {
+export const FORBIDDEN: ImportError = {
   kind: "forbidden",
   message: "You don't have permission to add recipes to this cookbook.",
 };
@@ -288,9 +288,10 @@ const FORBIDDEN: ImportError = {
  * It isn't. `importFromUrl` makes our server fetch a URL of the caller's
  * choosing, and an endpoint that does that for any signed-in user is a fetching
  * service we host for strangers. Tying it to a cookbook they can already write
- * to keeps it in proportion to what it's for.
+ * to keeps it in proportion to what it's for — every importer shares this
+ * check, including the photo-to-AI one, which spends real money per call.
  */
-async function canImportInto(userId: string, cookbookId: string) {
+export async function canImportInto(userId: string, cookbookId: string) {
   const membership = await cookbookRepository.findMembership(cookbookId, userId);
   return Boolean(membership && canAddRecipes(membership.role));
 }
