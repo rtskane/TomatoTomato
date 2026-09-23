@@ -212,17 +212,6 @@ export const cookbookRepository = {
     });
   },
 
-  /**
-   * Which of these users are already members. Used by the batch invite path to
-   * skip people who are in the cookbook already, in one query rather than N.
-   */
-  findMembershipsForUsers(cookbookId: string, userIds: string[]) {
-    return prisma.cookbookMember.findMany({
-      where: { cookbookId, userId: { in: userIds } },
-      select: { userId: true },
-    });
-  },
-
   updateMemberRole(cookbookId: string, userId: string, role: CookbookRole) {
     return prisma.cookbookMember.update({
       where: { cookbookId_userId: { cookbookId, userId } },
@@ -361,26 +350,16 @@ export const cookbookRepository = {
   },
 
   /**
-   * Add someone through the link, in one transaction.
-   *
-   * An existing membership is left exactly as it is: the link grants a role
-   * to people who aren't in yet, and must never demote someone who is — an
-   * owner opening their own Viewer link included. Any in-app invite still
-   * waiting for them is marked accepted, so it doesn't sit on their dashboard
-   * asking them to join a cookbook they're already in.
+   * Add someone through the link. An existing membership is left exactly as
+   * it is: the link grants a role to people who aren't in yet, and must never
+   * demote someone who is — an owner opening their own Viewer link included.
    */
   joinByLink(cookbookId: string, userId: string, role: CookbookRole) {
-    return prisma.$transaction([
-      prisma.cookbookMember.upsert({
-        where: { cookbookId_userId: { cookbookId, userId } },
-        create: { cookbookId, userId, role },
-        update: {},
-      }),
-      prisma.cookbookInvite.updateMany({
-        where: { cookbookId, invitedUserId: userId, status: "PENDING" },
-        data: { status: "ACCEPTED" },
-      }),
-    ]);
+    return prisma.cookbookMember.upsert({
+      where: { cookbookId_userId: { cookbookId, userId } },
+      create: { cookbookId, userId, role },
+      update: {},
+    });
   },
 
 };

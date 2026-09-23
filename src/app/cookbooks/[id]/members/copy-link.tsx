@@ -86,10 +86,24 @@ export function CopyLinkField({ url, label }: { url: string; label: string }) {
 
 /**
  * A Copy button on its own, for a row that doesn't show its link. If the
- * clipboard refuses, the link appears under it, selected, to copy by hand.
+ * clipboard refuses, the button gives way to the link itself, selected, to
+ * copy by hand — in the same spot, so the row's layout holds.
  */
 export function CopyLinkButton({ url, label }: { url: string; label: string }) {
   const { copied, failed, copy } = useCopy(url);
+
+  if (failed) {
+    return (
+      <input
+        readOnly
+        autoFocus
+        value={url}
+        aria-label={label}
+        onFocus={(e) => e.currentTarget.select()}
+        className="w-44 rounded-md border border-border bg-background-control px-2 py-1 text-caption-2 text-foreground-secondary outline-none"
+      />
+    );
+  }
 
   return (
     <>
@@ -102,16 +116,6 @@ export function CopyLinkButton({ url, label }: { url: string; label: string }) {
       >
         {copied ? "Copied" : "Copy link"}
       </button>
-      {failed ? (
-        <input
-          readOnly
-          autoFocus
-          value={url}
-          aria-label={label}
-          onFocus={(e) => e.currentTarget.select()}
-          className="mt-1 w-full rounded-md border border-border bg-background-control px-2 py-1 text-caption-2 text-foreground-secondary outline-none"
-        />
-      ) : null}
       <CopiedStatus copied={copied} />
     </>
   );

@@ -7,7 +7,9 @@ const { cookbookInvite, cookbookMember, $transaction } = vi.hoisted(() => ({
     create: vi.fn(),
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     updateMany: vi.fn(),
+    delete: vi.fn(),
   },
   cookbookMember: { upsert: vi.fn() },
   $transaction: vi.fn(),
@@ -29,7 +31,7 @@ beforeEach(() => {
 });
 
 describe("inviteRepository — one-time links", () => {
-  it("creates a link addressed to no one, with a fresh URL-safe token", async () => {
+  it("creates a link with a fresh URL-safe token", async () => {
     await inviteRepository.createLink({
       cookbookId: "cb1",
       invitedById: "owner1",
@@ -45,8 +47,6 @@ describe("inviteRepository — one-time links", () => {
       role: "EDITOR",
       expiresAt: NOW,
       label: "Mum",
-      invitedUserId: null,
-      email: null,
     });
     expect(data.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
@@ -58,22 +58,23 @@ describe("inviteRepository — one-time links", () => {
       cookbookId: "cb1",
       status: "PENDING",
       expiresAt: { gt: NOW },
-      invitedUserId: null,
-      email: null,
     });
   });
 
-  // Each would otherwise appear as "Unknown" among the people waiting.
-  it("keeps links out of the list of people invited", async () => {
-    await inviteRepository.listPendingForCookbook("cb1", NOW);
+  it("finds which cookbook a link belongs to", async () => {
+    await inviteRepository.findLinkById("inv9");
 
-    expect(cookbookInvite.findMany.mock.calls[0][0].where.NOT).toEqual({
-      invitedUserId: null,
-      email: null,
+    expect(cookbookInvite.findUnique.mock.calls[0][0]).toEqual({
+      where: { id: "inv9" },
+      select: { id: true, cookbookId: true },
     });
   });
 
-  // An in-app invite's token is never handed out, so it must not work as a link.
+  it("revokes a link by deleting it", async () => {
+    await inviteRepository.revokeLink("inv9");
+    expect(cookbookInvite.delete).toHaveBeenCalledWith({ where: { id: "inv9" } });
+  });
+
   it("opens only an unused link to a live cookbook", async () => {
     await inviteRepository.findPendingLinkByToken("once", NOW);
 
@@ -81,8 +82,6 @@ describe("inviteRepository — one-time links", () => {
       token: "once",
       status: "PENDING",
       expiresAt: { gt: NOW },
-      invitedUserId: null,
-      email: null,
       cookbook: { archivedAt: null },
     });
   });
@@ -99,7 +98,7 @@ describe("inviteRepository — one-time links", () => {
       });
     });
 
-    it("adds the member without changing anyone already in, and settles their invites", async () => {
+    it("adds the member without changing anyone already in", async () => {
       cookbookInvite.updateMany.mockResolvedValueOnce({ count: 1 });
 
       await inviteRepository.claimLink("inv9", "u2", "cb1", "VIEWER", NOW);
@@ -108,10 +107,6 @@ describe("inviteRepository — one-time links", () => {
         where: { cookbookId_userId: { cookbookId: "cb1", userId: "u2" } },
         create: { cookbookId: "cb1", userId: "u2", role: "VIEWER" },
         update: {},
-      });
-      expect(cookbookInvite.updateMany.mock.calls[1][0]).toEqual({
-        where: { cookbookId: "cb1", invitedUserId: "u2", status: "PENDING" },
-        data: { status: "ACCEPTED" },
       });
     });
 

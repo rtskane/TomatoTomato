@@ -6,15 +6,13 @@ import { render, screen, cleanup } from "@testing-library/react";
 vi.mock("./actions", () => {
   const action = () => ({ bind: () => vi.fn(async () => ({})) });
   return {
-    inviteMembersAction: action(),
     changeMemberRoleAction: action(),
     removeMemberAction: action(),
-    changeInviteRoleAction: action(),
-    cancelInviteAction: action(),
     setJoinLinkEnabledAction: action(),
     setJoinLinkRoleAction: action(),
     resetJoinLinkAction: action(),
     createOneTimeLinkAction: action(),
+    revokeOneTimeLinkAction: action(),
   };
 });
 
@@ -30,7 +28,6 @@ const view = (overrides: Partial<MembersView> = {}): MembersView => ({
   members: [
     { userId: "owner1", name: "ryan", avatarUrl: null, role: "OWNER", isOwner: true, isSelf: true },
   ],
-  outstandingInvites: [],
   joinLink: { token: null, role: "VIEWER" },
   oneTimeLinks: [],
   ...overrides,
@@ -62,8 +59,6 @@ describe("MembersPanel — one-time links", () => {
 
     expect(screen.getByRole("button", { name: "Create link" })).toBeInTheDocument();
     expect(screen.getByText("Mum")).toBeInTheDocument();
-    // Not in the list of people: it names nobody.
-    expect(screen.queryByText("Waiting to accept")).toBeNull();
   });
 
   it("shows no one else how to make or find them", () => {

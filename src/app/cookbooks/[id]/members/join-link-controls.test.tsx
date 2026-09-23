@@ -44,7 +44,7 @@ describe("JoinLinkControls — off", () => {
     renderControls(OFF);
 
     expect(screen.getByRole("switch", { name: "Invite link" })).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText(/only people you invite by name/i)).toBeInTheDocument();
+    expect(screen.getByText(/only join through a one-time link/i)).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 

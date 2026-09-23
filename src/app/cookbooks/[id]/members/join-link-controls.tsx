@@ -4,7 +4,8 @@ import { startTransition, useActionState, useState } from "react";
 import { CopyLinkField, useJoinUrl } from "./copy-link";
 import type { JoinLinkState } from "./actions";
 import type { JoinLinkView } from "@/server/services/member.service";
-import type { GrantableRole } from "@/lib/invite";
+import { GRANTABLE_ROLE_LABELS, type GrantableRole } from "@/lib/invite";
+import { controlClass } from "./control-classes";
 
 // The owner's controls for "anyone with this link can join", laid out the way
 // Google Docs lays out its general-access setting: a switch, the role the link
@@ -21,15 +22,6 @@ type LinkAction = (
 ) => Promise<JoinLinkState>;
 
 const initialState: JoinLinkState = {};
-
-const ROLE_LABELS: Record<GrantableRole, string> = {
-  EDITOR: "Editor",
-  VIEWER: "Viewer",
-};
-
-const selectClass =
-  "rounded-lg border border-border bg-background-control px-2 py-1 text-subheadline " +
-  "outline-none focus:border-border-input-strong disabled:opacity-50";
 
 export default function JoinLinkControls({
   link,
@@ -103,7 +95,7 @@ export default function JoinLinkControls({
           <p className="mt-0.5 text-caption-1 text-foreground-tertiary">
             {enabled
               ? "Anyone with the link can join. Share it with people you trust."
-              : "Off. Only people you invite by name can join."}
+              : "Off. People can only join through a one-time link."}
           </p>
         </div>
 
@@ -141,11 +133,11 @@ export default function JoinLinkControls({
                 setSelectedRole(role);
                 dispatch(submitRole, { role });
               }}
-              className={selectClass}
+              className={controlClass}
             >
-              {(Object.keys(ROLE_LABELS) as GrantableRole[]).map((role) => (
+              {(Object.keys(GRANTABLE_ROLE_LABELS) as GrantableRole[]).map((role) => (
                 <option key={role} value={role}>
-                  {ROLE_LABELS[role]}
+                  {GRANTABLE_ROLE_LABELS[role]}
                 </option>
               ))}
             </select>

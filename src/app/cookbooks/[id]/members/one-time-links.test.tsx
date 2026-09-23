@@ -108,7 +108,8 @@ describe("OneTimeLinks — the unused ones", () => {
     expect(screen.getByRole("button", { name: "Copy link for Mum" })).toHaveTextContent("Copied");
   });
 
-  // No clipboard permission: the link appears, selected, to copy by hand.
+  // No clipboard permission: the button gives way to the link, selected, to
+  // copy by hand — in the same spot, so the row keeps its shape.
   it("shows the link to copy by hand when the clipboard refuses", async () => {
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText: vi.fn(async () => { throw new Error("denied"); }) },
@@ -121,6 +122,7 @@ describe("OneTimeLinks — the unused ones", () => {
     const field = await screen.findByRole("textbox", { name: "link for Mum" });
     expect(field).toHaveValue(`${window.location.origin}/join/once`);
     expect(field).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Copy link for Mum" })).toBeNull();
   });
 
   it("revokes a link by its invite id", async () => {
@@ -129,7 +131,7 @@ describe("OneTimeLinks — the unused ones", () => {
     await userEvent.click(screen.getByRole("button", { name: "Revoke link for Mum" }));
 
     await waitFor(() => expect(revokeAction).toHaveBeenCalled());
-    expect(revokeAction.mock.calls[0][1].get("inviteId")).toBe("inv9");
+    expect(revokeAction.mock.calls[0][1].get("linkId")).toBe("inv9");
   });
 
   it("says why a link couldn't be revoked", async () => {

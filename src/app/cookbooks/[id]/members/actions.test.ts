@@ -7,6 +7,7 @@ const svc = vi.hoisted(() => ({
   setJoinLinkRole: vi.fn(),
   resetJoinLink: vi.fn(),
   createOneTimeLink: vi.fn(),
+  revokeOneTimeLink: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: svc.revalidatePath }));
 vi.mock("@/lib/user", () => ({ requireOnboardedUser: svc.requireOnboardedUser }));
@@ -15,6 +16,7 @@ vi.mock("@/server/services/member.service", () => ({
   setJoinLinkRole: svc.setJoinLinkRole,
   resetJoinLink: svc.resetJoinLink,
   createOneTimeLink: svc.createOneTimeLink,
+  revokeOneTimeLink: svc.revokeOneTimeLink,
 }));
 
 import {
@@ -22,6 +24,7 @@ import {
   setJoinLinkRoleAction,
   resetJoinLinkAction,
   createOneTimeLinkAction,
+  revokeOneTimeLinkAction,
 } from "./actions";
 
 const LINK = { token: "tok", role: "EDITOR" };
@@ -113,6 +116,33 @@ describe("createOneTimeLinkAction", () => {
 
     expect(await createOneTimeLinkAction("cb1", {}, form({ role: "VIEWER" }))).toEqual({
       error: "Only the owner can.",
+    });
+    expect(svc.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("revokeOneTimeLinkAction", () => {
+  it("revokes the link named in the form, as the signed-in user, and refreshes", async () => {
+    svc.revokeOneTimeLink.mockResolvedValue({ ok: true, value: true });
+
+    expect(await revokeOneTimeLinkAction("cb1", {}, form({ linkId: "inv9" }))).toEqual({});
+    expect(svc.revokeOneTimeLink).toHaveBeenCalledWith("owner1", "inv9");
+    expect(svc.revalidatePath).toHaveBeenCalledWith("/cookbooks/cb1");
+  });
+
+  it("treats a missing link id as empty, for the service to refuse", async () => {
+    svc.revokeOneTimeLink.mockResolvedValue({ ok: false, error: { kind: "not-found", message: "That link is no longer available." } });
+
+    await revokeOneTimeLinkAction("cb1", {}, form());
+
+    expect(svc.revokeOneTimeLink).toHaveBeenCalledWith("owner1", "");
+  });
+
+  it("reports a refusal", async () => {
+    svc.revokeOneTimeLink.mockResolvedValue({ ok: false, error: { kind: "not-found", message: "That link is no longer available." } });
+
+    expect(await revokeOneTimeLinkAction("cb1", {}, form({ linkId: "gone" }))).toEqual({
+      error: "That link is no longer available.",
     });
     expect(svc.revalidatePath).not.toHaveBeenCalled();
   });

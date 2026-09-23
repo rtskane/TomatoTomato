@@ -3,8 +3,14 @@
 import { startTransition, useActionState } from "react";
 import type { MemberActionState, OneTimeLinkState } from "./actions";
 import type { OneTimeLinkView } from "@/server/services/member.service";
-import { ONE_TIME_LINK_TTL_DAYS, type GrantableRole } from "@/lib/invite";
+import {
+  GRANTABLE_ROLE_LABELS,
+  ONE_TIME_LINK_LABEL_MAX,
+  ONE_TIME_LINK_TTL_DAYS,
+  type GrantableRole,
+} from "@/lib/invite";
 import { CopyLinkButton, useJoinUrl } from "./copy-link";
+import { controlClass } from "./control-classes";
 
 // Links that let one person in, once — for when the cookbook's shared link is
 // more open than the owner wants. Each is made for someone ("Mum"), copied,
@@ -20,15 +26,6 @@ type RevokeAction = (
   state: MemberActionState,
   formData: FormData,
 ) => Promise<MemberActionState>;
-
-const ROLE_LABELS: Record<GrantableRole, string> = {
-  VIEWER: "Viewer",
-  EDITOR: "Editor",
-};
-
-const controlClass =
-  "rounded-lg border border-border bg-background-control px-2 py-1.5 text-subheadline " +
-  "outline-none focus:border-border-input-strong disabled:opacity-50";
 
 function expiryText(daysLeft: number) {
   return daysLeft <= 1 ? "expires within a day" : `expires in ${daysLeft} days`;
@@ -59,7 +56,7 @@ function OneTimeLinkRow({
           ) : null}
         </p>
         <p className="text-caption-1 text-foreground-tertiary">
-          {ROLE_LABELS[link.role]} · {expiryText(link.daysLeft)}
+          {GRANTABLE_ROLE_LABELS[link.role]} · {expiryText(link.daysLeft)}
         </p>
         {state.error ? (
           <p role="alert" className="text-caption-1 text-error">
@@ -68,26 +65,24 @@ function OneTimeLinkRow({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end">
-        <div className="flex items-center gap-2">
-          <CopyLinkButton url={url} label={`link for ${name}`} />
-          {/* Dispatched by hand rather than as a <form>, like RoleRow's
-              controls: the row is about to disappear, and a form reset
-              racing that is only noise. */}
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => {
-              const formData = new FormData();
-              formData.set("inviteId", link.id);
-              startTransition(() => submitRevoke(formData));
-            }}
-            aria-label={`Revoke link for ${name}`}
-            className="rounded-md px-2 py-1 text-caption-1 text-foreground-secondary hover:underline disabled:opacity-50"
-          >
-            Revoke
-          </button>
-        </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <CopyLinkButton url={url} label={`link for ${name}`} />
+        {/* Dispatched by hand rather than as a <form>, like RoleRow's
+            controls: the row is about to disappear, and a form reset
+            racing that is only noise. */}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            const formData = new FormData();
+            formData.set("linkId", link.id);
+            startTransition(() => submitRevoke(formData));
+          }}
+          aria-label={`Revoke link for ${name}`}
+          className="rounded-md px-2 py-1 text-caption-1 text-foreground-secondary hover:underline disabled:opacity-50"
+        >
+          Revoke
+        </button>
       </div>
     </li>
   );
@@ -117,20 +112,20 @@ export default function OneTimeLinks({
       <form action={formAction} className="mt-3 flex flex-wrap gap-2">
         <input
           name="label"
-          maxLength={40}
+          maxLength={ONE_TIME_LINK_LABEL_MAX}
           placeholder="Who's it for? (optional)"
           aria-label="Who the link is for"
-          className={`min-w-0 flex-1 ${controlClass} px-3`}
+          className={`min-w-0 flex-1 ${controlClass} px-3 py-1.5`}
         />
         <select
           name="role"
           defaultValue="VIEWER"
           aria-label="Role for the new link"
-          className={controlClass}
+          className={`${controlClass} py-1.5`}
         >
-          {(Object.keys(ROLE_LABELS) as GrantableRole[]).map((role) => (
+          {(Object.keys(GRANTABLE_ROLE_LABELS) as GrantableRole[]).map((role) => (
             <option key={role} value={role}>
-              {ROLE_LABELS[role]}
+              {GRANTABLE_ROLE_LABELS[role]}
             </option>
           ))}
         </select>
