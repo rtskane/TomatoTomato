@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { requireOnboardedUser } from "@/lib/user";
 import { getRecipeDetail } from "@/server/services/recipe-detail.service";
 import RecipeForm from "../../new/recipe-form";
-import DeleteRecipe from "./delete-recipe";
-import { updateRecipeAction, deleteRecipeAction } from "./actions";
+import ArchiveRecipe from "./archive-recipe";
+import { updateRecipeAction, archiveRecipeAction } from "./actions";
 import type { CreateRecipeValues } from "../../recipe-form-data";
 
 // Container: owns auth + data, and gates the page on permission before
@@ -44,7 +44,7 @@ export default async function EditRecipePage({
 
   // Both ids bound server-side so the client can't swap either.
   const save = updateRecipeAction.bind(null, id, recipeId);
-  const remove = deleteRecipeAction.bind(null, id, recipeId);
+  const archive = archiveRecipeAction.bind(null, id, recipeId);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -70,10 +70,10 @@ export default async function EditRecipePage({
         />
       </div>
 
-      {/* Below the form and visually separated: deleting is not one of the
-          choices you're weighing while editing, and it can't be undone. */}
+      {/* Below the form and visually separated: taking the recipe out is not
+          one of the choices you're weighing while editing. */}
       <div className="mt-12 border-t border-border pt-6">
-        <DeleteRecipe action={remove} recipeTitle={recipe.title} />
+        <ArchiveRecipe action={archive} />
       </div>
     </div>
   );

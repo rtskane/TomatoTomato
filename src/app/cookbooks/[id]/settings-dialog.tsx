@@ -49,9 +49,6 @@ function ArchiveSection({
 }) {
   const [state, submit, pending] = useActionState(action, {});
   const [confirming, setConfirming] = useState(false);
-  const [typed, setTyped] = useState("");
-
-  const matches = typed.trim() === impact.title.trim();
 
   if (!confirming) {
     return (
@@ -76,21 +73,9 @@ function ArchiveSection({
         {impact.memberCount > 1
           ? ` — all ${impact.memberCount} members`
           : ""}
-        . {impactSentence(impact)} Nothing is deleted, and you can restore it
-        from your library.
+        . {impactSentence(impact)} Nothing is deleted: you can restore it, or
+        delete it for good, from your library.
       </p>
-
-      <label htmlFor="confirmTitle" className="mt-3 block text-subheadline">
-        Type <span className="font-medium">{impact.title}</span> to confirm
-      </label>
-      <input
-        id="confirmTitle"
-        name="confirmTitle"
-        value={typed}
-        onChange={(e) => setTyped(e.target.value)}
-        autoComplete="off"
-        className={fieldClass}
-      />
 
       {state.error ? (
         <p role="alert" className="mt-2 text-subheadline text-error">
@@ -101,10 +86,7 @@ function ArchiveSection({
       <div className="mt-3 flex items-center gap-2">
         <button
           type="submit"
-          // Disabled until it matches, but the action re-checks the typed name
-          // server-side — a confirmation only the client enforces is no
-          // confirmation at all, since the action accepts direct POSTs.
-          disabled={pending || !matches}
+          disabled={pending}
           className="rounded-md bg-error px-3 py-1.5 text-subheadline font-medium text-foreground-inverse hover:bg-error-hover disabled:opacity-40"
         >
           {pending ? "Archiving…" : "Archive"}

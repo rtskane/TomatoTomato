@@ -4,14 +4,20 @@ const {
   findMembership,
   create,
   update,
-  deleteRecipeRow,
   findForPermissionCheck,
+  archive,
+  restore,
+  deleteArchived,
+  listArchived,
 } = vi.hoisted(() => ({
   findMembership: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
-  deleteRecipeRow: vi.fn(),
   findForPermissionCheck: vi.fn(),
+  archive: vi.fn(),
+  restore: vi.fn(),
+  deleteArchived: vi.fn(),
+  listArchived: vi.fn(),
 }));
 vi.mock("@/server/repositories/cookbook.repository", () => ({
   cookbookRepository: { findMembership },
@@ -20,15 +26,21 @@ vi.mock("@/server/repositories/recipe.repository", () => ({
   recipeRepository: {
     create,
     update,
-    delete: deleteRecipeRow,
     findForPermissionCheck,
+    archive,
+    restore,
+    deleteArchived,
+    listArchived,
   },
 }));
 
 import {
   createRecipe,
   updateRecipe,
-  deleteRecipe,
+  archiveRecipe,
+  restoreRecipe,
+  deleteRecipeForever,
+  listArchivedRecipes,
   type CreateRecipeInput,
 } from "./recipe.service";
 
@@ -383,16 +395,39 @@ describe("updateRecipe", () => {
   });
 });
 
-describe("deleteRecipe", () => {
-  it("lets an author delete their own recipe", async () => {
-    const result = await deleteRecipe("u1", "cb1", "r1");
+function archivedRecipe(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "r1",
+    authorId: "u1",
+    cookbookId: "cb1",
+    title: "Carbonara",
+    coverImageUrl: "https://blob/carbonara.jpg",
+    archivedAt: new Date(),
+    ...overrides,
+  };
+}
+
+describe("updateRecipe — archived", () => {
+  // A stale edit form must not quietly rewrite a recipe that has been archived.
+  it("refuses to edit an archived recipe", async () => {
+    findForPermissionCheck.mockResolvedValue(archivedRecipe());
+
+    const result = await updateRecipe("u1", "cb1", "r1", input());
+
+    expect(result.ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("archiveRecipe", () => {
+  it("lets an author archive their own recipe", async () => {
+    const result = await archiveRecipe("u1", "cb1", "r1");
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.title).toBe("Carbonara");
-    expect(deleteRecipeRow).toHaveBeenCalledWith("r1");
+    expect(archive).toHaveBeenCalledWith("r1");
   });
 
-  it("refuses an EDITOR deleting someone else's recipe", async () => {
+  it("refuses an EDITOR archiving someone else's recipe", async () => {
     findForPermissionCheck.mockResolvedValue({
       id: "r1",
       authorId: "someone_else",
@@ -400,13 +435,13 @@ describe("deleteRecipe", () => {
       title: "Carbonara",
     });
 
-    const result = await deleteRecipe("u1", "cb1", "r1");
+    const result = await archiveRecipe("u1", "cb1", "r1");
 
     expect(result.ok).toBe(false);
-    expect(deleteRecipeRow).not.toHaveBeenCalled();
+    expect(archive).not.toHaveBeenCalled();
   });
 
-  it("lets the OWNER delete any recipe", async () => {
+  it("lets the OWNER archive any recipe", async () => {
     findMembership.mockResolvedValue({ role: "OWNER" });
     findForPermissionCheck.mockResolvedValue({
       id: "r1",
@@ -415,7 +450,7 @@ describe("deleteRecipe", () => {
       title: "Carbonara",
     });
 
-    const result = await deleteRecipe("owner1", "cb1", "r1");
+    const result = await archiveRecipe("owner1", "cb1", "r1");
 
     expect(result.ok).toBe(true);
   });
@@ -423,10 +458,127 @@ describe("deleteRecipe", () => {
   it("refuses a VIEWER", async () => {
     findMembership.mockResolvedValue({ role: "VIEWER" });
 
-    const result = await deleteRecipe("u1", "cb1", "r1");
+    const result = await archiveRecipe("u1", "cb1", "r1");
 
     expect(result.ok).toBe(false);
-    expect(deleteRecipeRow).not.toHaveBeenCalled();
+    expect(archive).not.toHaveBeenCalled();
+  });
+
+  it("refuses a recipe that is already archived", async () => {
+    findForPermissionCheck.mockResolvedValue(archivedRecipe());
+
+    const result = await archiveRecipe("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(false);
+    expect(archive).not.toHaveBeenCalled();
+  });
+});
+
+describe("restoreRecipe", () => {
+  it("restores an archived recipe for its author", async () => {
+    findForPermissionCheck.mockResolvedValue(archivedRecipe());
+
+    const result = await restoreRecipe("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(true);
+    expect(restore).toHaveBeenCalledWith("r1");
+  });
+
+  it("refuses a recipe that isn't archived", async () => {
+    const result = await restoreRecipe("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(false);
+    expect(restore).not.toHaveBeenCalled();
+  });
+
+  it("refuses an EDITOR restoring someone else's recipe", async () => {
+    findForPermissionCheck.mockResolvedValue(
+      archivedRecipe({ authorId: "someone_else" }),
+    );
+
+    const result = await restoreRecipe("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(false);
+    expect(restore).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteRecipeForever", () => {
+  it("deletes an archived recipe and hands back its photo", async () => {
+    findForPermissionCheck.mockResolvedValue(archivedRecipe());
+
+    const result = await deleteRecipeForever("u1", "cb1", "r1");
+
+    expect(result).toEqual({
+      ok: true,
+      value: { orphanedImage: "https://blob/carbonara.jpg" },
+    });
+    expect(deleteArchived).toHaveBeenCalledWith("r1");
+  });
+
+  // Nothing is ever one step from gone: a live recipe has to be archived first.
+  it("refuses a live recipe", async () => {
+    const result = await deleteRecipeForever("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(false);
+    expect(deleteArchived).not.toHaveBeenCalled();
+  });
+
+  it("refuses a VIEWER", async () => {
+    findMembership.mockResolvedValue({ role: "VIEWER" });
+    findForPermissionCheck.mockResolvedValue(archivedRecipe());
+
+    const result = await deleteRecipeForever("u1", "cb1", "r1");
+
+    expect(result.ok).toBe(false);
+    expect(deleteArchived).not.toHaveBeenCalled();
+  });
+
+  it("lets the OWNER delete someone else's archived recipe", async () => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    findForPermissionCheck.mockResolvedValue(
+      archivedRecipe({ authorId: "someone_else" }),
+    );
+
+    const result = await deleteRecipeForever("owner1", "cb1", "r1");
+
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("listArchivedRecipes", () => {
+  const rows = [
+    { id: "r1", title: "Mine", authorId: "u1" },
+    { id: "r2", title: "Theirs", authorId: "someone_else" },
+  ];
+
+  beforeEach(() => listArchived.mockResolvedValue(rows));
+
+  it("shows the owner every archived recipe", async () => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+
+    const result = await listArchivedRecipes("u1", "cb1");
+
+    expect(result.map((r) => r.id)).toEqual(["r1", "r2"]);
+  });
+
+  it("shows an EDITOR only their own", async () => {
+    const result = await listArchivedRecipes("u1", "cb1");
+
+    expect(result).toEqual([{ id: "r1", title: "Mine" }]);
+  });
+
+  it("shows a VIEWER nothing", async () => {
+    findMembership.mockResolvedValue({ role: "VIEWER" });
+
+    await expect(listArchivedRecipes("u1", "cb1")).resolves.toEqual([]);
+  });
+
+  it("shows a non-member nothing, without reading the recipes", async () => {
+    findMembership.mockResolvedValue(null);
+
+    await expect(listArchivedRecipes("u1", "cb1")).resolves.toEqual([]);
+    expect(listArchived).not.toHaveBeenCalled();
   });
 });
 

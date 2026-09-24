@@ -33,6 +33,14 @@ type CreateRecipeInput = RecipeFields & {
 // neither id appears here — the shape itself rules those out.
 type UpdateRecipeInput = RecipeFields & { recipeId: string };
 
+/**
+ * The archived-recipe filter, defined once — the recipe-level twin of
+ * `liveCookbook` in cookbook.repository. Every read that shows recipes to
+ * people spreads this, including the counts on the shelf and in the archive
+ * warning, so an archived recipe can't linger in a number.
+ */
+export const liveRecipe = { archivedAt: null } as const;
+
 export const recipeRepository = {
   /**
    * Create a recipe with its ingredients and steps in one nested write.
@@ -105,6 +113,7 @@ export const recipeRepository = {
       where: {
         id: recipeId,
         cookbookId,
+        ...liveRecipe,
         cookbook: { members: { some: { userId } } },
       },
       select: {
@@ -147,11 +156,21 @@ export const recipeRepository = {
    * `cookbookId` is included in the lookup for the same reason as
    * `findDetailForUser`: both ids come from the URL, and a recipe must never be
    * acted on under a cookbook it doesn't belong to.
+   *
+   * Archived recipes are found too — restoring and deleting one is exactly
+   * what needs to see them — so `archivedAt` comes back for the caller to check.
    */
   findForPermissionCheck(cookbookId: string, recipeId: string) {
     return prisma.recipe.findFirst({
       where: { id: recipeId, cookbookId },
-      select: { id: true, authorId: true, cookbookId: true, title: true },
+      select: {
+        id: true,
+        authorId: true,
+        cookbookId: true,
+        title: true,
+        coverImageUrl: true,
+        archivedAt: true,
+      },
     });
   },
 
@@ -207,15 +226,49 @@ export const recipeRepository = {
     });
   },
 
-  /** Ingredients and steps go with it — both are `onDelete: Cascade`. */
-  delete(recipeId: string) {
-    return prisma.recipe.delete({ where: { id: recipeId } });
+  /**
+   * Archive / restore. The current state is part of the `where`, as in the
+   * cookbook's own archive: archiving an archived recipe (or restoring a live
+   * one) changes zero rows rather than silently rewriting the timestamp.
+   */
+  archive(recipeId: string) {
+    return prisma.recipe.updateMany({
+      where: { id: recipeId, ...liveRecipe },
+      data: { archivedAt: new Date() },
+    });
   },
 
-  /** How many recipes in this cookbook someone other than `ownerId` wrote. */
+  restore(recipeId: string) {
+    return prisma.recipe.updateMany({
+      where: { id: recipeId, archivedAt: { not: null } },
+      data: { archivedAt: null },
+    });
+  },
+
+  /**
+   * Delete for good. Only an archived recipe can go — a live one has to be
+   * archived first, so nothing is ever one click from gone. Ingredients and
+   * steps go with it; both are `onDelete: Cascade`.
+   */
+  deleteArchived(recipeId: string) {
+    return prisma.recipe.deleteMany({
+      where: { id: recipeId, archivedAt: { not: null } },
+    });
+  },
+
+  /** A cookbook's archived recipes, most recently archived first. */
+  listArchived(cookbookId: string) {
+    return prisma.recipe.findMany({
+      where: { cookbookId, archivedAt: { not: null } },
+      orderBy: { archivedAt: "desc" },
+      select: { id: true, title: true, authorId: true },
+    });
+  },
+
+  /** How many live recipes in this cookbook someone other than `ownerId` wrote. */
   countByOtherAuthors(cookbookId: string, ownerId: string) {
     return prisma.recipe.count({
-      where: { cookbookId, authorId: { not: ownerId } },
+      where: { cookbookId, authorId: { not: ownerId }, ...liveRecipe },
     });
   },
 };

@@ -306,12 +306,21 @@ model Recipe {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  /// Set when someone archives the recipe; null means live. The same soft
+  /// delete as `Cookbook.archivedAt`, for the same reason: a recipe is someone's
+  /// work, so taking it out of the cookbook is reversible, and deleting it for
+  /// good is a second, separate step taken from the archived list.
+  ///
+  /// Every read of the cookbook's recipes filters on this — see `liveRecipe`
+  /// in recipe.repository.
+  archivedAt DateTime?
+
   cookbook    Cookbook     @relation(fields: [cookbookId], references: [id], onDelete: Cascade)
   author      User         @relation("RecipeAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   ingredients Ingredient[]
   steps       Step[]
 
-  @@index([cookbookId])
+  @@index([cookbookId, archivedAt])
   @@index([authorId])
 }
 

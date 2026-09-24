@@ -7,6 +7,8 @@ const {
   updateCookbook,
   archiveCookbook,
   restoreCookbook,
+  deleteCookbookForever,
+  deleteImages,
 } = vi.hoisted(() => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
@@ -16,6 +18,8 @@ const {
   updateCookbook: vi.fn(),
   archiveCookbook: vi.fn(),
   restoreCookbook: vi.fn(),
+  deleteCookbookForever: vi.fn(),
+  deleteImages: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("next/cache", () => ({ revalidatePath }));
@@ -24,12 +28,15 @@ vi.mock("@/server/services/cookbook.service", () => ({
   updateCookbook,
   archiveCookbook,
   restoreCookbook,
+  deleteCookbookForever,
 }));
+vi.mock("@/server/blob", () => ({ deleteCoverImage: vi.fn(), deleteImages }));
 
 import {
   updateCookbookAction,
   archiveCookbookAction,
   restoreCookbookAction,
+  deleteCookbookForeverAction,
 } from "./settings-actions";
 
 function formOf(fields: Record<string, string>) {
@@ -44,6 +51,10 @@ beforeEach(() => {
   updateCookbook.mockResolvedValue({ ok: true, value: { id: "cb1" } });
   archiveCookbook.mockResolvedValue({ ok: true, value: true });
   restoreCookbook.mockResolvedValue({ ok: true, value: true });
+  deleteCookbookForever.mockResolvedValue({
+    ok: true,
+    value: { orphanedImages: ["https://blob/cover.jpg"] },
+  });
 });
 
 describe("updateCookbookAction", () => {
@@ -85,57 +96,13 @@ describe("updateCookbookAction", () => {
   });
 });
 
-// The typed-name confirmation is a real guard, not decoration: this action
-// accepts direct POSTs, so a check that only the dialog enforced would be
-// trivially skipped.
 describe("archiveCookbookAction", () => {
-  it("archives when the typed name matches", async () => {
+  it("archives with the bound id and the session user, then leaves", async () => {
     await expect(
-      archiveCookbookAction(
-        "cb1",
-        "Weeknight Dinners",
-        {},
-        formOf({ confirmTitle: "Weeknight Dinners" }),
-      ),
+      archiveCookbookAction("cb1", {}, new FormData()),
     ).rejects.toThrow("REDIRECT:/dashboard");
 
     expect(archiveCookbook).toHaveBeenCalledWith("owner1", "cb1");
-  });
-
-  it("refuses a mismatched name without touching the service", async () => {
-    const state = await archiveCookbookAction(
-      "cb1",
-      "Weeknight Dinners",
-      {},
-      formOf({ confirmTitle: "weeknight dinners" }),
-    );
-
-    expect(state.error).toMatch(/doesn't match/i);
-    expect(archiveCookbook).not.toHaveBeenCalled();
-  });
-
-  it("refuses an empty confirmation", async () => {
-    const state = await archiveCookbookAction(
-      "cb1",
-      "Weeknight Dinners",
-      {},
-      formOf({}),
-    );
-
-    expect(state.error).toBeDefined();
-    expect(archiveCookbook).not.toHaveBeenCalled();
-  });
-
-  // Surrounding whitespace is a copy-paste artefact, not a different answer.
-  it("tolerates surrounding whitespace", async () => {
-    await expect(
-      archiveCookbookAction(
-        "cb1",
-        "Weeknight Dinners",
-        {},
-        formOf({ confirmTitle: "  Weeknight Dinners  " }),
-      ),
-    ).rejects.toThrow("REDIRECT:/dashboard");
   });
 
   it("surfaces a service refusal instead of redirecting", async () => {
@@ -144,12 +111,7 @@ describe("archiveCookbookAction", () => {
       error: { kind: "forbidden", message: "Only the owner can change this cookbook." },
     });
 
-    const state = await archiveCookbookAction(
-      "cb1",
-      "Weeknight Dinners",
-      {},
-      formOf({ confirmTitle: "Weeknight Dinners" }),
-    );
+    const state = await archiveCookbookAction("cb1", {}, new FormData());
 
     expect(state.error).toMatch(/only the owner/i);
     expect(redirect).not.toHaveBeenCalled();
@@ -173,5 +135,28 @@ describe("restoreCookbookAction", () => {
     const state = await restoreCookbookAction("cb1", {}, new FormData());
 
     expect(state.error).toMatch(/only the owner/i);
+  });
+});
+
+describe("deleteCookbookForeverAction", () => {
+  it("deletes with the bound id, then clears the files it left", async () => {
+    const state = await deleteCookbookForeverAction("cb1", {}, new FormData());
+
+    expect(deleteCookbookForever).toHaveBeenCalledWith("owner1", "cb1");
+    expect(deleteImages).toHaveBeenCalledWith(["https://blob/cover.jpg"]);
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(state.error).toBeUndefined();
+  });
+
+  it("keeps the files when the delete is refused", async () => {
+    deleteCookbookForever.mockResolvedValue({
+      ok: false,
+      error: { kind: "forbidden", message: "Only the owner can change this cookbook." },
+    });
+
+    const state = await deleteCookbookForeverAction("cb1", {}, new FormData());
+
+    expect(state.error).toMatch(/only the owner/i);
+    expect(deleteImages).not.toHaveBeenCalled();
   });
 });

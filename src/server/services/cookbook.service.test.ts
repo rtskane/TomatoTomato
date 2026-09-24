@@ -13,6 +13,8 @@ const {
   listArchivedForOwner,
   findWithCounts,
   findCover,
+  findArchivedImages,
+  deleteArchived,
   countByOtherAuthors,
 } = vi.hoisted(() => ({
   create: vi.fn(),
@@ -25,6 +27,8 @@ const {
   listArchivedForOwner: vi.fn(),
   findWithCounts: vi.fn(),
   findCover: vi.fn(),
+  findArchivedImages: vi.fn(),
+  deleteArchived: vi.fn(),
   countByOtherAuthors: vi.fn(),
 }));
 vi.mock("@/server/repositories/cookbook.repository", () => ({
@@ -39,6 +43,8 @@ vi.mock("@/server/repositories/cookbook.repository", () => ({
     listArchivedForOwner,
     findWithCounts,
     findCover,
+    findArchivedImages,
+    deleteArchived,
   },
 }));
 vi.mock("@/server/repositories/recipe.repository", () => ({
@@ -52,6 +58,7 @@ import {
   updateCookbook,
   archiveCookbook,
   restoreCookbook,
+  deleteCookbookForever,
   listArchivedCookbooks,
   getArchiveImpact,
 } from "./cookbook.service";
@@ -458,6 +465,50 @@ describe("restoreCookbook", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe("forbidden");
+  });
+});
+
+describe("deleteCookbookForever", () => {
+  beforeEach(() => {
+    findArchivedImages.mockResolvedValue({
+      coverImageUrl: "https://blob/cover.jpg",
+      recipes: [
+        { coverImageUrl: "https://blob/soup.jpg" },
+        { coverImageUrl: null },
+      ],
+    });
+    deleteArchived.mockResolvedValue({ count: 1 });
+  });
+
+  it("deletes the owner's archived cookbook and hands back every file", async () => {
+    const result = await deleteCookbookForever("owner1", "cb1");
+
+    expect(deleteArchived).toHaveBeenCalledWith("cb1", "owner1");
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        orphanedImages: ["https://blob/cover.jpg", "https://blob/soup.jpg"],
+      },
+    });
+  });
+
+  // The lookup is scoped to the owner's *archived* cookbooks, so a live one,
+  // or someone else's, is refused before anything is deleted.
+  it("refuses a live cookbook or someone else's without deleting", async () => {
+    findArchivedImages.mockResolvedValue(null);
+
+    const result = await deleteCookbookForever("mallory", "cb1");
+
+    expect(result.ok).toBe(false);
+    expect(deleteArchived).not.toHaveBeenCalled();
+  });
+
+  it("fails when the delete matched no rows", async () => {
+    deleteArchived.mockResolvedValue({ count: 0 });
+
+    const result = await deleteCookbookForever("owner1", "cb1");
+
+    expect(result.ok).toBe(false);
   });
 });
 

@@ -13,6 +13,12 @@ import {
   archiveCookbookAction,
 } from "./settings-actions";
 import MembersPanel from "./members/members-panel";
+import ArchivedList from "@/components/archived-list";
+import { listArchivedRecipes } from "@/server/services/recipe.service";
+import {
+  restoreRecipeAction,
+  deleteRecipeForeverAction,
+} from "./archived-recipe-actions";
 
 // Container: owns auth + data, hands rows to the presentational list.
 export default async function CookbookPage({
@@ -27,9 +33,12 @@ export default async function CookbookPage({
   // it opens, which is what makes opening instant. Both queries are
   // membership-scoped and indexed, and running them together costs about one
   // round trip rather than two.
-  const [cookbook, members] = await Promise.all([
+  const [cookbook, members, archived] = await Promise.all([
     getCookbookDetail(user.id, id),
     getCookbookMembers(user.id, id),
+    // Only the archived recipes this person could bring back — empty for a
+    // viewer, so they never see the section at all.
+    listArchivedRecipes(user.id, id),
   ]);
 
   // Non-members get a 404 rather than a 403 — whether a cookbook exists is
@@ -41,6 +50,15 @@ export default async function CookbookPage({
   const impact = cookbook.canEditCookbook
     ? await getArchiveImpact(user.id, cookbook.id)
     : null;
+
+  // Both ids bound server-side, so the client can't retarget either.
+  const archivedItems = archived.map((recipe) => ({
+    id: recipe.id,
+    title: recipe.title,
+    restore: restoreRecipeAction.bind(null, cookbook.id, recipe.id),
+    deleteForever: deleteRecipeForeverAction.bind(null, cookbook.id, recipe.id),
+  }));
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <Link
@@ -96,11 +114,7 @@ export default async function CookbookPage({
               design={cookbook.design}
               impact={impact.value}
               updateAction={updateCookbookAction.bind(null, cookbook.id)}
-              archiveAction={archiveCookbookAction.bind(
-                null,
-                cookbook.id,
-                cookbook.title,
-              )}
+              archiveAction={archiveCookbookAction.bind(null, cookbook.id)}
             />
           ) : null}
 
@@ -119,6 +133,13 @@ export default async function CookbookPage({
         recipes={cookbook.recipes}
         canAddRecipes={cookbook.canAddRecipes}
         cookbookId={cookbook.id}
+      />
+
+      <ArchivedList
+        items={archivedItems}
+        noun="recipe"
+        note="Hidden from everyone in this cookbook. Nothing was deleted."
+        deleteWarning="Its ingredients and steps go with it."
       />
     </div>
   );
