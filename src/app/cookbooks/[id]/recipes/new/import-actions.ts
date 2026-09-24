@@ -14,9 +14,10 @@ import type { CreateRecipeValues } from "../recipe-form-data";
 // like `createRecipeAction` — the permission check and everything else lives
 // in the service.
 //
-// Neither writes anything. Both hand back `CreateRecipeValues`, which the page
-// puts into the ordinary recipe form for the author to check — so the save path
-// is still the one every recipe has always gone through.
+// None of them writes anything. Each hands back `CreateRecipeValues`, which the
+// page puts into the ordinary recipe form for the author to check — so the save
+// path is still the one every recipe has always gone through — plus which
+// importer it was, for that save to record.
 
 export type ImportState = {
   error?: string;

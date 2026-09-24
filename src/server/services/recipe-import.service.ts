@@ -12,8 +12,9 @@ import { fetchText, parseUserUrl } from "./safe-fetch";
 // Getting a recipe out of somewhere that isn't our form.
 //
 // Nothing here writes to the database. Every path returns `CreateRecipeValues`
-// — the same shape the form speaks — which the page hands straight to
-// `RecipeForm` for the author to check over. The existing `createRecipe` is
+// — the same shape the form speaks, with a link import also saying whether it
+// was a video — which the page hands straight to `RecipeForm` for the author
+// to check over. The existing `createRecipe` is
 // still the only thing that saves, so an import can never store a recipe
 // nobody looked at.
 
