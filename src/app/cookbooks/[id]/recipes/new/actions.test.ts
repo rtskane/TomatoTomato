@@ -63,7 +63,7 @@ describe("createRecipeAction", () => {
       "REDIRECT:/cookbooks/cb1",
     );
 
-    expect(createRecipe).toHaveBeenCalledWith("u1", "cb1", expect.anything());
+    expect(createRecipe).toHaveBeenCalledWith("u1", "cb1", expect.anything(), null);
   });
 
   it("zips the parallel ingredient fields back into ordered rows", async () => {
@@ -147,5 +147,31 @@ describe("createRecipeAction", () => {
       ingredients: [],
       steps: [],
     });
+  });
+
+  it("passes on which way in the recipe came through", async () => {
+    const fd = recipeForm();
+    fd.set("source", "VIDEO");
+
+    await expect(createRecipeAction("cb1", {}, fd)).rejects.toThrow("REDIRECT");
+
+    expect(createRecipe.mock.calls[0][3]).toBe("VIDEO");
+  });
+
+  // The field is client-supplied. A value we don't know is recorded as
+  // unknown — it must never be stored, and never cost someone their save.
+  it.each([
+    ["missing", undefined],
+    ["unrecognised", "CARRIER_PIGEON"],
+    ["lower-case", "video"],
+  ])("records a %s source as unknown and still saves", async (_label, value) => {
+    const fd = recipeForm();
+    if (value !== undefined) fd.set("source", value);
+
+    await expect(createRecipeAction("cb1", {}, fd)).rejects.toThrow(
+      "REDIRECT:/cookbooks/cb1",
+    );
+
+    expect(createRecipe.mock.calls[0][3]).toBeNull();
   });
 });

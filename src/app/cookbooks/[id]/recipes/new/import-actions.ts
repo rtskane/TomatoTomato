@@ -1,5 +1,6 @@
 "use server";
 
+import type { RecipeSource } from "@/lib/recipe";
 import { requireOnboardedUser } from "@/lib/user";
 import {
   importFromText,
@@ -13,13 +14,16 @@ import type { CreateRecipeValues } from "../recipe-form-data";
 // like `createRecipeAction` — the permission check and everything else lives
 // in the service.
 //
-// Neither writes anything. Both hand back `CreateRecipeValues`, which the page
-// puts into the ordinary recipe form for the author to check — so the save path
-// is still the one every recipe has always gone through.
+// None of them writes anything. Each hands back `CreateRecipeValues`, which the
+// page puts into the ordinary recipe form for the author to check — so the save
+// path is still the one every recipe has always gone through — plus which
+// importer it was, for that save to record.
 
 export type ImportState = {
   error?: string;
   values?: CreateRecipeValues;
+  /** Which importer produced `values`, for the saved recipe to record. */
+  source?: RecipeSource;
   /**
    * What the user submitted, handed straight back.
    *
@@ -48,7 +52,7 @@ export async function importFromTextAction(
   const result = await importFromText(user.id, cookbookId, text);
 
   return result.ok
-    ? { values: result.value }
+    ? { values: result.value, source: "PASTE" }
     : { error: result.error.message, submitted: text };
 }
 
@@ -63,7 +67,7 @@ export async function importFromUrlAction(
   const result = await importFromUrl(user.id, cookbookId, url);
 
   return result.ok
-    ? { values: result.value }
+    ? { values: result.value.values, source: result.value.source }
     : { error: result.error.message, submitted: url };
 }
 
@@ -80,5 +84,7 @@ export async function importFromPhotoAction(
   }
 
   const result = await importFromPhoto(user.id, cookbookId, photo);
-  return result.ok ? { values: result.value } : { error: result.error.message };
+  return result.ok
+    ? { values: result.value, source: "PHOTO" }
+    : { error: result.error.message };
 }

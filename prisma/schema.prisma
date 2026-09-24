@@ -275,6 +275,21 @@ model CookbookInvite {
 // Recipes — structured (ordered ingredients + steps)
 // ---------------------------------------------------------------------------
 
+/// How a recipe arrived: typed into the form, or imported and then checked
+/// over in it. Recorded to learn which ways in people actually use.
+/// FORM  – typed out field by field
+/// PASTE – read from pasted text
+/// LINK  – read from a recipe site's page
+/// VIDEO – read from a TikTok or YouTube video's caption and transcript
+/// PHOTO – read from a photo by AI
+enum RecipeSource {
+  FORM
+  PASTE
+  LINK
+  VIDEO
+  PHOTO
+}
+
 model Recipe {
   id              String   @id @default(cuid())
   cookbookId      String
@@ -285,6 +300,9 @@ model Recipe {
   prepTimeMinutes Int?
   cookTimeMinutes Int?
   coverImageUrl   String?
+  /// Which way in the author used. Null for recipes saved before this was
+  /// recorded — "we don't know", not "the form".
+  source          RecipeSource?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

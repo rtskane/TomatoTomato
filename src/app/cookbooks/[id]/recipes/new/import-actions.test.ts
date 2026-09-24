@@ -44,16 +44,19 @@ beforeEach(() => {
   vi.clearAllMocks();
   requireOnboardedUser.mockResolvedValue({ id: "u1", username: "chef_ryan" });
   importFromText.mockResolvedValue({ ok: true, value: carbonara });
-  importFromUrl.mockResolvedValue({ ok: true, value: carbonara });
+  importFromUrl.mockResolvedValue({
+    ok: true,
+    value: { values: carbonara, source: "LINK" },
+  });
   importFromPhoto.mockResolvedValue({ ok: true, value: carbonara });
 });
 
 // The two actions are the same adapter around different services, so every
 // behaviour is checked against both.
 describe.each([
-  { name: "importFromTextAction", action: importFromTextAction, service: importFromText, field: "text", input: "Carbonara\nBoil the pasta." },
-  { name: "importFromUrlAction", action: importFromUrlAction, service: importFromUrl, field: "url", input: "https://example.com/carbonara" },
-])("$name", ({ action, service, field, input }) => {
+  { name: "importFromTextAction", action: importFromTextAction, service: importFromText, field: "text", input: "Carbonara\nBoil the pasta.", source: "PASTE" },
+  { name: "importFromUrlAction", action: importFromUrlAction, service: importFromUrl, field: "url", input: "https://example.com/carbonara", source: "LINK" },
+])("$name", ({ action, service, field, input, source }) => {
   it("lets the auth gate's redirect propagate and never calls the service", async () => {
     requireOnboardedUser.mockRejectedValue(new Error("REDIRECT:/sign-in"));
 
@@ -75,9 +78,10 @@ describe.each([
     expect(service).toHaveBeenCalledWith("u1", "cb1", input);
   });
 
-  it("hands back the values for the form on success", async () => {
+  it("hands back the values for the form, and where they came from", async () => {
     expect(await action("cb1", {}, form(field, input))).toEqual({
       values: carbonara,
+      source,
     });
   });
 
@@ -125,9 +129,10 @@ describe("importFromPhotoAction", () => {
     expect(importFromPhoto).toHaveBeenCalledWith("u1", "cb1", file);
   });
 
-  it("hands back the values for the form on success", async () => {
+  it("hands back the values for the form, and where they came from", async () => {
     expect(await importFromPhotoAction("cb1", {}, photoForm(photo()))).toEqual({
       values: carbonara,
+      source: "PHOTO",
     });
   });
 

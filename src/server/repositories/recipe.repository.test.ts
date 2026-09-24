@@ -15,6 +15,7 @@ beforeEach(() => {
 const input = {
   cookbookId: "cb1",
   authorId: "u1",
+  source: "PASTE" as const,
   title: "Carbonara",
   description: "Fast.",
   servings: 4,
@@ -35,6 +36,7 @@ describe("recipeRepository.create", () => {
     expect(recipe.create.mock.calls[0][0].data).toMatchObject({
       cookbookId: "cb1",
       authorId: "u1",
+      source: "PASTE",
       title: "Carbonara",
       servings: 4,
       prepTimeMinutes: 15,

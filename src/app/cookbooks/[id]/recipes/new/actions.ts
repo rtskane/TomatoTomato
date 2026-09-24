@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { isRecipeSource } from "@/lib/recipe";
 import { requireOnboardedUser } from "@/lib/user";
 import { createRecipe } from "@/server/services/recipe.service";
 import {
@@ -27,8 +28,17 @@ export async function createRecipeAction(
   const user = await requireOnboardedUser();
 
   const values = parseRecipeForm(formData);
+  // Which way in the author used, from a hidden field — so it's only as honest
+  // as the client, which is fine for learning what people use. Anything
+  // unrecognised is recorded as unknown rather than refused.
+  const source = String(formData.get("source") ?? "");
 
-  const result = await createRecipe(user.id, cookbookId, values);
+  const result = await createRecipe(
+    user.id,
+    cookbookId,
+    values,
+    isRecipeSource(source) ? source : null,
+  );
   if (!result.ok) {
     // Echo the values back so a validation error never costs the user the
     // recipe they just typed.

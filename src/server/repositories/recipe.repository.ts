@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { RecipeSource } from "@/lib/recipe";
 
 // The ONLY module that talks to Prisma for the Recipe table and its children.
 
@@ -20,9 +21,12 @@ type RecipeFields = {
   steps: string[];
 };
 
+// `source` is set once, at creation — an edit changes the recipe, not how it
+// first arrived, so it's absent from the update shape below.
 type CreateRecipeInput = RecipeFields & {
   cookbookId: string;
   authorId: string;
+  source: RecipeSource | null;
 };
 
 // Editing can't move a recipe between cookbooks or reassign its author, so
@@ -41,6 +45,7 @@ export const recipeRepository = {
   create({
     cookbookId,
     authorId,
+    source,
     title,
     description,
     servings,
@@ -54,6 +59,7 @@ export const recipeRepository = {
       data: {
         cookbookId,
         authorId,
+        source,
         title,
         description,
         servings,
