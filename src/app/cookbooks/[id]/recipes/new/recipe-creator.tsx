@@ -44,7 +44,7 @@ const CHOICES: {
   {
     mode: "link",
     title: "From a link",
-    blurb: "Paste a link and we'll read the recipe off the page.",
+    blurb: "A recipe site, a TikTok, or a YouTube video — we'll read the recipe off it.",
     icon: "↗",
   },
   {
@@ -285,7 +285,7 @@ export default function RecipeCreator({
       <form action={urlFormAction}>
         <ImportPanel
           title="From a link"
-          hint="We read the recipe the site publishes for search engines. Some sites won't let us — if yours won't, paste the recipe instead."
+          hint="From a recipe site, we read the recipe it publishes for search engines. From a TikTok or YouTube video, Claude reads the caption and what's said. Some sites won't let us, Instagram included — if yours won't, copy the recipe and use “Paste a recipe” instead."
           error={urlState.error}
           pending={urlPending}
           submitLabel="Read it"
