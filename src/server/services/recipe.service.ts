@@ -1,4 +1,4 @@
-import { createRecipeSchema } from "@/lib/recipe";
+import { createRecipeSchema, type RecipeSource } from "@/lib/recipe";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { recipeRepository } from "@/server/repositories/recipe.repository";
 import { canAddRecipes, canModifyRecipe } from "@/server/permissions";
@@ -36,10 +36,15 @@ export type RecipeError =
 const isBlankIngredient = (i: RecipeIngredientInput) =>
   [i.name, i.quantity, i.unit, i.note].every((v) => v.trim() === "");
 
+/**
+ * `source` is which way in the author used — null when it isn't known. It
+ * never fails a save: it's there to learn from, not to check.
+ */
 export async function createRecipe(
   userId: string,
   cookbookId: string,
   input: CreateRecipeInput,
+  source: RecipeSource | null = null,
 ): Promise<Result<{ id: string }, RecipeError>> {
   // Authorization before validation: a non-member shouldn't learn anything
   // about a cookbook, not even whether their recipe would have been valid.
@@ -67,6 +72,7 @@ export async function createRecipe(
   const recipe = await recipeRepository.create({
     cookbookId,
     authorId: userId,
+    source,
     ...toRecipeFields(parsed.data),
   });
 

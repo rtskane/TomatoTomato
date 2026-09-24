@@ -1,6 +1,7 @@
 import type { CreateRecipeValues } from "@/app/cookbooks/[id]/recipes/recipe-form-data";
 import { parseRecipeText } from "@/lib/recipe-import";
 import { parseRecipeFromHtml } from "@/lib/recipe-jsonld";
+import type { RecipeSource } from "@/lib/recipe";
 import { recognizeVideoLink } from "@/lib/recipe-video";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { canAddRecipes } from "@/server/permissions";
@@ -54,12 +55,15 @@ export async function canImportInto(userId: string, cookbookId: string) {
  * Video links are the exception, and go to `importFromVideo`: a video page has
  * no structured recipe, but what's on it — a caption, a transcript — is the
  * creator's own words about the recipe, not a page's clutter around it.
+ *
+ * Both arrive through the same link box, so the result says which it was —
+ * the saved recipe records it, and from the outside the two look alike.
  */
 export async function importFromUrl(
   userId: string,
   cookbookId: string,
   input: string,
-): Promise<Result<CreateRecipeValues, ImportError>> {
+): Promise<Result<LinkImport, ImportError>> {
   // Before anything else, so a stranger can't even learn whether a URL passes.
   if (!(await canImportInto(userId, cookbookId))) return err(FORBIDDEN);
 
@@ -67,7 +71,10 @@ export async function importFromUrl(
   if (!url.ok) return url;
 
   const video = recognizeVideoLink(url.value);
-  if (video) return importFromVideo(video);
+  if (video) {
+    const found = await importFromVideo(video);
+    return found.ok ? ok({ values: found.value, source: "VIDEO" }) : found;
+  }
 
   const page = await fetchText(url.value);
   if (!page.ok) return page;
@@ -81,8 +88,13 @@ export async function importFromUrl(
     });
   }
 
-  return ok(recipe);
+  return ok({ values: recipe, source: "LINK" });
 }
+
+export type LinkImport = {
+  values: CreateRecipeValues;
+  source: Extract<RecipeSource, "LINK" | "VIDEO">;
+};
 
 /** Import a recipe from text someone pasted. */
 export async function importFromText(

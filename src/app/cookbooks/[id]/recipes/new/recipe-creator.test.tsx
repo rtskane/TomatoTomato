@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import RecipeCreator from "./recipe-creator";
 import type { ImportState } from "./import-actions";
 import type { CreateRecipeValues } from "../recipe-form-data";
+import type { RecipeSource } from "@/lib/recipe";
 
 // `prepareForVision` is canvas work jsdom can't do — mocked so the photo
 // panel's own logic (picking a file, wiring up the submit) is what's under
@@ -34,7 +35,8 @@ const carbonara: CreateRecipeValues = {
 };
 
 /** An import action that succeeds with the recipe above. */
-const succeeds = () => vi.fn(async (): Promise<ImportState> => ({ values: carbonara }));
+const succeeds = (source: RecipeSource) =>
+  vi.fn(async (): Promise<ImportState> => ({ values: carbonara, source }));
 
 /**
  * An import action that comes back with a message instead — echoing what was
@@ -51,9 +53,9 @@ function renderCreator(overrides: Partial<Parameters<typeof RecipeCreator>[0]> =
     <RecipeCreator
       cookbookId="cb1"
       saveAction={vi.fn()}
-      importTextAction={succeeds()}
-      importUrlAction={succeeds()}
-      importPhotoAction={succeeds()}
+      importTextAction={succeeds("PASTE")}
+      importUrlAction={succeeds("LINK")}
+      importPhotoAction={succeeds("PHOTO")}
       {...overrides}
     />,
   );
@@ -261,6 +263,67 @@ describe("importing", () => {
 
     expect(screen.getByLabelText("Title")).toHaveValue("");
     expect(screen.queryByText("200 g spaghetti")).not.toBeInTheDocument();
+  });
+});
+
+// What the save will record about how the recipe arrived — the hidden field
+// the form submits alongside everything the author can see.
+describe("recording the way in", () => {
+  const sourceField = (container: HTMLElement) =>
+    container.querySelector<HTMLInputElement>('input[name="source"]');
+
+  it("records a typed-out recipe as the form", async () => {
+    const user = userEvent.setup();
+    const { container } = renderCreator();
+
+    await user.click(screen.getByRole("button", { name: /fill in the form/i }));
+
+    expect(sourceField(container)).toHaveValue("FORM");
+  });
+
+  it("records whatever the importer said it was", async () => {
+    const user = userEvent.setup();
+    // A link that turned out to be a video: only the server knows which.
+    const { container } = renderCreator({ importUrlAction: succeeds("VIDEO") });
+
+    await user.click(screen.getByRole("button", { name: /from a link/i }));
+    await user.type(screen.getByRole("textbox"), "https://youtu.be/abc");
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+
+    await waitFor(() => expect(sourceField(container)).toHaveValue("VIDEO"));
+  });
+
+  it("goes back to the form after starting over from an import", async () => {
+    const user = userEvent.setup();
+    const { container } = renderCreator();
+
+    await user.click(screen.getByRole("button", { name: /paste a recipe/i }));
+    await user.type(screen.getByRole("textbox"), "Carbonara");
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+    await waitFor(() => expect(sourceField(container)).toHaveValue("PASTE"));
+
+    await user.click(screen.getByRole("button", { name: /start over/i }));
+    await user.click(screen.getByRole("button", { name: /fill in the form/i }));
+
+    expect(sourceField(container)).toHaveValue("FORM");
+  });
+
+  // Better unknown than wrong: an import is never passed off as typed.
+  it("records nothing for an import that didn't say where it came from", async () => {
+    const user = userEvent.setup();
+    const importTextAction = vi.fn(
+      async (): Promise<ImportState> => ({ values: carbonara }),
+    );
+    const { container } = renderCreator({ importTextAction });
+
+    await user.click(screen.getByRole("button", { name: /paste a recipe/i }));
+    await user.type(screen.getByRole("textbox"), "Carbonara");
+    await user.click(screen.getByRole("button", { name: /read it/i }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Title")).toHaveValue("Weeknight Carbonara"),
+    );
+    expect(sourceField(container)).toBeNull();
   });
 });
 

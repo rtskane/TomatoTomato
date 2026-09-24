@@ -231,6 +231,20 @@ describe("createRecipe — persistence", () => {
     expect(create.mock.calls[0][0].steps).toEqual(["one", "two", "three"]);
   });
 
+  it("records which way in the recipe came through", async () => {
+    await createRecipe("u1", "cb1", input(), "PHOTO");
+
+    expect(create.mock.calls[0][0]).toMatchObject({ source: "PHOTO" });
+  });
+
+  // Recipes saved without one — and every recipe from before it was recorded —
+  // read as "unknown", never as a guess.
+  it("records an unknown source as null", async () => {
+    await createRecipe("u1", "cb1", input());
+
+    expect(create.mock.calls[0][0]).toMatchObject({ source: null });
+  });
+
   it("returns the new recipe id", async () => {
     const result = await createRecipe("u1", "cb1", input());
 

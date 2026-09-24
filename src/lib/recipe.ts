@@ -84,3 +84,14 @@ export const createRecipeSchema = z.object({
 });
 
 export type CreateRecipeParsed = z.infer<typeof createRecipeSchema>;
+
+// Which way in a recipe came through — mirrors the RecipeSource enum in the
+// Prisma schema. Kept out of `createRecipeSchema` on purpose: it's a note about
+// the recipe, not part of it, and a bad value should never cost someone their
+// save.
+export const RECIPE_SOURCES = ["FORM", "PASTE", "LINK", "VIDEO", "PHOTO"] as const;
+export type RecipeSource = (typeof RECIPE_SOURCES)[number];
+
+export function isRecipeSource(v: string): v is RecipeSource {
+  return (RECIPE_SOURCES as readonly string[]).includes(v);
+}

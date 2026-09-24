@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import ImageUploadField from "@/components/image-upload-field";
+import type { RecipeSource } from "@/lib/recipe";
 import type { CreateRecipeState, CreateRecipeValues } from "../recipe-form-data";
 import IngredientEditor, { type IngredientItem } from "./ingredient-editor";
 import StepEditor, { type StepItem } from "./step-editor";
@@ -30,12 +31,18 @@ export default function RecipeForm({
    * only in what the fields start out holding.
    */
   initialValues,
+  /**
+   * Which way in produced this recipe, submitted with it so the save can
+   * record it. Only the creator passes one; an edit has nothing to say here.
+   */
+  source,
   submitLabel = "Save recipe",
   pendingLabel = "Saving…",
 }: {
   action: RecipeFormAction;
   cookbookId: string;
   initialValues?: CreateRecipeValues;
+  source?: RecipeSource;
   submitLabel?: string;
   pendingLabel?: string;
 }) {
@@ -98,6 +105,7 @@ export default function RecipeForm({
 
   return (
     <form action={formAction} className="space-y-10" noValidate>
+      {source ? <input type="hidden" name="source" value={source} /> : null}
       <section className="space-y-4">
         <div>
           <label htmlFor="title" className="block text-subheadline font-medium">

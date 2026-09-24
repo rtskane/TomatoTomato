@@ -114,8 +114,9 @@ describe("importFromUrl", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.title).toBe("Classic Birthday Cake");
-    expect(result.value.ingredients).toHaveLength(16);
+    expect(result.value.source).toBe("LINK");
+    expect(result.value.values.title).toBe("Classic Birthday Cake");
+    expect(result.value.values.ingredients).toHaveLength(16);
   });
 
   it("passes on why a page couldn't be read", async () => {
@@ -169,6 +170,16 @@ describe("importFromUrl — videos", () => {
     expect(importFromVideo).toHaveBeenCalledWith({ platform: "youtube", url: watchPage });
     // The page is the video importer's to fetch, not read as a recipe page.
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  // Same box as a recipe site, so the result has to say which it was.
+  it("marks a recipe read from a video as coming from one", async () => {
+    const values = { title: "Smash burgers" };
+    importFromVideo.mockResolvedValue({ ok: true, value: values });
+
+    const result = await importFromUrl("https://youtu.be/9vdF9Cgy7zc");
+
+    expect(result).toEqual({ ok: true, value: { values, source: "VIDEO" } });
   });
 
   // The video importer has no permission check of its own; it relies on this.

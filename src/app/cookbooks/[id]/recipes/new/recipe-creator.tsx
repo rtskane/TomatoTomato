@@ -4,6 +4,7 @@ import { startTransition, useActionState, useId, useState } from "react";
 import RecipeForm, { type RecipeFormAction } from "./recipe-form";
 import type { CreateRecipeValues } from "../recipe-form-data";
 import type { ImportState } from "./import-actions";
+import type { RecipeSource } from "@/lib/recipe";
 import { fieldClass, primaryButtonClass } from "./form-classes";
 import { prepareForVision } from "./photo-preprocessing";
 import { ACCEPTED_IMAGE_TYPES } from "@/lib/image-uploads";
@@ -151,7 +152,9 @@ export default function RecipeCreator({
   importPhotoAction: ImportAction;
 }) {
   const [mode, setMode] = useState<Mode>("choose");
-  const [imported, setImported] = useState<CreateRecipeValues | undefined>();
+  const [imported, setImported] = useState<
+    { values: CreateRecipeValues; source?: RecipeSource } | undefined
+  >();
   const photoInputId = useId();
   // The chosen file, undefined until a photo is picked.
   const [photoFile, setPhotoFile] = useState<File | undefined>();
@@ -178,16 +181,14 @@ export default function RecipeCreator({
   // that would overwrite their work. (It also keeps the form's one-time
   // seeding honest: the form is only ever mounted fresh from a panel, so it
   // never needs a key to notice new values.)
-  const showImportedFrom =
-    (...panels: Mode[]) =>
-    (values: CreateRecipeValues) => {
-      if (!panels.includes(mode)) return;
-      setImported(values);
-      setMode("form");
-    };
-  useOnImport(textState.values, showImportedFrom("paste"));
-  useOnImport(urlState.values, showImportedFrom("link"));
-  useOnImport(photoState.values, showImportedFrom("photo"));
+  const showImportedFrom = (panel: Mode, state: ImportState) => () => {
+    if (mode !== panel || !state.values) return;
+    setImported({ values: state.values, source: state.source });
+    setMode("form");
+  };
+  useOnImport(textState.values, showImportedFrom("paste", textState));
+  useOnImport(urlState.values, showImportedFrom("link", urlState));
+  useOnImport(photoState.values, showImportedFrom("photo", photoState));
 
   function backToChoices() {
     setMode("choose");
@@ -376,10 +377,14 @@ export default function RecipeCreator({
         </button>
       )}
 
+      {/* Recorded with the save, to learn which ways in people use. An
+          import the author then rewrote still counts as that import — it's
+          how they chose to start. */}
       <RecipeForm
         action={saveAction}
         cookbookId={cookbookId}
-        initialValues={imported}
+        initialValues={imported?.values}
+        source={imported ? imported.source : "FORM"}
       />
     </div>
   );
