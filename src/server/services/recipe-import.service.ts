@@ -25,7 +25,6 @@ export type ImportError = {
     | "blocked"
     | "unreachable"
     | "unparseable"
-    /** Out of today's AI imports; see `AI_IMPORTS_PER_DAY`. */
     | "limited";
   message: string;
 };

@@ -8,20 +8,21 @@ import type { ImportError } from "./recipe-import.service";
 
 // Asking Claude for a recipe's shape, for the importers whose source isn't
 // structured: a photo, a video's caption and transcript. Each importer decides
-// what to send and what to say when it goes wrong; this is only the asking.
+// what to send and what to say when it goes wrong; this is only the asking,
+// and the counting of how often each person asks.
 //
 // It costs real money per call, which is why every caller is gated behind
 // `canImportInto` like every other importer, even though importing doesn't
-// write anything — and why each user gets a daily allowance of calls, counted
-// here so that no importer can forget to.
+// write anything — and why each user gets an allowance of calls a day,
+// counted here so that no importer can forget to.
 
-/** How many times a day one person can have Claude read a recipe for them. */
+/** How many times in 24 hours one person can have Claude read a recipe for them. */
 export const AI_IMPORTS_PER_DAY = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const LIMITED: ImportError = {
   kind: "limited",
-  message: `You've used today's ${AI_IMPORTS_PER_DAY} AI imports. You can still paste a recipe, add one from a recipe site's link, or type it into the form.`,
+  message: `You've used your ${AI_IMPORTS_PER_DAY} AI imports for the last 24 hours. You can still paste a recipe, add one from a recipe site's link, or type it into the form.`,
 };
 
 const recipeSchema = z.object({
@@ -79,9 +80,8 @@ export async function extractRecipe(
   userId: string,
   content: Anthropic.ContentBlockParam[],
   messages: { unreachable: string; unparseable: string },
-  now: Date = new Date(),
 ): Promise<Result<CreateRecipeValues, ImportError>> {
-  const since = new Date(now.getTime() - DAY_MS);
+  const since = new Date(Date.now() - DAY_MS);
   if (!(await aiImportRepository.claim(userId, AI_IMPORTS_PER_DAY, since))) {
     return err(LIMITED);
   }
