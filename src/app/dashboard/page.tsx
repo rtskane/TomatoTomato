@@ -6,8 +6,11 @@ import {
   listArchivedCookbooks,
 } from "@/server/services/cookbook.service";
 import CookbookLibrary from "./cookbook-library";
-import ArchivedCookbooks from "./archived-cookbooks";
-import { restoreCookbookAction } from "../cookbooks/[id]/settings-actions";
+import ArchivedList from "@/components/archived-list";
+import {
+  restoreCookbookAction,
+  deleteCookbookForeverAction,
+} from "../cookbooks/[id]/settings-actions";
 import { LIBRARY_VIEW_COOKIE, parseLibraryView } from "./library-view";
 
 // Container: owns auth + data, hands rows to the presentational list.
@@ -27,10 +30,13 @@ export default async function DashboardPage() {
   // rather than flipping after hydration.
   const view = parseLibraryView(cookieStore.get(LIBRARY_VIEW_COOKIE)?.value);
 
-  // Bind each restore server-side, so no cookbook id is submitted by the client.
+  // Bind each action server-side, so no cookbook id is submitted by the client.
   const archivedItems = archived.map((cookbook) => ({
-    ...cookbook,
+    id: cookbook.id,
+    title: cookbook.title,
+    detail: `${cookbook.recipeCount} ${cookbook.recipeCount === 1 ? "recipe" : "recipes"}, kept`,
     restore: restoreCookbookAction.bind(null, cookbook.id),
+    deleteForever: deleteCookbookForeverAction.bind(null, cookbook.id),
   }));
 
   return (
@@ -48,7 +54,14 @@ export default async function DashboardPage() {
       <CookbookLibrary cookbooks={cookbooks} initialView={view} />
 
       {/* Renders nothing until something has actually been archived. */}
-      <ArchivedCookbooks cookbooks={archivedItems} />
+      {/* Only the owner sees these: archiving hides a cookbook from every
+          other member, and `listArchivedCookbooks` is scoped to `ownerId`. */}
+      <ArchivedList
+        items={archivedItems}
+        noun="cookbook"
+        note="Hidden from everyone, including members. Nothing was deleted."
+        deleteWarning="Every recipe in it goes too, including ones other members wrote, and everyone loses access."
+      />
     </div>
   );
 }

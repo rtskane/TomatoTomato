@@ -21,3 +21,8 @@ export async function deleteCoverImage(url: string | null): Promise<void> {
     console.error("[blob] failed to delete orphaned cover", url, error);
   }
 }
+
+/** Every file a permanent delete left behind — best-effort, as above. */
+export async function deleteImages(urls: (string | null)[]): Promise<void> {
+  await Promise.all(urls.map(deleteCoverImage));
+}

@@ -90,12 +90,14 @@ describe("recipeRepository.findDetailForUser", () => {
 
   // Both ids come from the URL, so all three conditions have to be in the
   // where clause — a miss must return nothing rather than partial data.
-  it("requires the recipe id, the cookbook, and a membership", async () => {
+  // An archived recipe's page is gone for everyone, its author included.
+  it("requires the recipe id, the cookbook, a live recipe, and a membership", async () => {
     await recipeRepository.findDetailForUser("cb1", "r1", "u1");
 
     expect(recipe.findFirst.mock.calls[0][0].where).toEqual({
       id: "r1",
       cookbookId: "cb1",
+      archivedAt: null,
       cookbook: { members: { some: { userId: "u1" } } },
     });
   });

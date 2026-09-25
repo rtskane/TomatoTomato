@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOnboardedUser } from "@/lib/user";
-import { updateRecipe, deleteRecipe } from "@/server/services/recipe.service";
+import { updateRecipe, archiveRecipe } from "@/server/services/recipe.service";
 import {
   parseRecipeForm,
   type CreateRecipeState,
@@ -37,17 +37,21 @@ export async function updateRecipeAction(
   redirect(`/cookbooks/${cookbookId}/recipes/${recipeId}`);
 }
 
-export type DeleteRecipeState = { error?: string };
+export type ArchiveRecipeState = { error?: string };
 
-export async function deleteRecipeAction(
+/**
+ * One click, no prompt: archiving is reversible from the cookbook's archived
+ * list, which is where deleting for good (and its "are you sure?") lives.
+ */
+export async function archiveRecipeAction(
   cookbookId: string,
   recipeId: string,
-  _prevState: DeleteRecipeState,
+  _prevState: ArchiveRecipeState,
   _formData: FormData,
-): Promise<DeleteRecipeState> {
+): Promise<ArchiveRecipeState> {
   const user = await requireOnboardedUser();
 
-  const result = await deleteRecipe(user.id, cookbookId, recipeId);
+  const result = await archiveRecipe(user.id, cookbookId, recipeId);
   if (!result.ok) return { error: result.error.message };
 
   // The recipe's own page is gone, so send them back to the cookbook.

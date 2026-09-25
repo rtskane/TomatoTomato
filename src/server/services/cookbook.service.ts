@@ -364,6 +364,33 @@ export async function restoreCookbook(
   return ok(true);
 }
 
+/**
+ * Delete an archived cookbook for good, with everything in it.
+ *
+ * Like restore, this skips `requireOwner` — the cookbook is archived, so the
+ * membership lookup can't see it — and enforces ownership in the write. A live
+ * cookbook can't be deleted at all; it has to be archived first.
+ *
+ * `orphanedImages` are the blob files the deleted rows pointed at, for the
+ * caller to remove — the same split as `updateCookbook`'s `orphanedCover`.
+ */
+export async function deleteCookbookForever(
+  userId: string,
+  cookbookId: string,
+): Promise<Result<{ orphanedImages: string[] }, CookbookAdminError>> {
+  const images = await cookbookRepository.findArchivedImages(cookbookId, userId);
+  if (!images) return err(NOT_YOURS);
+
+  const { count } = await cookbookRepository.deleteArchived(cookbookId, userId);
+  if (count === 0) return err(NOT_YOURS);
+
+  const urls = [
+    images.coverImageUrl,
+    ...images.recipes.map((recipe) => recipe.coverImageUrl),
+  ];
+  return ok({ orphanedImages: urls.filter((url): url is string => !!url) });
+}
+
 export type ArchivedCookbook = {
   id: string;
   title: string;

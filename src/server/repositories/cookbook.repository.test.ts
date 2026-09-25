@@ -128,8 +128,9 @@ describe("cookbookRepository.listForUser", () => {
       title: true,
       description: true,
     });
+    // Archived recipes are out of the cookbook, so out of the count on its cover.
     expect(select.cookbook.select._count).toEqual({
-      select: { recipes: true, members: true },
+      select: { recipes: { where: { archivedAt: null } }, members: true },
     });
   });
 

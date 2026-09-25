@@ -7,6 +7,7 @@ import {
   type CoverTitleSize,
   type CoverTitlePosition,
 } from "@/generated/prisma/enums";
+import { liveRecipe } from "./recipe.repository";
 
 // The ONLY module that talks to Prisma for the Cookbook table. Mirrors the
 // contract of user.repository: callers above this layer speak in method calls
@@ -47,6 +48,9 @@ type UpdateCookbookInput = CookbookCoverInput & {
  * a new lookup without it is visibly inconsistent with its neighbours.
  */
 const liveCookbook = { cookbook: { archivedAt: null } } as const;
+
+/** For `_count`: archived recipes are out of the cookbook, so out of its numbers. */
+const liveRecipes = { where: liveRecipe } as const;
 
 /**
  * Every column that makes up a cover, as one `select` fragment.
@@ -119,7 +123,7 @@ export const cookbookRepository = {
             description: true,
             ...coverColumns,
             updatedAt: true,
-            _count: { select: { recipes: true, members: true } },
+            _count: { select: { recipes: liveRecipes, members: true } },
           },
         },
       },
@@ -148,6 +152,7 @@ export const cookbookRepository = {
             description: true,
             ...coverColumns,
             recipes: {
+              where: liveRecipe,
               orderBy: { createdAt: "desc" },
               select: {
                 id: true,
@@ -234,7 +239,7 @@ export const cookbookRepository = {
         id: true,
         title: true,
         ownerId: true,
-        _count: { select: { recipes: true, members: true } },
+        _count: { select: { recipes: liveRecipes, members: true } },
       },
     });
   },
@@ -285,6 +290,36 @@ export const cookbookRepository = {
   },
 
   /**
+   * Every image an archived cookbook holds — its cover and each recipe's photo,
+   * archived recipes included — read before a permanent delete so the files
+   * can be removed from blob storage once the rows are gone. `null` when it
+   * isn't this owner's archived cookbook.
+   */
+  findArchivedImages(cookbookId: string, ownerId: string) {
+    return prisma.cookbook.findFirst({
+      where: { id: cookbookId, ownerId, archivedAt: { not: null } },
+      select: {
+        coverImageUrl: true,
+        recipes: { select: { coverImageUrl: true } },
+      },
+    });
+  },
+
+  /**
+   * Delete a cookbook for good: its recipes (with their ingredients and steps),
+   * memberships and invites all cascade.
+   *
+   * Only an archived cookbook, and only by its owner — both are in the `where`,
+   * so a live cookbook or someone else's changes zero rows. Archiving first is
+   * what makes this a two-step decision; see `archivedAt` in schema.prisma.
+   */
+  deleteArchived(cookbookId: string, ownerId: string) {
+    return prisma.cookbook.deleteMany({
+      where: { id: cookbookId, ownerId, archivedAt: { not: null } },
+    });
+  },
+
+  /**
    * The owner's archived cookbooks, for the restore list on their dashboard.
    *
    * The one read that deliberately looks past `liveCookbook` — and it's scoped
@@ -299,7 +334,7 @@ export const cookbookRepository = {
         title: true,
         description: true,
         archivedAt: true,
-        _count: { select: { recipes: true } },
+        _count: { select: { recipes: liveRecipes } },
       },
     });
   },
