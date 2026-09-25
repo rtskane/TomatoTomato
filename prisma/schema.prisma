@@ -109,6 +109,7 @@ model User {
   memberships     CookbookMember[]
   recipes         Recipe[]         @relation("RecipeAuthor")
   sentInvites     CookbookInvite[] @relation("InviteSender")
+  aiImports       AiImport[]
 }
 
 // ---------------------------------------------------------------------------
@@ -347,4 +348,27 @@ model Step {
   recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@index([recipeId])
+}
+
+// ---------------------------------------------------------------------------
+// Spending limits
+// ---------------------------------------------------------------------------
+
+/// One row per time an importer asked Claude to read a recipe on someone's
+/// behalf — a photo, or a video's caption and transcript. Each costs real
+/// money, so `aiImportRepository.claim` counts a user's rows over the last day
+/// and refuses past a cap.
+///
+/// A row is written before the call, not after it succeeds: a failed call can
+/// still be billed, and a script retrying failures is exactly what the cap is
+/// for. Rows older than the window are never read again; nothing sweeps them
+/// yet, and at one row per import there's no hurry to.
+model AiImport {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

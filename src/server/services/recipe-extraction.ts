@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { CreateRecipeValues } from "@/app/cookbooks/[id]/recipes/recipe-form-data";
+import { aiImportRepository } from "@/server/repositories/ai-import.repository";
 import { ok, err, type Result } from "@/server/result";
 import type { ImportError } from "./recipe-import.service";
 
@@ -11,7 +12,17 @@ import type { ImportError } from "./recipe-import.service";
 //
 // It costs real money per call, which is why every caller is gated behind
 // `canImportInto` like every other importer, even though importing doesn't
-// write anything.
+// write anything — and why each user gets a daily allowance of calls, counted
+// here so that no importer can forget to.
+
+/** How many times a day one person can have Claude read a recipe for them. */
+export const AI_IMPORTS_PER_DAY = 20;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const LIMITED: ImportError = {
+  kind: "limited",
+  message: `You've used today's ${AI_IMPORTS_PER_DAY} AI imports. You can still paste a recipe, add one from a recipe site's link, or type it into the form.`,
+};
 
 const recipeSchema = z.object({
   title: z.string().describe("The recipe's title, or \"\" if none is given."),
@@ -59,11 +70,22 @@ function anthropic(): Anthropic {
  * it knows what it sent: a request that failed (`unreachable` — try again), or
  * an answer with no recipe in it (`unparseable` — nothing to cook from, or a
  * reply that didn't fit the schema).
+ *
+ * Refuses with `limited`, without calling Claude, once `userId` has had
+ * `AI_IMPORTS_PER_DAY` calls in the last 24 hours. A call counts whether or not
+ * it finds a recipe — it's billed either way.
  */
 export async function extractRecipe(
+  userId: string,
   content: Anthropic.ContentBlockParam[],
   messages: { unreachable: string; unparseable: string },
+  now: Date = new Date(),
 ): Promise<Result<CreateRecipeValues, ImportError>> {
+  const since = new Date(now.getTime() - DAY_MS);
+  if (!(await aiImportRepository.claim(userId, AI_IMPORTS_PER_DAY, since))) {
+    return err(LIMITED);
+  }
+
   let parsed: z.infer<typeof recipeSchema> | null;
   try {
     const response = await anthropic().messages.parse({

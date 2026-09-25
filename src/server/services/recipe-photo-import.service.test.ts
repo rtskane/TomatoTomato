@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MAX_IMAGE_BYTES } from "@/lib/image-uploads";
 
-const { findMembership, messagesParse } = vi.hoisted(() => ({
+const { findMembership, messagesParse, claim } = vi.hoisted(() => ({
   findMembership: vi.fn(),
   messagesParse: vi.fn(),
+  claim: vi.fn(),
 }));
 vi.mock("@/server/repositories/cookbook.repository", () => ({
   cookbookRepository: { findMembership },
+}));
+vi.mock("@/server/repositories/ai-import.repository", () => ({
+  aiImportRepository: { claim },
 }));
 vi.mock("@anthropic-ai/sdk", () => ({
   // A plain function, not an arrow — the service calls this with `new`, and
@@ -17,6 +21,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 }));
 
 import { importFromPhoto } from "./recipe-photo-import.service";
+import { AI_IMPORTS_PER_DAY } from "./recipe-extraction";
 
 const jpeg = (bytes = "fake-jpeg-bytes") =>
   new File([bytes], "card.jpg", { type: "image/jpeg" });
@@ -35,6 +40,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   findMembership.mockResolvedValue({ role: "EDITOR" });
   messagesParse.mockResolvedValue({ parsed_output: carbonaraFromPhoto });
+  claim.mockResolvedValue(true);
 });
 
 describe("who may import", () => {
@@ -79,12 +85,13 @@ describe("importFromPhoto", () => {
     expect(textBlock.type).toBe("text");
   });
 
-  it("rejects a non-JPEG file without calling Claude", async () => {
+  it("rejects a non-JPEG file without calling Claude or spending an import", async () => {
     const file = new File(["x"], "card.png", { type: "image/png" });
     const result = await importFromPhoto("u1", "cb1", file);
 
     expect(result).toMatchObject({ ok: false, error: { kind: "invalid" } });
     expect(messagesParse).not.toHaveBeenCalled();
+    expect(claim).not.toHaveBeenCalled();
   });
 
   it("rejects an empty file without calling Claude", async () => {
@@ -129,5 +136,47 @@ describe("importFromPhoto", () => {
     const result = await importFromPhoto("u1", "cb1", jpeg());
 
     expect(result).toMatchObject({ ok: false, error: { kind: "unparseable" } });
+  });
+});
+
+describe("the daily cap on AI imports", () => {
+  const NOW = new Date("2026-09-25T12:00:00Z");
+
+  it("spends one of this user's imports for the last 24 hours before asking Claude", async () => {
+    await importFromPhoto("u1", "cb1", jpeg());
+
+    expect(claim).toHaveBeenCalledWith("u1", AI_IMPORTS_PER_DAY, expect.any(Date));
+    expect(claim.mock.invocationCallOrder[0]).toBeLessThan(
+      messagesParse.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("counts from exactly a day ago", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    try {
+      await importFromPhoto("u1", "cb1", jpeg());
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(claim.mock.calls[0][2]).toEqual(new Date("2026-09-24T12:00:00Z"));
+  });
+
+  it("refuses once they're used up, without calling Claude, and points at the other ways in", async () => {
+    claim.mockResolvedValue(false);
+
+    const result = await importFromPhoto("u1", "cb1", jpeg());
+
+    expect(result).toMatchObject({ ok: false, error: { kind: "limited" } });
+    expect(!result.ok && result.error.message).toMatch(/paste a recipe/);
+    expect(messagesParse).not.toHaveBeenCalled();
+  });
+
+  it("isn't spent by someone who may not import into the cookbook", async () => {
+    findMembership.mockResolvedValue(null);
+
+    await importFromPhoto("u1", "cb1", jpeg());
+
+    expect(claim).not.toHaveBeenCalled();
   });
 });
