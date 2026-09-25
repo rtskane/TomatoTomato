@@ -46,6 +46,7 @@ export async function importFromPhoto(
   const data = Buffer.from(await file.arrayBuffer()).toString("base64");
 
   return extractRecipe(
+    userId,
     [
       {
         type: "image",

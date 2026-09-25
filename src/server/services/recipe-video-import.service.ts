@@ -92,6 +92,7 @@ If there's no recipe here — for example the text only says it's in the creator
  * Only called from `importFromUrl`, after its permission check.
  */
 export async function importFromVideo(
+  userId: string,
   video: VideoLink,
 ): Promise<Result<CreateRecipeValues, ImportError>> {
   if (video.platform === "instagram") {
@@ -135,6 +136,7 @@ export async function importFromVideo(
 
   const platform = video.platform === "tiktok" ? "TikTok" : "YouTube";
   const fromVideo = await extractRecipe(
+    userId,
     [{ type: "text", text: videoPrompt(platform, details, transcript) }],
     {
       unreachable:

@@ -167,7 +167,7 @@ describe("importFromUrl — videos", () => {
     const result = await importFromUrl("youtube.com/shorts/9vdF9Cgy7zc");
 
     expect(result).toBe(found);
-    expect(importFromVideo).toHaveBeenCalledWith({ platform: "youtube", url: watchPage });
+    expect(importFromVideo).toHaveBeenCalledWith("u1", { platform: "youtube", url: watchPage });
     // The page is the video importer's to fetch, not read as a recipe page.
     expect(fetchSpy).not.toHaveBeenCalled();
   });

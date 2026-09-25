@@ -12,7 +12,7 @@ import { importFromVideo } from "./recipe-video-import.service";
 const importVideo = (href: string) => {
   const video = recognizeVideoLink(new URL(href));
   if (!video) throw new Error(`not a video link: ${href}`);
-  return importFromVideo(video);
+  return importFromVideo("u1", video);
 };
 
 const TIKTOK = "https://www.tiktok.com/@butterworthdasyrup/video/7484033605795204394";
@@ -66,7 +66,7 @@ const NOTHING_FOUND = {
 } as const;
 
 /** What was sent to Claude. */
-const prompt = () => extractRecipe.mock.calls[0][0][0].text as string;
+const prompt = () => extractRecipe.mock.calls[0][1][0].text as string;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -144,7 +144,8 @@ describe("reading what a video says", () => {
     extractRecipe.mockResolvedValue(CLAUDE_FAILED);
 
     expect(await importVideo(TIKTOK)).toEqual(CLAUDE_FAILED);
-    const messages = extractRecipe.mock.calls[0][1];
+    const [userId, , messages] = extractRecipe.mock.calls[0];
+    expect(userId).toBe("u1");
     expect(messages.unreachable).toMatch(/video/);
     expect(messages.unparseable).toMatch(/bio.*“Paste a recipe”/);
   });

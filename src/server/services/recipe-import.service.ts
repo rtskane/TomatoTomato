@@ -19,7 +19,13 @@ import { fetchText, parseUserUrl } from "./safe-fetch";
 // nobody looked at.
 
 export type ImportError = {
-  kind: "forbidden" | "invalid" | "blocked" | "unreachable" | "unparseable";
+  kind:
+    | "forbidden"
+    | "invalid"
+    | "blocked"
+    | "unreachable"
+    | "unparseable"
+    | "limited";
   message: string;
 };
 
@@ -73,7 +79,7 @@ export async function importFromUrl(
 
   const video = recognizeVideoLink(url.value);
   if (video) {
-    const found = await importFromVideo(video);
+    const found = await importFromVideo(userId, video);
     return found.ok ? ok({ values: found.value, source: "VIDEO" }) : found;
   }
 
