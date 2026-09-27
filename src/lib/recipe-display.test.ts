@@ -3,6 +3,7 @@ import {
   formatIngredient,
   formatMinutes,
   formatQuantity,
+  unitFor,
   totalMinutes,
 } from "./recipe-display";
 
@@ -132,5 +133,42 @@ describe("formatQuantity", () => {
     expect(formatQuantity(187.5)).toBe("187½");
     expect(formatQuantity(12.375)).toBe("12");
     expect(formatQuantity(12.8)).toBe("13");
+  });
+});
+
+describe("unitFor", () => {
+  // Halving "2 cups" used to read "1 cups".
+  it("goes singular at one or less", () => {
+    expect(unitFor("cups", 1)).toBe("cup");
+    expect(unitFor("cups", 0.5)).toBe("cup");
+    expect(unitFor("tablespoons", 0.75)).toBe("tablespoon");
+  });
+
+  it("goes plural above one, fractions included", () => {
+    expect(unitFor("cup", 2)).toBe("cups");
+    expect(unitFor("tablespoon", 1.5)).toBe("tablespoons");
+    expect(unitFor("pinch", 2)).toBe("pinches");
+    expect(unitFor("leaf", 3)).toBe("leaves");
+  });
+
+  // Scaling can leave 1.004, which prints as "1".
+  it("follows the printed amount, not float noise", () => {
+    expect(unitFor("cups", 1.004)).toBe("cup");
+  });
+
+  it("keeps a capital", () => {
+    expect(unitFor("Cups", 1)).toBe("Cup");
+  });
+
+  // Guessing at a plural would be worse than leaving what the author wrote.
+  it("leaves abbreviations and unknown units alone", () => {
+    expect(unitFor("tsp", 3)).toBe("tsp");
+    expect(unitFor("g", 200)).toBe("g");
+    expect(unitFor("knob", 2)).toBe("knob");
+    expect(unitFor("", 2)).toBe("");
+  });
+
+  it("leaves the unit alone when there's no amount", () => {
+    expect(unitFor("cups", null)).toBe("cups");
   });
 });

@@ -82,6 +82,76 @@ export function formatQuantity(quantity: number | null): string {
   return whole >= 10 ? String(Math.round(quantity)) : tidyDecimal(quantity);
 }
 
+/**
+ * Units that change with the amount, singular → plural. Abbreviations ("tsp",
+ * "g", "oz") don't, so they aren't here — nor is anything not listed, which is
+ * left exactly as the author typed it rather than guessed at.
+ */
+const UNIT_PLURALS: Record<string, string> = {
+  cup: "cups",
+  tablespoon: "tablespoons",
+  teaspoon: "teaspoons",
+  pound: "pounds",
+  lb: "lbs",
+  ounce: "ounces",
+  pint: "pints",
+  quart: "quarts",
+  gallon: "gallons",
+  gram: "grams",
+  kilogram: "kilograms",
+  liter: "liters",
+  litre: "litres",
+  milliliter: "milliliters",
+  millilitre: "millilitres",
+  clove: "cloves",
+  can: "cans",
+  jar: "jars",
+  bottle: "bottles",
+  box: "boxes",
+  bag: "bags",
+  package: "packages",
+  packet: "packets",
+  stick: "sticks",
+  slice: "slices",
+  piece: "pieces",
+  sheet: "sheets",
+  sprig: "sprigs",
+  stalk: "stalks",
+  bunch: "bunches",
+  head: "heads",
+  handful: "handfuls",
+  pinch: "pinches",
+  dash: "dashes",
+  drop: "drops",
+  leaf: "leaves",
+  fillet: "fillets",
+};
+
+const UNIT_SINGULARS: Record<string, string> = Object.fromEntries(
+  Object.entries(UNIT_PLURALS).map(([singular, plural]) => [plural, singular]),
+);
+
+/**
+ * A unit in the number that goes with `quantity`: "1 cup", "1½ cups", "½
+ * cup". Units are stored as typed, so without this halving "2 cups" read
+ * "1 cups". Only known units change, and a capital stays a capital.
+ */
+export function unitFor(unit: string, quantity: number | null): string {
+  const trimmed = unit.trim();
+  const lower = trimmed.toLowerCase();
+  if (quantity === null) return unit;
+
+  // Decided from what's printed, so an amount that prints as "1" is singular
+  // even if scaling left it at 1.004.
+  const plural = quantity > 1 && formatQuantity(quantity) !== "1";
+  const swapped = plural ? UNIT_PLURALS[lower] : UNIT_SINGULARS[lower];
+  if (!swapped) return unit;
+
+  return trimmed[0] === trimmed[0].toUpperCase()
+    ? swapped[0].toUpperCase() + swapped.slice(1)
+    : swapped;
+}
+
 /** What a recipe with no stated servings can be scaled by instead. */
 export const SCALE_MULTIPLIERS = [0.5, 1, 2, 3] as const;
 

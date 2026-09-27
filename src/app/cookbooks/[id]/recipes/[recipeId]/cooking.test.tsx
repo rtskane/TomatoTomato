@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RecipeArticle from "./recipe-article";
+import { resetSweepForTests } from "./cooking";
 import { progressKey, PROGRESS_TTL_MS } from "@/lib/cooking-progress";
 import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 
@@ -12,6 +13,7 @@ import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 
 afterEach(() => {
   cleanup();
+  resetSweepForTests();
   localStorage.clear();
   vi.unstubAllGlobals();
   // Delete the stubbed Wake Lock API, if a test added one.
@@ -60,9 +62,11 @@ describe("scaling", () => {
     await user.click(screen.getByRole("button", { name: "More servings" }));
     await user.click(screen.getByRole("button", { name: "More servings" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("6");
-    expect(ingredients().getByText(/1½ cup flour/)).toBeInTheDocument();
+    // "6" alone doesn't say six of what.
+    expect(screen.getByRole("status")).toHaveTextContent("6 servings");
     expect(ingredients().getByText(/⅜ tsp salt/)).toBeInTheDocument();
+    // The unit follows the amount: "1 cup" became "1½ cups".
+    expect(ingredients().getByText(/1½ cups flour/)).toBeInTheDocument();
     // Nothing to scale on a line with no amount.
     expect(ingredients().getByText(/^butter/)).toBeInTheDocument();
   });
@@ -98,7 +102,7 @@ describe("scaling", () => {
     await user.click(screen.getByRole("button", { name: "2×" }));
 
     expect(screen.getByRole("button", { name: "2×" })).toHaveAttribute("aria-pressed", "true");
-    expect(ingredients().getByText(/^2 cup flour/)).toBeInTheDocument();
+    expect(ingredients().getByText(/^2 cups flour/)).toBeInTheDocument();
     expect(ingredients().getByText(/½ tsp salt/)).toBeInTheDocument();
   });
 
@@ -205,6 +209,25 @@ describe("remembering progress", () => {
 
     expect(screen.getByRole("checkbox", { name: "Whisk everything." })).not.toBeChecked();
     expect(screen.getByRole("status")).toHaveTextContent("4");
+  });
+
+  // Expired progress reads as fresh anyway; this is about not leaving one
+  // entry per recipe ever cooked in storage for good.
+  it("deletes lapsed progress for every recipe, and keeps live progress", () => {
+    const entry = (savedAt: number) =>
+      JSON.stringify({ savedAt, factor: 1, ingredients: [], steps: ["s1"] });
+    localStorage.setItem(progressKey("old-a"), entry(Date.now() - PROGRESS_TTL_MS - 1));
+    localStorage.setItem(progressKey("old-b"), "{not json");
+    localStorage.setItem(progressKey("live"), entry(Date.now()));
+    localStorage.setItem("someone-elses-key", "{not json");
+
+    render(<RecipeArticle recipe={detail()} />);
+
+    expect(localStorage.getItem(progressKey("old-a"))).toBeNull();
+    expect(localStorage.getItem(progressKey("old-b"))).toBeNull();
+    expect(localStorage.getItem(progressKey("live"))).not.toBeNull();
+    // Only ours: other keys aren't this feature's to judge.
+    expect(localStorage.getItem("someone-elses-key")).toBe("{not json");
   });
 
   // Private browsing and blocked site data make localStorage throw.

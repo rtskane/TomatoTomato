@@ -36,9 +36,12 @@ export const FRESH_PROGRESS: CookingProgress = Object.freeze({
   steps: [],
 }) as CookingProgress;
 
+/** What every recipe's storage key starts with, so stale ones can be found. */
+export const PROGRESS_KEY_PREFIX = "cooking-progress:";
+
 /** The storage key for one recipe's progress. */
 export function progressKey(recipeId: string): string {
-  return `cooking-progress:${recipeId}`;
+  return `${PROGRESS_KEY_PREFIX}${recipeId}`;
 }
 
 /**

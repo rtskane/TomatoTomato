@@ -13,10 +13,12 @@ import {
 import {
   formatIngredient,
   formatQuantity,
+  unitFor,
   SCALE_MULTIPLIERS,
 } from "@/lib/recipe-display";
 import {
   FRESH_PROGRESS,
+  PROGRESS_KEY_PREFIX,
   clearTicks,
   parseProgress,
   progressKey,
@@ -66,7 +68,44 @@ function writeRaw(key: string, value: string) {
   for (const listener of listeners) listener();
 }
 
+let swept = false;
+
+/** Tests only: let the next subscription sweep again, as a new page load would. */
+export function resetSweepForTests() {
+  swept = false;
+}
+
+/**
+ * Delete every recipe's progress that has lapsed or can't be read. Expired
+ * progress already reads as fresh, but without this its entry would stay in
+ * storage for good — one per recipe ever cooked. Once per page load, and for
+ * every recipe rather than just this one, since a recipe nobody reopens would
+ * otherwise never be cleaned up.
+ */
+function sweepStaleProgress() {
+  if (swept) return;
+  swept = true;
+  try {
+    const now = Date.now();
+    const stale: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (
+        key?.startsWith(PROGRESS_KEY_PREFIX) &&
+        parseProgress(window.localStorage.getItem(key), now) === FRESH_PROGRESS
+      ) {
+        stale.push(key);
+      }
+    }
+    // Collected first: removing while iterating shifts the indexes.
+    for (const key of stale) window.localStorage.removeItem(key);
+  } catch {
+    // Storage unavailable — then there's nothing stored to sweep.
+  }
+}
+
 function subscribe(listener: () => void) {
+  sweepStaleProgress();
   listeners.add(listener);
   // Another tab of the same recipe ticking something.
   window.addEventListener("storage", listener);
@@ -197,6 +236,8 @@ export function ScaleControl({ servings }: { servings: number | null }) {
           className="min-w-[2ch] text-center text-subheadline font-medium tabular-nums"
         >
           {target}
+          {/* Announced as it changes; "6" alone doesn't say six of what. */}
+          <span className="sr-only"> servings</span>
         </output>
         <button
           type="button"
@@ -279,7 +320,11 @@ export function IngredientItem({
           className="mt-1.5 size-4 shrink-0 accent-accent"
         />
         <span className={ticked ? "text-foreground-muted line-through" : undefined}>
-          {formatIngredient({ quantity: formatQuantity(scaled), unit, name })}
+          {formatIngredient({
+            quantity: formatQuantity(scaled),
+            unit: unitFor(unit, scaled),
+            name,
+          })}
           {note ? <span className="text-foreground-muted">, {note}</span> : null}
         </span>
       </label>
