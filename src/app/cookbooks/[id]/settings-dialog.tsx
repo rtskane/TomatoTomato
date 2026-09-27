@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import ModalDialog from "@/components/modal-dialog";
 import CoverDesigner from "@/components/cover-designer";
+import InlineConfirm from "@/components/inline-confirm";
 import type { UpdateCookbookState, ArchiveCookbookState } from "./settings-actions";
 import type { ArchiveImpact } from "@/server/services/cookbook.service";
 import type { CoverDesign } from "@/lib/book-covers";
@@ -47,60 +48,21 @@ function ArchiveSection({
   action: ArchiveAction;
   impact: ArchiveImpact;
 }) {
-  const [state, submit, pending] = useActionState(action, {});
-  const [confirming, setConfirming] = useState(false);
-
-  if (!confirming) {
-    return (
-      <button
-        type="button"
-        onClick={() => setConfirming(true)}
-        className="text-subheadline text-error hover:underline"
-      >
-        Archive this cookbook
-      </button>
-    );
-  }
-
   return (
-    <form
-      action={submit}
-      className="rounded-lg border border-border-error/40 bg-error/5 p-4"
+    <InlineConfirm
+      action={action}
+      triggerLabel="Archive this cookbook"
+      title={`Archive “${impact.title}”?`}
+      confirmLabel="Archive"
+      pendingLabel="Archiving…"
     >
-      <p className="text-subheadline font-medium">Archive “{impact.title}”?</p>
-      <p className="mt-1 text-subheadline text-foreground-secondary">
-        It leaves everyone&rsquo;s library
-        {impact.memberCount > 1
-          ? ` — all ${impact.memberCount} members`
-          : ""}
-        . {impactSentence(impact)} Nothing is deleted: you can restore it, or
-        delete it for good, from your library.
-      </p>
-
-      {state.error ? (
-        <p role="alert" className="mt-2 text-subheadline text-error">
-          {state.error}
-        </p>
-      ) : null}
-
-      <div className="mt-3 flex items-center gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-error px-3 py-1.5 text-subheadline font-medium text-foreground-inverse hover:bg-error-hover disabled:opacity-40"
-        >
-          {pending ? "Archiving…" : "Archive"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          disabled={pending}
-          className="rounded-md px-3 py-1.5 text-subheadline text-foreground-secondary hover:bg-background-secondary disabled:opacity-60"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+      It leaves everyone&rsquo;s library
+      {impact.memberCount > 1
+        ? ` — all ${impact.memberCount} members`
+        : ""}
+      . {impactSentence(impact)} Nothing is deleted: you can restore it, or
+      delete it for good, from your library.
+    </InlineConfirm>
   );
 }
 

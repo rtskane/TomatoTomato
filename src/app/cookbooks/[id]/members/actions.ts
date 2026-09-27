@@ -1,10 +1,12 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOnboardedUser } from "@/lib/user";
 import {
   changeMemberRole,
   removeMember,
+  leaveCookbook,
   setJoinLinkEnabled,
   setJoinLinkRole,
   resetJoinLink,
@@ -78,6 +80,25 @@ export async function removeMemberAction(
 
   revalidateMembers(cookbookId);
   return {};
+}
+
+/**
+ * Leave, then go back to the library. Staying put isn't an option: the page
+ * they're on is one they can no longer see, and would 404 on refresh.
+ */
+export async function leaveCookbookAction(
+  cookbookId: string,
+  _prevState: MemberActionState,
+  _formData: FormData,
+): Promise<MemberActionState> {
+  const user = await requireOnboardedUser();
+
+  const result = await leaveCookbook(user.id, cookbookId);
+  if (!result.ok) return { error: result.error.message };
+
+  revalidateMembers(cookbookId);
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }
 
 // ---------------------------------------------------------------------------

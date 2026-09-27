@@ -8,7 +8,12 @@ const svc = vi.hoisted(() => ({
   resetJoinLink: vi.fn(),
   createOneTimeLink: vi.fn(),
   revokeOneTimeLink: vi.fn(),
+  leaveCookbook: vi.fn(),
+  redirect: vi.fn((path: string) => {
+    throw new Error(`REDIRECT:${path}`);
+  }),
 }));
+vi.mock("next/navigation", () => ({ redirect: svc.redirect }));
 vi.mock("next/cache", () => ({ revalidatePath: svc.revalidatePath }));
 vi.mock("@/lib/user", () => ({ requireOnboardedUser: svc.requireOnboardedUser }));
 vi.mock("@/server/services/member.service", () => ({
@@ -17,6 +22,7 @@ vi.mock("@/server/services/member.service", () => ({
   resetJoinLink: svc.resetJoinLink,
   createOneTimeLink: svc.createOneTimeLink,
   revokeOneTimeLink: svc.revokeOneTimeLink,
+  leaveCookbook: svc.leaveCookbook,
 }));
 
 import {
@@ -25,6 +31,7 @@ import {
   resetJoinLinkAction,
   createOneTimeLinkAction,
   revokeOneTimeLinkAction,
+  leaveCookbookAction,
 } from "./actions";
 
 const LINK = { token: "tok", role: "EDITOR" };
@@ -144,6 +151,32 @@ describe("revokeOneTimeLinkAction", () => {
     expect(await revokeOneTimeLinkAction("cb1", {}, form({ linkId: "gone" }))).toEqual({
       error: "That link is no longer available.",
     });
+    expect(svc.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("leaveCookbookAction", () => {
+  it("leaves as the signed-in user, then goes back to the library", async () => {
+    svc.requireOnboardedUser.mockResolvedValue({ id: "u_alice", username: "alice" });
+    svc.leaveCookbook.mockResolvedValue({ ok: true, value: true });
+
+    await expect(leaveCookbookAction("cb1", {}, form())).rejects.toThrow(
+      "REDIRECT:/dashboard",
+    );
+    expect(svc.leaveCookbook).toHaveBeenCalledWith("u_alice", "cb1");
+    expect(svc.revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("reports a refusal and stays put", async () => {
+    svc.leaveCookbook.mockResolvedValue({
+      ok: false,
+      error: { kind: "forbidden", message: "You own this cookbook, so you can't leave it. Archive it instead." },
+    });
+
+    expect(await leaveCookbookAction("cb1", {}, form())).toEqual({
+      error: "You own this cookbook, so you can't leave it. Archive it instead.",
+    });
+    expect(svc.redirect).not.toHaveBeenCalled();
     expect(svc.revalidatePath).not.toHaveBeenCalled();
   });
 });

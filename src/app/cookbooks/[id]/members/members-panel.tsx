@@ -1,10 +1,13 @@
 import RoleRow from "./role-row";
 import JoinLinkControls from "./join-link-controls";
 import OneTimeLinks from "./one-time-links";
+import LeaveCookbook from "./leave-cookbook";
 import type { MembersView } from "@/server/services/member.service";
+import { canAddRecipes } from "@/server/permissions";
 import {
   changeMemberRoleAction,
   removeMemberAction,
+  leaveCookbookAction,
   setJoinLinkEnabledAction,
   setJoinLinkRoleAction,
   resetJoinLinkAction,
@@ -31,6 +34,7 @@ import {
 
 export default function MembersPanel({ view }: { view: MembersView }) {
   const id = view.cookbookId;
+  const self = view.members.find((member) => member.isSelf);
 
   return (
     <div className="space-y-8">
@@ -78,6 +82,17 @@ export default function MembersPanel({ view }: { view: MembersView }) {
           ))}
         </ul>
       </section>
+
+      {/* Anyone but the owner, who has nobody to hand the cookbook to yet. */}
+      {self && !self.isOwner ? (
+        <section className="border-t border-border pt-6">
+          <LeaveCookbook
+            cookbookTitle={view.cookbookTitle}
+            canAddRecipes={canAddRecipes(self.role)}
+            action={leaveCookbookAction.bind(null, id)}
+          />
+        </section>
+      ) : null}
     </div>
   );
 }
