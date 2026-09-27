@@ -225,10 +225,13 @@ export const cookbookRepository = {
     });
   },
 
+  /**
+   * `deleteMany`, not `delete`: removing someone who's already gone — they
+   * left in another tab, or the owner removed them while they were leaving —
+   * is a no-op rather than a thrown P2025.
+   */
   removeMember(cookbookId: string, userId: string) {
-    return prisma.cookbookMember.delete({
-      where: { cookbookId_userId: { cookbookId, userId } },
-    });
+    return prisma.cookbookMember.deleteMany({ where: { cookbookId, userId } });
   },
 
   /** Title plus how much is inside, for the archive confirmation. */

@@ -199,6 +199,38 @@ export async function removeMember(
   return ok(true);
 }
 
+/**
+ * Take yourself out of a cookbook — the other half of the governing rule: only
+ * you put a cookbook in your library, and you can always take it out. Any
+ * member may, whatever their role. Their recipes stay, as with `removeMember`.
+ *
+ * The owner can't: a cookbook with nobody holding `ownerId` would have no one
+ * able to manage it. They archive it instead, or (later) hand it to someone.
+ *
+ * Someone who's already out counts as having left, not as an error: they may
+ * have left in another tab, or been removed while the confirm box was open,
+ * and either way what they asked for is true. Saying so reveals nothing about
+ * whether the cookbook exists, since every id answers the same.
+ */
+export async function leaveCookbook(
+  userId: string,
+  cookbookId: string,
+): Promise<Result<true, MemberError>> {
+  const membership = await cookbookRepository.findMembership(cookbookId, userId);
+  if (!membership) return ok(true);
+
+  const cookbook = await cookbookRepository.findById(cookbookId);
+  if (cookbook?.ownerId === userId) {
+    return err({
+      kind: "forbidden",
+      message: "You own this cookbook, so you can't leave it. Archive it instead.",
+    });
+  }
+
+  await cookbookRepository.removeMember(cookbookId, userId);
+  return ok(true);
+}
+
 // ---------------------------------------------------------------------------
 // The "anyone with this link can join" link
 // ---------------------------------------------------------------------------

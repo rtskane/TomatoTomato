@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 // The panel binds these to the cookbook; the controls' own tests cover them.
 vi.mock("./actions", () => {
@@ -13,6 +14,7 @@ vi.mock("./actions", () => {
     resetJoinLinkAction: action(),
     createOneTimeLinkAction: action(),
     revokeOneTimeLinkAction: action(),
+    leaveCookbookAction: action(),
   };
 });
 
@@ -65,5 +67,44 @@ describe("MembersPanel — one-time links", () => {
     render(<MembersPanel view={view({ canManageMembers: false, joinLink: null })} />);
     expect(screen.queryByText("One-time links")).toBeNull();
     expect(screen.queryByRole("button", { name: "Create link" })).toBeNull();
+  });
+});
+
+describe("MembersPanel — leaving", () => {
+  const asMember = (role: "VIEWER" | "EDITOR") =>
+    view({
+      canManageMembers: false,
+      joinLink: null,
+      members: [
+        { userId: "owner1", name: "ryan", avatarUrl: null, role: "OWNER", isOwner: true, isSelf: false },
+        { userId: "u_alice", name: "alice", avatarUrl: null, role, isOwner: false, isSelf: true },
+      ],
+    });
+
+  it("lets a member leave, once they confirm", async () => {
+    const user = userEvent.setup();
+    render(<MembersPanel view={asMember("VIEWER")} />);
+
+    await user.click(screen.getByRole("button", { name: "Leave this cookbook" }));
+
+    expect(screen.getByText("Leave “Weeknight Dinners”?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Leave" })).toBeInTheDocument();
+    // A viewer never added anything, so there's nothing to reassure them about.
+    expect(screen.queryByText(/recipes you added/)).toBeNull();
+  });
+
+  it("tells an editor their recipes stay", async () => {
+    const user = userEvent.setup();
+    render(<MembersPanel view={asMember("EDITOR")} />);
+
+    await user.click(screen.getByRole("button", { name: "Leave this cookbook" }));
+
+    expect(screen.getByText(/Any recipes you added stay in it/)).toBeInTheDocument();
+  });
+
+  // Nobody would be left holding Cookbook.ownerId.
+  it("offers the owner no way to leave", () => {
+    render(<MembersPanel view={view()} />);
+    expect(screen.queryByRole("button", { name: "Leave this cookbook" })).toBeNull();
   });
 });

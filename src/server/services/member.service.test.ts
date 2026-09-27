@@ -47,6 +47,7 @@ import {
   getCookbookMembers,
   changeMemberRole,
   removeMember,
+  leaveCookbook,
   setJoinLinkEnabled,
   setJoinLinkRole,
   resetJoinLink,
@@ -199,6 +200,38 @@ describe("changeMemberRole / removeMember", () => {
 
     expect(result.ok).toBe(false);
     expect(repos.updateMemberRole).not.toHaveBeenCalled();
+  });
+});
+
+describe("leaveCookbook", () => {
+  // Leaving isn't managing members: a VIEWER who can't remove anyone else can
+  // still remove themselves.
+  it.each(["VIEWER", "EDITOR"])("lets a %s leave", async (role) => {
+    repos.findMembership.mockResolvedValue({ role });
+
+    const result = await leaveCookbook("u_alice", "cb1");
+
+    expect(result.ok).toBe(true);
+    expect(repos.removeMember).toHaveBeenCalledWith("cb1", "u_alice");
+  });
+
+  it("refuses the owner", async () => {
+    const result = await leaveCookbook("owner1", "cb1");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("forbidden");
+    expect(repos.removeMember).not.toHaveBeenCalled();
+  });
+
+  // Left in another tab, or removed while the confirm box was open: what they
+  // asked for is already true, so they go back to their library like anyone.
+  it("treats someone already out as having left", async () => {
+    repos.findMembership.mockResolvedValue(null);
+
+    const result = await leaveCookbook("u_alice", "cb1");
+
+    expect(result.ok).toBe(true);
+    expect(repos.removeMember).not.toHaveBeenCalled();
   });
 });
 
