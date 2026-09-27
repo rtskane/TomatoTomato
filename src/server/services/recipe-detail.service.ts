@@ -11,8 +11,9 @@ import { totalMinutes } from "@/lib/recipe-display";
 export type RecipeDetailIngredient = {
   id: string;
   name: string;
-  /** Already a string — the view never formats numbers itself. */
-  quantity: string;
+  /** The stored number, not text: cooking mode scales it before printing, and
+   * the edit form needs it exact. `formatQuantity` is what prints it. */
+  quantity: number | null;
   unit: string;
   note: string | null;
 };
@@ -34,17 +35,6 @@ export type RecipeDetail = {
   ingredients: RecipeDetailIngredient[];
   steps: { id: string; instruction: string }[];
 };
-
-/**
- * Quantities are stored as Float, so 2 arrives as `2` and half a teaspoon as
- * `0.5`. Rendering the raw number would print "2" fine but also "0.5" — which
- * is right — while `toFixed` would turn 2 into "2.00". Stripping the trailing
- * zeros keeps both readable.
- */
-function formatQuantity(quantity: number | null): string {
-  if (quantity === null) return "";
-  return String(quantity);
-}
 
 /**
  * One recipe, or `null` when the user can't see it — which the caller should
@@ -90,7 +80,7 @@ export const getRecipeDetail = cache(async function getRecipeDetail(
     ingredients: recipe.ingredients.map((i) => ({
       id: i.id,
       name: i.name,
-      quantity: formatQuantity(i.quantity),
+      quantity: i.quantity,
       unit: i.unit ?? "",
       note: i.note,
     })),

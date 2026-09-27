@@ -20,8 +20,8 @@ function detail(overrides: Partial<RecipeDetail> = {}): RecipeDetail {
     canModify: false,
     cookbook: { id: "cb1", title: "Weeknight Dinners" },
     ingredients: [
-      { id: "i1", name: "spaghetti", quantity: "200", unit: "g", note: null },
-      { id: "i2", name: "egg", quantity: "2", unit: "", note: "yolks only" },
+      { id: "i1", name: "spaghetti", quantity: 200, unit: "g", note: null },
+      { id: "i2", name: "egg", quantity: 2, unit: "", note: "yolks only" },
     ],
     steps: [
       { id: "s1", instruction: "Boil the pasta." },
@@ -128,7 +128,7 @@ describe("RecipeArticle — ingredients", () => {
       <RecipeArticle
         recipe={detail({
           ingredients: [
-            { id: "i1", name: "salt", quantity: "", unit: "", note: null },
+            { id: "i1", name: "salt", quantity: null, unit: "", note: null },
           ],
         })}
       />,

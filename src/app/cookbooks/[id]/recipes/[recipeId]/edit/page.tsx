@@ -35,7 +35,9 @@ export default async function EditRecipePage({
     coverImageUrl: recipe.coverImageUrl ?? "",
     ingredients: recipe.ingredients.map((ingredient) => ({
       name: ingredient.name,
-      quantity: ingredient.quantity,
+      // The exact stored number, never the "⅓" the recipe page prints: this
+      // is what gets saved back.
+      quantity: ingredient.quantity?.toString() ?? "",
       unit: ingredient.unit,
       note: ingredient.note ?? "",
     })),

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatIngredient,
   formatMinutes,
+  formatQuantity,
   totalMinutes,
 } from "./recipe-display";
 
@@ -78,5 +79,58 @@ describe("totalMinutes", () => {
 
   it("is null only when both are missing", () => {
     expect(totalMinutes(null, null)).toBeNull();
+  });
+});
+
+describe("formatQuantity", () => {
+  it("prints whole numbers plainly", () => {
+    expect(formatQuantity(2)).toBe("2");
+    expect(formatQuantity(200)).toBe("200");
+  });
+
+  it("is empty when there's no quantity", () => {
+    expect(formatQuantity(null)).toBe("");
+  });
+
+  // A third used to print as "0.333333".
+  it("turns kitchen fractions into their glyphs", () => {
+    expect(formatQuantity(0.5)).toBe("½");
+    expect(formatQuantity(0.25)).toBe("¼");
+    expect(formatQuantity(0.75)).toBe("¾");
+    expect(formatQuantity(0.125)).toBe("⅛");
+    expect(formatQuantity(1 / 3)).toBe("⅓");
+    expect(formatQuantity(0.333333)).toBe("⅓");
+    expect(formatQuantity(0.33)).toBe("⅓");
+    expect(formatQuantity(2 / 3)).toBe("⅔");
+  });
+
+  it("writes mixed numbers without a space", () => {
+    expect(formatQuantity(1.5)).toBe("1½");
+    expect(formatQuantity(2 + 2 / 3)).toBe("2⅔");
+  });
+
+  // What scaling leaves behind: 1/3 × 3 in floating point.
+  it("snaps float noise to the whole number it means", () => {
+    expect(formatQuantity((1 / 3) * 3)).toBe("1");
+    expect(formatQuantity(0.1 * 3 * 10)).toBe("3");
+    expect(formatQuantity(1.999)).toBe("2");
+  });
+
+  // 0.3 is not ⅓, and passing it off as one would change the recipe.
+  it("keeps a decimal that isn't near a fraction", () => {
+    expect(formatQuantity(0.3)).toBe("0.3");
+    expect(formatQuantity(1.2)).toBe("1.2");
+    expect(formatQuantity(0.1)).toBe("0.1");
+  });
+
+  it("keeps a tiny amount rather than rounding it to nothing", () => {
+    expect(formatQuantity(0.004)).toBe("0.004");
+  });
+
+  // "187½ g" is an instruction; "12⅜ g" is false precision.
+  it("allows only halves from 10 up, and rounds the rest", () => {
+    expect(formatQuantity(187.5)).toBe("187½");
+    expect(formatQuantity(12.375)).toBe("12");
+    expect(formatQuantity(12.8)).toBe("13");
   });
 });
