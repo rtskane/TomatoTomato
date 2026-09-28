@@ -309,6 +309,9 @@ export function IngredientItem({
   const { progress } = useCooking();
   const { ticked, toggle } = useTick("ingredients", id);
   const scaled = quantity === null ? null : quantity * progress.factor;
+  // Only amounts this page computed are snapped to a measurable fraction; at
+  // the recipe's own size, the author's numbers print as they wrote them.
+  const snap = progress.factor !== 1;
 
   return (
     <li className="border-b border-border last:border-0">
@@ -321,8 +324,8 @@ export function IngredientItem({
         />
         <span className={ticked ? "text-foreground-muted line-through" : undefined}>
           {formatIngredient({
-            quantity: formatQuantity(scaled),
-            unit: unitFor(unit, scaled),
+            quantity: formatQuantity(scaled, { snap }),
+            unit: unitFor(unit, scaled, { snap }),
             name,
           })}
           {note ? <span className="text-foreground-muted">, {note}</span> : null}

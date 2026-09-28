@@ -136,6 +136,36 @@ describe("formatQuantity", () => {
   });
 });
 
+describe("formatQuantity — snapping scaled amounts", () => {
+  // ⅓ cup at 5 servings instead of 4. Nobody can measure "0.42 cup".
+  it("snaps to the nearest fraction a cup or spoon marks", () => {
+    expect(formatQuantity((1 / 3) * 1.25, { snap: true })).toBe("⅜");
+    expect(formatQuantity(0.29, { snap: true })).toBe("¼");
+    expect(formatQuantity(1.45, { snap: true })).toBe("1½");
+  });
+
+  it("snaps onto a whole number either side", () => {
+    expect(formatQuantity(1.05, { snap: true })).toBe("1");
+    expect(formatQuantity(0.95, { snap: true })).toBe("1");
+  });
+
+  // Rounding a pinch down to "0" would drop it from the recipe.
+  it("never snaps a small amount down to nothing", () => {
+    expect(formatQuantity(0.04, { snap: true })).toBe("0.04");
+  });
+
+  // The author's own numbers are theirs.
+  it("leaves unsnapped amounts exactly as before", () => {
+    expect(formatQuantity(0.3)).toBe("0.3");
+    expect(formatQuantity(0.42)).toBe("0.42");
+  });
+
+  it("changes nothing that was already a fraction or 10 and up", () => {
+    expect(formatQuantity(0.5, { snap: true })).toBe("½");
+    expect(formatQuantity(12.3, { snap: true })).toBe("12");
+  });
+});
+
 describe("unitFor", () => {
   // Halving "2 cups" used to read "1 cups".
   it("goes singular at one or less", () => {
@@ -166,6 +196,12 @@ describe("unitFor", () => {
     expect(unitFor("g", 200)).toBe("g");
     expect(unitFor("knob", 2)).toBe("knob");
     expect(unitFor("", 2)).toBe("");
+  });
+
+  // 1.05 snaps to "1", so it must read "1 cup", not "1 cups".
+  it("agrees with the snapped amount", () => {
+    expect(unitFor("cups", 1.05, { snap: true })).toBe("cup");
+    expect(unitFor("cup", 1.05)).toBe("cups");
   });
 
   it("leaves the unit alone when there's no amount", () => {

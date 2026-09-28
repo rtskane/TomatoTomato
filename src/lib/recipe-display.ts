@@ -57,9 +57,23 @@ function tidyDecimal(value: number): string {
  * - Otherwise the nearest kitchen fraction, if one is within tolerance.
  * - From 10 up, only halves survive: "187½ g" is still a real instruction, but
  *   "12⅜ g" is false precision, so it rounds to a whole.
- * - Anything else is a short decimal, which at least never lies.
+ * - Anything else is a short decimal, which at least never lies — unless
+ *   `snap` is set; see below.
+ *
+ * ## Snapping
+ *
+ * `snap` is for amounts this app computed, not ones an author typed. Scaling ⅓
+ * cup from 4 servings to 5 gives 0.4167, and "0.42 cup" isn't something anyone
+ * can measure — so a scaled amount goes to the nearest fraction a cup or spoon
+ * marks (⅜), the way recipe sites and scaling tools do. An author's own "0.3"
+ * is never snapped: that's their number, and changing it would change the
+ * recipe. Snapping never rounds a small amount down to nothing — below the
+ * smallest mark it stays a decimal.
  */
-export function formatQuantity(quantity: number | null): string {
+export function formatQuantity(
+  quantity: number | null,
+  { snap = false }: { snap?: boolean } = {},
+): string {
   if (quantity === null || !Number.isFinite(quantity)) return "";
   if (quantity <= 0) return String(quantity);
 
@@ -79,7 +93,17 @@ export function formatQuantity(quantity: number | null): string {
   );
   if (match) return `${whole > 0 ? whole : ""}${match[1]}`;
 
-  return whole >= 10 ? String(Math.round(quantity)) : tidyDecimal(quantity);
+  if (whole >= 10) return String(Math.round(quantity));
+  if (!snap) return tidyDecimal(quantity);
+
+  // The nearest mark between this whole number and the next, ends included.
+  const marks: [number, string | null][] = [[0, null], ...FRACTIONS, [1, null]];
+  const [nearest, glyph] = marks.reduce((best, mark) =>
+    Math.abs(fraction - mark[0]) < Math.abs(fraction - best[0]) ? mark : best,
+  );
+  if (nearest === 1) return String(whole + 1);
+  if (glyph) return `${whole > 0 ? whole : ""}${glyph}`;
+  return whole > 0 ? String(whole) : tidyDecimal(quantity);
 }
 
 /**
@@ -136,14 +160,19 @@ const UNIT_SINGULARS: Record<string, string> = Object.fromEntries(
  * cup". Units are stored as typed, so without this halving "2 cups" read
  * "1 cups". Only known units change, and a capital stays a capital.
  */
-export function unitFor(unit: string, quantity: number | null): string {
+export function unitFor(
+  unit: string,
+  quantity: number | null,
+  options: { snap?: boolean } = {},
+): string {
   const trimmed = unit.trim();
   const lower = trimmed.toLowerCase();
   if (quantity === null) return unit;
 
   // Decided from what's printed, so an amount that prints as "1" is singular
-  // even if scaling left it at 1.004.
-  const plural = quantity > 1 && formatQuantity(quantity) !== "1";
+  // even if scaling left it at 1.004 — which means printing it the same way,
+  // snapped or not.
+  const plural = quantity > 1 && formatQuantity(quantity, options) !== "1";
   const swapped = plural ? UNIT_PLURALS[lower] : UNIT_SINGULARS[lower];
   if (!swapped) return unit;
 

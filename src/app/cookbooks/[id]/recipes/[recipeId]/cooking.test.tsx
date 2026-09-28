@@ -71,6 +71,28 @@ describe("scaling", () => {
     expect(ingredients().getByText(/^butter/)).toBeInTheDocument();
   });
 
+  // What other recipe sites do: a scaled amount is something you can measure.
+  it("snaps scaled amounts to a measurable fraction, but not the author's own", async () => {
+    const user = userEvent.setup();
+    render(
+      <RecipeArticle
+        recipe={detail({
+          ingredients: [
+            { id: "i1", name: "milk", quantity: 1 / 3, unit: "cup", note: null },
+            { id: "i2", name: "vinegar", quantity: 0.3, unit: "tsp", note: null },
+          ],
+        })}
+      />,
+    );
+    expect(ingredients().getByText(/0.3 tsp vinegar/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    // ⅓ × 5/4 = 0.4167 and 0.3 × 5/4 = 0.375.
+    expect(ingredients().getByText(/⅜ cup milk/)).toBeInTheDocument();
+    expect(ingredients().getByText(/⅜ tsp vinegar/)).toBeInTheDocument();
+  });
+
   it("goes back to the recipe's own servings", async () => {
     const user = userEvent.setup();
     render(<RecipeArticle recipe={detail()} />);
