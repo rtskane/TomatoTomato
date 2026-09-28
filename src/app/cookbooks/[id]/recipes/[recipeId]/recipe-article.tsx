@@ -1,7 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
-import { formatIngredient, formatMinutes } from "@/lib/recipe-display";
+import { formatMinutes } from "@/lib/recipe-display";
 import type { RecipeDetail } from "@/server/services/recipe-detail.service";
+import {
+  CookingProvider,
+  ScaleControl,
+  ScaleNote,
+  IngredientItem,
+  StepItem,
+  ClearTicks,
+  KeepScreenOn,
+} from "./cooking";
 
 // Presentational: props in, markup out. Laid out the way food publications set
 // a recipe — a masthead, a stats strip, then ingredients beside the method —
@@ -13,6 +22,11 @@ import type { RecipeDetail } from "@/server/services/recipe-detail.service";
 // enough to give it room. On a phone the photo drops under the byline at full
 // width. Without a photo the page keeps its narrower single column — a wide
 // page with nothing in the second column would just be an empty margin.
+//
+// Everything you use while cooking — scaling, ticking things off, keeping the
+// screen on — is on this same page rather than a separate mode: the recipe you
+// read is the one you cook from. Those pieces are client islands from
+// ./cooking; the rest stays server-rendered.
 
 /** How wide the recipe page is — shared with the page's back link above it. */
 export function articleWidth(recipe: Pick<RecipeDetail, "coverImageUrl">) {
@@ -31,8 +45,11 @@ function StatBlock({ label, value }: { label: string; value: string }) {
 }
 
 function Stats({ recipe }: { recipe: RecipeDetail }) {
+  // Scaling only means something if there's an amount to scale.
+  const scalable = recipe.ingredients.some((i) => i.quantity !== null);
+
   const stats: { label: string; value: string }[] = [];
-  if (recipe.servings !== null) {
+  if (recipe.servings !== null && !scalable) {
     stats.push({ label: "Serves", value: String(recipe.servings) });
   }
   const prep = formatMinutes(recipe.prepTimeMinutes);
@@ -43,14 +60,23 @@ function Stats({ recipe }: { recipe: RecipeDetail }) {
   // Total only earns its place when it isn't just repeating a single number.
   if (total && prep && cook) stats.push({ label: "Total", value: total });
 
-  if (stats.length === 0) return null;
-
+  // Keep screen on is worth offering on any recipe, so the strip no longer
+  // disappears when nothing is known. But that button only exists after
+  // hydration, and not at all where the browser can't do it — so the strip
+  // shows only once it holds a stat or a button, never as two bare borders.
   return (
-    <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-4 border-y border-border py-5">
-      {stats.map((stat) => (
-        <StatBlock key={stat.label} {...stat} />
-      ))}
-    </dl>
+    <div className="mt-8 hidden flex-wrap items-center justify-between gap-x-10 gap-y-4 border-y border-border py-5 has-[dd,button]:flex">
+      <dl className="flex flex-wrap gap-x-10 gap-y-4">
+        {scalable ? <ScaleControl servings={recipe.servings} /> : null}
+        {stats.map((stat) => (
+          <StatBlock key={stat.label} {...stat} />
+        ))}
+      </dl>
+      <div className="flex items-center gap-2">
+        <ClearTicks />
+        <KeepScreenOn />
+      </div>
+    </div>
   );
 }
 
@@ -116,50 +142,38 @@ export default function RecipeArticle({ recipe }: { recipe: RecipeDetail }) {
         </p>
       ) : null}
 
-      <Stats recipe={recipe} />
+      <CookingProvider recipeId={recipe.id}>
+        <Stats recipe={recipe} />
 
-      {/* Ingredients sit beside the method on wide screens and above it on
-          narrow ones — you read them first either way, and on a phone you
-          shouldn't have to scroll past a sidebar to reach step one. */}
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-14">
-        <section>
-          <h2 className="font-serif text-title-3">Ingredients</h2>
-          <ul className="mt-4 space-y-0">
-            {recipe.ingredients.map((ingredient) => (
-              <li
-                key={ingredient.id}
-                className="border-b border-border py-2.5 text-subheadline leading-relaxed last:border-0"
-              >
-                {formatIngredient(ingredient)}
-                {ingredient.note ? (
-                  <span className="text-foreground-muted">
-                    , {ingredient.note}
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
+        {/* Ingredients sit beside the method on wide screens and above it on
+            narrow ones — you read them first either way, and on a phone you
+            shouldn't have to scroll past a sidebar to reach step one. */}
+        <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-14">
+          <section>
+            <h2 className="font-serif text-title-3">Ingredients</h2>
+            <ul className="mt-4 space-y-0">
+              {recipe.ingredients.map((ingredient) => (
+                <IngredientItem key={ingredient.id} {...ingredient} />
+              ))}
+            </ul>
+          </section>
 
-        <section>
-          <h2 className="font-serif text-title-3">Method</h2>
-          <ol className="mt-4 space-y-6">
-            {recipe.steps.map((step, index) => (
-              <li key={step.id} className="flex gap-4">
-                <span
-                  aria-hidden="true"
-                  className="shrink-0 font-serif text-date-num leading-none text-accent-ink tabular-nums"
-                >
-                  {index + 1}
-                </span>
-                <p className="font-serif text-headline leading-relaxed whitespace-pre-wrap">
-                  {step.instruction}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </section>
-      </div>
+          <section>
+            <h2 className="font-serif text-title-3">Method</h2>
+            <ScaleNote />
+            <ol className="mt-4 space-y-6">
+              {recipe.steps.map((step, index) => (
+                <StepItem
+                  key={step.id}
+                  id={step.id}
+                  number={index + 1}
+                  instruction={step.instruction}
+                />
+              ))}
+            </ol>
+          </section>
+        </div>
+      </CookingProvider>
     </article>
   );
 }

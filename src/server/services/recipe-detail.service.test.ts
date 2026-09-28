@@ -83,9 +83,8 @@ describe("getRecipeDetail", () => {
     expect(detail?.totalTimeMinutes).toBeNull();
   });
 
-  // Quantity is a Float column, so the view would otherwise have to decide how
-  // to print 2 vs 0.5. The service hands it over already stringified.
-  it("stringifies quantities without trailing zeros", async () => {
+  // Left as numbers: cooking mode scales them before they're printed.
+  it("hands quantities over as the stored numbers", async () => {
     findDetailForUser.mockResolvedValue({
       ...row,
       ingredients: [
@@ -96,11 +95,11 @@ describe("getRecipeDetail", () => {
 
     const detail = await getRecipeDetail("u1", "cb1", "r1");
 
-    expect(detail?.ingredients[0].quantity).toBe("0.5");
-    expect(detail?.ingredients[1].quantity).toBe("2");
+    expect(detail?.ingredients[0].quantity).toBe(0.5);
+    expect(detail?.ingredients[1].quantity).toBe(2);
   });
 
-  it("turns a null quantity or unit into an empty string for the view", async () => {
+  it("keeps a missing quantity null, and turns a missing unit into an empty string", async () => {
     findDetailForUser.mockResolvedValue({
       ...row,
       ingredients: [
@@ -110,7 +109,7 @@ describe("getRecipeDetail", () => {
 
     const detail = await getRecipeDetail("u1", "cb1", "r1");
 
-    expect(detail?.ingredients[0].quantity).toBe("");
+    expect(detail?.ingredients[0].quantity).toBeNull();
     expect(detail?.ingredients[0].unit).toBe("");
     // A missing note stays null — the view renders it differently from "".
     expect(detail?.ingredients[0].note).toBeNull();
