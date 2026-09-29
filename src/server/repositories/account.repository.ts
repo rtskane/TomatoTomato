@@ -34,18 +34,11 @@ export const accountRepository = {
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
-            title: true,
             coverImageUrl: true,
             members: {
               where: { userId: { not: userId } },
               orderBy: { createdAt: "asc" },
-              select: {
-                userId: true,
-                role: true,
-                user: {
-                  select: { username: true, firstName: true, lastName: true },
-                },
-              },
+              select: { userId: true, role: true },
             },
             recipes: { select: { coverImageUrl: true } },
           },

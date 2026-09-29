@@ -20,11 +20,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-const member = (userId: string, role: "EDITOR" | "VIEWER") => ({
-  userId,
-  role,
-  user: { username: userId, firstName: null, lastName: null },
-});
+const member = (userId: string, role: "EDITOR" | "VIEWER") => ({ userId, role });
 
 // Two owned cookbooks — one shared, one only theirs — plus recipes they wrote
 // in the shared one, in the solo one, and in somebody else's.
@@ -33,14 +29,12 @@ const footprint = () => ({
   ownedCookbooks: [
     {
       id: "shared",
-      title: "Sunday Suppers",
       coverImageUrl: "https://x.public.blob.vercel-storage.com/shared-cover",
       members: [member("vic", "VIEWER"), member("eddie", "EDITOR")],
       recipes: [{ coverImageUrl: "https://x.public.blob.vercel-storage.com/theirs" }],
     },
     {
       id: "solo",
-      title: "Weeknights",
       coverImageUrl: "https://x.public.blob.vercel-storage.com/solo-cover",
       members: [],
       recipes: [
@@ -118,12 +112,12 @@ describe("planAccountDeletion", () => {
 });
 
 describe("getAccountDeletionPreview", () => {
-  it("says who gets what, what goes, and how many recipes are theirs to decide", async () => {
+  // Not the one in their solo cookbook: that goes with it, so there's nothing
+  // to choose.
+  it("counts the recipes that are theirs to decide about", async () => {
     repo.findFootprint.mockResolvedValue(footprint());
 
     expect(await getAccountDeletionPreview("me")).toEqual({
-      handedOver: [{ title: "Sunday Suppers", to: "eddie", toRole: "EDITOR" }],
-      deleted: [{ title: "Weeknights" }],
       recipesElsewhere: 2,
     });
   });

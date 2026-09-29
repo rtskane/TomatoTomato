@@ -35,9 +35,9 @@ beforeEach(() => {
 
 describe("loadAccountDeletionPreview", () => {
   it("previews the signed-in user's own account", async () => {
-    getAccountDeletionPreview.mockResolvedValue({ handedOver: [] });
+    getAccountDeletionPreview.mockResolvedValue({ recipesElsewhere: 2 });
 
-    expect(await loadAccountDeletionPreview()).toEqual({ handedOver: [] });
+    expect(await loadAccountDeletionPreview()).toEqual({ recipesElsewhere: 2 });
     expect(getAccountDeletionPreview).toHaveBeenCalledWith("u1");
   });
 

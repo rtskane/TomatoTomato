@@ -9,9 +9,9 @@ import {
 import type { AccountDeletionPreview } from "@/server/services/account.service";
 
 // The "are you sure?" for deleting an account, opened from the user menu. It
-// spells out what happens to each cookbook before anything does, and asks the
-// one question that's theirs to answer: what becomes of recipes they wrote in
-// cookbooks other people will keep using.
+// says what happens to their cookbooks, and asks the one question that's theirs
+// to answer: what becomes of recipes they wrote in cookbooks other people will
+// keep using.
 //
 // Controlled rather than owning its trigger like ConfirmDialog: the trigger is
 // an item in Clerk's menu, which can only call back. Same native <dialog> and
@@ -86,27 +86,13 @@ export default function DeleteAccountDialog({
               can&apos;t be undone.
             </p>
 
-            {preview.handedOver.length > 0 ? (
-              <ul className="list-disc space-y-1 pl-5">
-                {preview.handedOver.map((c) => (
-                  <li key={c.title + c.to}>
-                    <span className="font-medium text-foreground">{c.title}</span>{" "}
-                    will pass to {c.to}, who&apos;ll own it from now on.
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            {preview.deleted.length > 0 ? (
-              <ul className="list-disc space-y-1 pl-5">
-                {preview.deleted.map((c, i) => (
-                  <li key={c.title + i}>
-                    <span className="font-medium text-foreground">{c.title}</span>{" "}
-                    will be deleted, with every recipe in it.
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+            {/* One sentence rather than a line per cookbook: someone in dozens
+                of them shouldn't have to scroll past a list to reach the
+                question. */}
+            <p>
+              Cookbooks you share pass to another member. Ones only you are in
+              are deleted, with every recipe in them.
+            </p>
 
             {preview.recipesElsewhere > 0 ? (
               <fieldset className="space-y-2">

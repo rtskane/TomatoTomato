@@ -23,11 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-const preview = {
-  handedOver: [{ title: "Sunday Suppers", to: "eddie", toRole: "EDITOR" }],
-  deleted: [{ title: "Weeknights" }],
-  recipesElsewhere: 3,
-};
+const preview = { recipesElsewhere: 3 };
 
 function setup() {
   return render(<DeleteAccountDialog open onClose={() => {}} />);
@@ -36,15 +32,15 @@ function setup() {
 const deleteButton = () => screen.getByRole("button", { name: "Delete account" });
 
 describe("DeleteAccountDialog", () => {
-  it("spells out what happens to each cookbook before anything does", async () => {
+  it("says what happens to their cookbooks and asks about their recipes", async () => {
     loadAccountDeletionPreview.mockResolvedValue(preview);
     setup();
 
-    expect(await screen.findByText("Sunday Suppers")).toBeInTheDocument();
-    expect(screen.getByText(/will pass to eddie/)).toBeInTheDocument();
-    expect(screen.getByText("Weeknights")).toBeInTheDocument();
-    expect(screen.getByText(/will be deleted, with every recipe in it/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Cookbooks you share pass to another member/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/You've written/)).toHaveTextContent("3 recipes");
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
     expect(deleteAccountAction).not.toHaveBeenCalled();
   });
 
@@ -67,11 +63,7 @@ describe("DeleteAccountDialog", () => {
 
   it("doesn't ask about recipes when there are none in shared cookbooks", async () => {
     const user = userEvent.setup();
-    loadAccountDeletionPreview.mockResolvedValue({
-      handedOver: [],
-      deleted: [],
-      recipesElsewhere: 0,
-    });
+    loadAccountDeletionPreview.mockResolvedValue({ recipesElsewhere: 0 });
     deleteAccountAction.mockResolvedValue({});
     setup();
 
@@ -84,7 +76,7 @@ describe("DeleteAccountDialog", () => {
 
   it("signs them out once the account is gone", async () => {
     const user = userEvent.setup();
-    loadAccountDeletionPreview.mockResolvedValue({ ...preview, recipesElsewhere: 0 });
+    loadAccountDeletionPreview.mockResolvedValue({ recipesElsewhere: 0 });
     deleteAccountAction.mockResolvedValue({ deleted: true });
     setup();
 
@@ -96,7 +88,7 @@ describe("DeleteAccountDialog", () => {
 
   it("shows the error and stays open when something fails", async () => {
     const user = userEvent.setup();
-    loadAccountDeletionPreview.mockResolvedValue({ ...preview, recipesElsewhere: 0 });
+    loadAccountDeletionPreview.mockResolvedValue({ recipesElsewhere: 0 });
     deleteAccountAction.mockResolvedValue({ error: "Please try again." });
     setup();
 

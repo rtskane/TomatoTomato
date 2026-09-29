@@ -1,9 +1,7 @@
-import { displayName } from "@/lib/display-name";
 import {
   accountRepository,
   type AccountDeletion,
 } from "@/server/repositories/account.repository";
-import type { CookbookRole } from "@/generated/prisma/enums";
 
 // Deleting an account. Framework-free — Clerk and blob storage are the
 // caller's business — so the rules below are unit-testable directly.
@@ -82,34 +80,19 @@ export function planAccountDeletion(
 }
 
 export type AccountDeletionPreview = {
-  /** Cookbooks that will pass to someone else, and to whom. */
-  handedOver: { title: string; to: string; toRole: CookbookRole }[];
-  /** Cookbooks only they are in, which will be deleted. */
-  deleted: { title: string }[];
   /** Their recipes in cookbooks that will survive — the ones they choose about. */
   recipesElsewhere: number;
 };
 
-/** What deleting this account would do, for the confirmation dialog. */
+/** What the confirmation dialog needs to ask its one question. */
 export async function getAccountDeletionPreview(
   userId: string,
 ): Promise<AccountDeletionPreview | null> {
   const footprint = await accountRepository.findFootprint(userId);
   if (!footprint) return null;
 
-  const plan = planAccountDeletion(footprint, true);
-  const deleted = new Set(plan.deleteCookbookIds);
-
+  const deleted = new Set(planAccountDeletion(footprint, true).deleteCookbookIds);
   return {
-    handedOver: footprint.ownedCookbooks.flatMap((cookbook) => {
-      const heir = chooseHeir(cookbook.members);
-      return heir
-        ? [{ title: cookbook.title, to: displayName(heir.user), toRole: heir.role }]
-        : [];
-    }),
-    deleted: footprint.ownedCookbooks
-      .filter((c) => deleted.has(c.id))
-      .map((c) => ({ title: c.title })),
     recipesElsewhere: footprint.recipes.filter((r) => !deleted.has(r.cookbookId))
       .length,
   };
