@@ -1,7 +1,11 @@
 import { cache } from "react";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { userRepository } from "@/server/repositories/user.repository";
+import {
+  isUniqueViolation,
+  userRepository,
+} from "@/server/repositories/user.repository";
+import { clerkUserIsGone, removeAccountData } from "@/lib/account";
 
 /**
  * Return the local Postgres `User` row for the signed-in visitor, creating it
@@ -81,17 +85,50 @@ async function syncFromClerk() {
       (e) => e.id === clerkUser.primaryEmailAddressId,
     )?.emailAddress ??
     clerkUser.emailAddresses[0]?.emailAddress ??
-    "";
+    null;
 
-  const avatarUrl = clerkUser.imageUrl || null;
+  const profile = {
+    clerkId: clerkUser.id,
+    email,
+    avatarUrl: clerkUser.imageUrl || null,
+  };
 
   // Still an upsert, not a create: two concurrent first requests would
   // otherwise race and one would hit the clerkId unique constraint.
-  return userRepository.upsertFromClerk({
-    clerkId: clerkUser.id,
-    email,
-    avatarUrl,
-  });
+  try {
+    return await userRepository.upsertFromClerk(profile);
+  } catch (error) {
+    if (!email || !isUniqueViolation(error)) throw error;
+    return claimEmailFromDeletedAccount(profile, email, error);
+  }
+}
+
+/**
+ * Another row already holds this email. Two ways that happens:
+ *
+ * - A race: two first requests for the same person, and the other one won.
+ *   The row is theirs already; use it.
+ * - A leftover: someone deleted their Clerk account without our hearing about
+ *   it (the webhook missed, or it predates the webhook), then signed up again
+ *   with the same email. Clerk gave them a new id, so the old row blocks the
+ *   new one, and every page they opened used to fail.
+ *
+ * A leftover is cleared the way the webhook would have — their shared recipes
+ * kept, unattributed — but only once Clerk confirms its owner is gone. A row
+ * whose Clerk user still exists is somebody's live account, and the error
+ * stands.
+ */
+async function claimEmailFromDeletedAccount(
+  profile: Parameters<typeof userRepository.upsertFromClerk>[0],
+  email: string,
+  conflict: unknown,
+) {
+  const holder = await userRepository.findByEmail(email);
+  if (holder?.clerkId === profile.clerkId) return holder;
+  if (!holder || !(await clerkUserIsGone(holder.clerkId))) throw conflict;
+
+  await removeAccountData(holder.id, { keepRecipes: true });
+  return userRepository.upsertFromClerk(profile);
 }
 
 /**

@@ -179,9 +179,8 @@ export async function changeMemberRole(
 }
 
 /**
- * Remove someone from a cookbook. Their recipes stay — `Recipe.authorId` is
- * `onDelete: Restrict` against the user, and the recipes belong to the cookbook
- * regardless of whether their author still has access to it.
+ * Remove someone from a cookbook. Their recipes stay: the recipes belong to the
+ * cookbook regardless of whether their author still has access to it.
  */
 export async function removeMember(
   actorUserId: string,

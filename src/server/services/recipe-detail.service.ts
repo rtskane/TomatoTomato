@@ -2,7 +2,7 @@ import { cache } from "react";
 import { recipeRepository } from "@/server/repositories/recipe.repository";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { canModifyRecipe } from "@/server/permissions";
-import { displayName } from "@/lib/display-name";
+import { authorName } from "@/lib/display-name";
 import { totalMinutes } from "@/lib/recipe-display";
 
 // Read side for a single recipe. Kept apart from recipe.service.ts, which owns
@@ -75,7 +75,7 @@ export const getRecipeDetail = cache(async function getRecipeDetail(
       recipe.cookTimeMinutes,
     ),
     coverImageUrl: recipe.coverImageUrl,
-    authorName: displayName(recipe.author),
+    authorName: authorName(recipe.author),
     cookbook: recipe.cookbook,
     ingredients: recipe.ingredients.map((i) => ({
       id: i.id,

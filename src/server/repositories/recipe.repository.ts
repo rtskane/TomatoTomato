@@ -265,10 +265,18 @@ export const recipeRepository = {
     });
   },
 
-  /** How many live recipes in this cookbook someone other than `ownerId` wrote. */
+  /**
+   * How many live recipes in this cookbook someone other than `ownerId` wrote —
+   * former members included. The explicit `null` branch is needed because SQL's
+   * `<>` never matches a null, so `not: ownerId` alone would skip them.
+   */
   countByOtherAuthors(cookbookId: string, ownerId: string) {
     return prisma.recipe.count({
-      where: { cookbookId, authorId: { not: ownerId }, ...liveRecipe },
+      where: {
+        cookbookId,
+        OR: [{ authorId: { not: ownerId } }, { authorId: null }],
+        ...liveRecipe,
+      },
     });
   },
 };

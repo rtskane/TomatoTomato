@@ -94,7 +94,10 @@ enum CoverTitlePosition {
 model User {
   id        String  @id @default(cuid())
   clerkId   String  @unique
-  email     String  @unique
+  // Null when Clerk has no email for them (a phone-only sign-up). Never "":
+  // @unique allows many NULLs but only one blank, so storing "" would lock out
+  // every such person after the first.
+  email     String? @unique
   // Profile — collected in our own onboarding step, NOT synced from Clerk.
   // `username` is null until onboarding completes; that null is the signal we
   // gate on to send a user through onboarding. (@unique allows many NULLs.)
@@ -294,7 +297,10 @@ enum RecipeSource {
 model Recipe {
   id              String   @id @default(cuid())
   cookbookId      String
-  authorId        String
+  /// Who wrote it — or null once they've deleted their account and chosen to
+  /// leave their recipes behind. A null author is "a former member": nobody
+  /// counts as its author, so only the cookbook's owner can change it.
+  authorId        String?
   title           String
   description     String?
   servings        Int?
@@ -317,7 +323,10 @@ model Recipe {
   archivedAt DateTime?
 
   cookbook    Cookbook     @relation(fields: [cookbookId], references: [id], onDelete: Cascade)
-  author      User         @relation("RecipeAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  // SetNull rather than Cascade: deleting an account keeps the recipes its
+  // owner chose to leave, and deletes the rest explicitly first (see
+  // account.service). Cascade would make that choice for them.
+  author      User?        @relation("RecipeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   ingredients Ingredient[]
   steps       Step[]
 
