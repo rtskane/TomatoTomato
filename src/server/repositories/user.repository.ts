@@ -14,7 +14,7 @@ export class UsernameTakenError extends Error {
 
 type ClerkSync = {
   clerkId: string;
-  email: string;
+  email: string | null;
   avatarUrl: string | null;
 };
 
@@ -26,7 +26,7 @@ type ProfileInput = {
 };
 
 // Prisma's unique-constraint violation code.
-function isUniqueViolation(e: unknown): boolean {
+export function isUniqueViolation(e: unknown): boolean {
   return (
     typeof e === "object" &&
     e !== null &&
@@ -40,7 +40,15 @@ export const userRepository = {
     return prisma.user.findUnique({ where: { clerkId } });
   },
 
-  /** Sync only Clerk-owned fields; never touches onboarding-owned profile. */
+  findByEmail(email: string) {
+    return prisma.user.findUnique({ where: { email } });
+  },
+
+  /**
+   * Sync only Clerk-owned fields; never touches onboarding-owned profile.
+   * Throws Prisma's unique violation if another row holds the email — see
+   * `syncFromClerk` for when that happens and what's done about it.
+   */
   upsertFromClerk({ clerkId, email, avatarUrl }: ClerkSync) {
     return prisma.user.upsert({
       where: { clerkId },

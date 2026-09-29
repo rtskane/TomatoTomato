@@ -1,21 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // redirect() throws in Next to halt rendering — model that so control flow stops.
-const { auth, currentUser, redirect, findByClerkId, upsertFromClerk } =
-  vi.hoisted(() => ({
-    auth: vi.fn(),
-    currentUser: vi.fn(),
-    redirect: vi.fn((path: string) => {
-      throw new Error(`REDIRECT:${path}`);
-    }),
-    findByClerkId: vi.fn(),
-    upsertFromClerk: vi.fn(),
-  }));
+const {
+  auth,
+  currentUser,
+  redirect,
+  findByClerkId,
+  findByEmail,
+  upsertFromClerk,
+  clerkUserIsGone,
+  removeAccountData,
+} = vi.hoisted(() => ({
+  auth: vi.fn(),
+  currentUser: vi.fn(),
+  redirect: vi.fn((path: string) => {
+    throw new Error(`REDIRECT:${path}`);
+  }),
+  findByClerkId: vi.fn(),
+  findByEmail: vi.fn(),
+  upsertFromClerk: vi.fn(),
+  clerkUserIsGone: vi.fn(),
+  removeAccountData: vi.fn(),
+}));
 vi.mock("@clerk/nextjs/server", () => ({ auth, currentUser }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/server/repositories/user.repository", () => ({
-  userRepository: { findByClerkId, upsertFromClerk },
+  userRepository: { findByClerkId, findByEmail, upsertFromClerk },
+  isUniqueViolation: (e: { code?: string }) => e?.code === "P2002",
 }));
+vi.mock("@/lib/account", () => ({ clerkUserIsGone, removeAccountData }));
 
 import { ensureUser, requireOnboardedUser } from "./user";
 
@@ -196,6 +209,71 @@ describe("ensureUser — cold path", () => {
 
     expect(await ensureUser()).toBeNull();
     expect(upsertFromClerk).not.toHaveBeenCalled();
+  });
+});
+
+describe("ensureUser — an email another row already holds", () => {
+  const emailTaken = Object.assign(new Error("Unique constraint"), {
+    code: "P2002",
+  });
+
+  beforeEach(() => {
+    findByClerkId.mockResolvedValue(null);
+    currentUser.mockResolvedValue(clerkProfile);
+  });
+
+  // Someone deleted their account while we weren't listening, then signed up
+  // again with the same email. This used to fail every page they opened.
+  it("clears a leftover row whose Clerk user is gone, then signs them in", async () => {
+    upsertFromClerk
+      .mockRejectedValueOnce(emailTaken)
+      .mockResolvedValueOnce({ id: "u2", username: null });
+    findByEmail.mockResolvedValue({ id: "u1", clerkId: "clerk_old" });
+    clerkUserIsGone.mockResolvedValue(true);
+
+    const result = await ensureUser();
+
+    expect(findByEmail).toHaveBeenCalledWith("ryan@example.com");
+    expect(clerkUserIsGone).toHaveBeenCalledWith("clerk_old");
+    expect(removeAccountData).toHaveBeenCalledWith("u1", { keepRecipes: true });
+    expect(upsertFromClerk).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ id: "u2", username: null });
+  });
+
+  it("never touches a row whose Clerk user still exists", async () => {
+    upsertFromClerk.mockRejectedValue(emailTaken);
+    findByEmail.mockResolvedValue({ id: "u1", clerkId: "clerk_other" });
+    clerkUserIsGone.mockResolvedValue(false);
+
+    await expect(ensureUser()).rejects.toBe(emailTaken);
+    expect(removeAccountData).not.toHaveBeenCalled();
+  });
+
+  it("uses the row a concurrent first request just made for them", async () => {
+    upsertFromClerk.mockRejectedValue(emailTaken);
+    findByEmail.mockResolvedValue({ id: "u1", clerkId: "clerk_1" });
+
+    expect(await ensureUser()).toEqual({ id: "u1", clerkId: "clerk_1" });
+    expect(clerkUserIsGone).not.toHaveBeenCalled();
+    expect(removeAccountData).not.toHaveBeenCalled();
+  });
+
+  it("rethrows anything that isn't a unique violation", async () => {
+    const boom = new Error("connection reset");
+    upsertFromClerk.mockRejectedValue(boom);
+
+    await expect(ensureUser()).rejects.toBe(boom);
+    expect(findByEmail).not.toHaveBeenCalled();
+  });
+
+  // Blank used to be stored as "", which only one person could hold.
+  it("stores no email as null, not blank", async () => {
+    currentUser.mockResolvedValue({ ...clerkProfile, emailAddresses: [] });
+    upsertFromClerk.mockResolvedValue({ id: "u1", username: null });
+
+    await ensureUser();
+
+    expect(upsertFromClerk.mock.calls[0][0].email).toBeNull();
   });
 });
 

@@ -10,7 +10,7 @@ import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { ok, err, type Result } from "@/server/result";
 import { recipeRepository } from "@/server/repositories/recipe.repository";
 import { canAddRecipes, canEditCookbook } from "@/server/permissions";
-import { displayName } from "@/lib/display-name";
+import { authorName } from "@/lib/display-name";
 import type { CookbookRole } from "@/generated/prisma/enums";
 
 // Business logic for cookbooks. Framework-free — no next/*, no @clerk/* — so it
@@ -211,7 +211,7 @@ export async function getCookbookDetail(
       prepTimeMinutes: recipe.prepTimeMinutes,
       cookTimeMinutes: recipe.cookTimeMinutes,
       coverImageUrl: recipe.coverImageUrl,
-      authorName: displayName(recipe.author),
+      authorName: authorName(recipe.author),
       ingredientCount: recipe._count.ingredients,
       stepCount: recipe._count.steps,
     })),

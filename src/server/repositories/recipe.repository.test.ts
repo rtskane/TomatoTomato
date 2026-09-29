@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { recipe } = vi.hoisted(() => ({
-  recipe: { create: vi.fn(), findFirst: vi.fn() },
+  recipe: { create: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: { recipe } }));
 
@@ -130,5 +130,21 @@ describe("recipeRepository.findDetailForUser", () => {
     const select = recipe.findFirst.mock.calls[0][0].select;
     expect(select.author.select).toMatchObject({ username: true });
     expect(select.cookbook.select).toEqual({ id: true, title: true });
+  });
+});
+
+describe("recipeRepository.countByOtherAuthors", () => {
+  // SQL's <> never matches a null, so a former member's recipe would silently
+  // drop out of the archive warning's count without the explicit branch.
+  it("counts recipes left by former members as someone else's", async () => {
+    await recipeRepository.countByOtherAuthors("cb1", "owner1");
+
+    expect(recipe.count).toHaveBeenCalledWith({
+      where: {
+        cookbookId: "cb1",
+        OR: [{ authorId: { not: "owner1" } }, { authorId: null }],
+        archivedAt: null,
+      },
+    });
   });
 });
