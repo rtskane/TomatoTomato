@@ -29,6 +29,11 @@ export function safeReturnPath(value: unknown): string | null {
   if (!value.startsWith("/")) return null;
   // Browsers read both of these as the start of another host.
   if (value.startsWith("//") || value.startsWith("/\\")) return null;
+  // Never back to sign-in or sign-up. Clerk passes the page its link was on,
+  // so going back a step in sign-in and then choosing "Sign up" made the
+  // sign-in page the destination: a brand-new account finished onboarding
+  // only to be shown sign-in again on its way to the dashboard.
+  if (/^\/sign-(in|up)(?=[/?#]|$)/.test(value)) return null;
   return value;
 }
 

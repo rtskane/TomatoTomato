@@ -26,6 +26,22 @@ describe("safeReturnPath", () => {
     "",
   ])("refuses %j", (path) => expect(safeReturnPath(path)).toBeNull());
 
+  // Returning to where you signed in is never the point, and after sign-up it
+  // put a fresh account back on the sign-in page.
+  it.each([
+    "/sign-in",
+    "/sign-up",
+    "/sign-in/factor-one?redirect_url=%2F",
+    "/sign-up#verify",
+    "http://localhost:8000/sign-in?redirect_url=http%3A%2F%2Flocalhost%3A8000%2F",
+  ])("refuses the auth page %j", (path) =>
+    expect(safeReturnPath(path)).toBeNull(),
+  );
+
+  it("still accepts a page whose path merely starts the same way", () => {
+    expect(safeReturnPath("/sign-in-help")).toBe("/sign-in-help");
+  });
+
   it("refuses anything that isn't a single string", () => {
     expect(safeReturnPath(undefined)).toBeNull();
     expect(safeReturnPath(["/join/a", "/join/b"])).toBeNull();
