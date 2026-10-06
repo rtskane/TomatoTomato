@@ -23,6 +23,9 @@ const {
   removeAccountData: vi.fn(),
 }));
 vi.mock("@clerk/nextjs/server", () => ({ auth, currentUser }));
+vi.mock("@clerk/nextjs/errors", () => ({
+  isClerkAPIResponseError: (e: { clerkError?: boolean }) => Boolean(e?.clerkError),
+}));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/server/repositories/user.repository", () => ({
   userRepository: { findByClerkId, findByEmail, upsertFromClerk },
@@ -136,6 +139,23 @@ describe("ensureUser — refreshing a stale profile", () => {
     currentUser.mockResolvedValue(null);
 
     await expect(ensureUser()).resolves.toBe(stored);
+  });
+
+  // For up to a minute after an account is deleted, its session token still
+  // works — and the row is gone, so this is first sight again.
+  it("treats someone Clerk no longer knows as signed out", async () => {
+    findByClerkId.mockResolvedValue(null);
+    currentUser.mockRejectedValue({ clerkError: true, status: 404 });
+
+    await expect(ensureUser()).resolves.toBeNull();
+    expect(upsertFromClerk).not.toHaveBeenCalled();
+  });
+
+  it("still throws on first sight when Clerk fails any other way", async () => {
+    findByClerkId.mockResolvedValue(null);
+    currentUser.mockRejectedValue({ clerkError: true, status: 500 });
+
+    await expect(ensureUser()).rejects.toMatchObject({ status: 500 });
   });
 
   // The refresh must not touch onboarding-owned fields.

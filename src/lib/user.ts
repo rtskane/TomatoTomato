@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { redirect } from "next/navigation";
 import {
   isUniqueViolation,
@@ -77,7 +78,7 @@ export const ensureUser = cache(async () => {
  * onboarding and are set via the onboarding service.
  */
 async function syncFromClerk() {
-  const clerkUser = await currentUser();
+  const clerkUser = await currentProfile();
   if (!clerkUser) return null;
 
   const email =
@@ -100,6 +101,23 @@ async function syncFromClerk() {
   } catch (error) {
     if (!email || !isUniqueViolation(error)) throw error;
     return claimEmailFromDeletedAccount(profile, email, error);
+  }
+}
+
+/**
+ * The signed-in person's Clerk profile, or null when Clerk says they no longer
+ * exist. That happens for up to a minute after an account is deleted: the
+ * session token already issued stays valid until it expires, so a request can
+ * arrive signed in as someone who's gone. Treating it as signed out sends a
+ * page to sign-in and the API to a 401, rather than both to a 500. The phone
+ * app holds on to its token, which makes this the normal case there.
+ */
+async function currentProfile() {
+  try {
+    return await currentUser();
+  } catch (error) {
+    if (isClerkAPIResponseError(error) && error.status === 404) return null;
+    throw error;
   }
 }
 
