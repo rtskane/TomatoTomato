@@ -1,4 +1,5 @@
 import Image from "next/image";
+import CoverElementView from "@/components/cover-element";
 import {
   paletteFor,
   clampFraction,
@@ -68,7 +69,8 @@ const SIZES = {
     // A chip never shows a title — at 36px wide there is no type size that is
     // both legible and in proportion, and the title is already sitting next to
     // it in the row. This is the deliberate degradation rule for small sizes:
-    // colour, pattern and photograph survive, type does not.
+    // colour, pattern and photograph survive, type does not. That goes for
+    // placed text boxes too; placed photos, shapes and stickers stay.
     showTitle: false,
   },
 } as const;
@@ -185,6 +187,14 @@ export default function BookCover({
           </p>
         </div>
       ) : null}
+
+      {/* Placed elements, above everything else on the board and in the
+          order they are stored: later is higher. */}
+      {(design.coverElements ?? [])
+        .filter((element) => spec.showTitle || element.type !== "text")
+        .map((element) => (
+          <CoverElementView key={element.id} element={element} sizes={sizes} />
+        ))}
     </div>
   );
 }

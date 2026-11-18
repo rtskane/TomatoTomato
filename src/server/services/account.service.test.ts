@@ -30,12 +30,27 @@ const footprint = () => ({
     {
       id: "shared",
       coverImageUrl: "https://x.public.blob.vercel-storage.com/shared-cover",
+      coverElements: [],
       members: [member("vic", "VIEWER"), member("eddie", "EDITOR")],
       recipes: [{ coverImageUrl: "https://x.public.blob.vercel-storage.com/theirs" }],
     },
     {
       id: "solo",
       coverImageUrl: "https://x.public.blob.vercel-storage.com/solo-cover",
+      // A photo placed on the cover is an uploaded file too.
+      coverElements: [
+        {
+          id: "p1",
+          type: "photo",
+          x: 0.5,
+          y: 0.5,
+          w: 0.4,
+          h: 0.3,
+          rotation: 0,
+          url: "https://x.public.blob.vercel-storage.com/solo-placed",
+          mask: "rect",
+        },
+      ],
       members: [],
       recipes: [
         { coverImageUrl: "https://x.public.blob.vercel-storage.com/solo-dish" },
@@ -81,9 +96,11 @@ describe("planAccountDeletion", () => {
     const plan = planAccountDeletion(footprint(), true);
 
     expect(plan.deleteRecipeIds).toEqual([]);
-    // Only the solo cookbook's files: its cover and its recipes' photos.
+    // Only the solo cookbook's files: its cover, what was placed on it, and
+    // its recipes' photos.
     expect(plan.orphanedImages).toEqual([
       "https://x.public.blob.vercel-storage.com/solo-cover",
+      "https://x.public.blob.vercel-storage.com/solo-placed",
       "https://x.public.blob.vercel-storage.com/solo-dish",
     ]);
   });
@@ -140,7 +157,7 @@ describe("deleteAccount", () => {
       deleteCookbookIds: ["solo"],
       deleteRecipeIds: ["r-shared", "r-elsewhere"],
     });
-    expect(result.orphanedImages).toHaveLength(3);
+    expect(result.orphanedImages).toHaveLength(4);
   });
 
   // The dialog deletes the Clerk user last, which fires the webhook for an

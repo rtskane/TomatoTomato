@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CoverDesigner from "./cover-designer";
 import { coverDesign } from "./book-cover";
@@ -378,5 +378,120 @@ describe("CoverDesigner — telling the form when to wait", () => {
     });
     // Submitting mid-upload would save a cookbook without the picture.
     expect(onUploadingChange.mock.calls.map(([b]) => b)).toEqual([true, false]);
+  });
+});
+
+describe("CoverDesigner — placing things on the cover", () => {
+  function posted(container: HTMLElement) {
+    return JSON.parse(
+      container.querySelector<HTMLInputElement>('input[name="coverElements"]')!.value,
+    ) as { type: string; id: string; text?: string }[];
+  }
+
+  it("posts nothing placed for a cover nobody has added to", () => {
+    const { container } = renderDesigner();
+    expect(posted(container)).toEqual([]);
+  });
+
+  it("draws a sticker on the book and posts it", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner();
+
+    await user.click(screen.getByRole("button", { name: /sticker/i }));
+    await user.click(screen.getByRole("button", { name: "Lemon" }));
+
+    expect(posted(container)).toMatchObject([{ type: "sticker", sticker: "lemon" }]);
+    expect(face(container).querySelector("[data-element-id]")).not.toBeNull();
+  });
+
+  // A new text box is for typing in.
+  it("goes straight to the words of a new text box", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner();
+
+    await user.click(screen.getByRole("button", { name: /text/i }));
+    const box = screen.getByLabelText("Text");
+    expect(box).toHaveFocus();
+
+    await user.clear(box);
+    await user.type(box, "Nonna's");
+
+    expect(posted(container)[0].text).toBe("Nonna's");
+    expect(face(container)).toHaveTextContent("Nonna's");
+  });
+
+  // The cloth's radios are the form's fields; hiding the panel must not stop
+  // them posting.
+  it("keeps posting the cloth while an element is selected", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner();
+
+    await user.click(screen.getByRole("button", { name: /text/i }));
+
+    expect(screen.queryByRole("radio", { name: "Titled" })).toBeNull();
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="coverStyle"]:checked')!.value,
+    ).toBe("TITLED");
+  });
+
+  it("deletes the selected element, and undo brings it back", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner();
+
+    await user.click(screen.getByRole("button", { name: /sticker/i }));
+    await user.click(screen.getByRole("button", { name: "Star" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(posted(container)).toEqual([]);
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(posted(container)).toMatchObject([{ type: "sticker", sticker: "star" }]);
+  });
+
+  it("says when a cover is full rather than letting more be added", async () => {
+    const user = userEvent.setup();
+    renderDesigner();
+
+    await user.click(screen.getByRole("button", { name: /shape/i }));
+    for (let i = 0; i < 6; i++) {
+      const picker = screen.getByRole("group", { name: "Shapes" });
+      await user.click(within(picker).getByRole("button", { name: "Circle" }));
+      await user.click(screen.getByRole("button", { name: "Done" }));
+      await user.click(screen.getByRole("button", { name: /shape/i }));
+    }
+
+    const add = screen.getByRole("button", { name: /shape/i });
+    expect(add).toBeDisabled();
+    expect(add).toHaveAttribute("title", "A cover holds up to 6 shapes.");
+  });
+
+  it("opens on the elements the cover already has", () => {
+    const { container } = renderDesigner({
+      design: coverDesign(2, {
+        coverElements: [
+          { id: "s1", type: "sticker", x: 0.3, y: 0.3, w: 0.2, rotation: 0, sticker: "heart" },
+        ],
+      }),
+    });
+
+    expect(posted(container)).toMatchObject([{ id: "s1" }]);
+    expect(screen.getByRole("button", { name: "Heart" })).toBeInTheDocument();
+  });
+});
+
+describe("CoverDesigner — the keyboard can do what the handles do", () => {
+  it("resizes and turns the selected element", async () => {
+    const user = userEvent.setup();
+    const { container } = renderDesigner();
+
+    await user.click(screen.getByRole("button", { name: /sticker/i }));
+    await user.click(screen.getByRole("button", { name: "Heart" }));
+    screen.getByRole("group", { name: /sticker selected/i }).focus();
+    await user.keyboard("+]");
+
+    const [heart] = JSON.parse(
+      container.querySelector<HTMLInputElement>('input[name="coverElements"]')!.value,
+    );
+    expect(heart.w).toBeCloseTo(0.28 * 1.1);
+    expect(heart.rotation).toBe(15);
   });
 });

@@ -2,10 +2,12 @@ import { createCookbookSchema } from "@/lib/cookbook";
 import {
   clampFraction,
   clampZoom,
-  toCoverDesign,
   DEFAULT_COVER_DESIGN,
   type CoverDesign,
 } from "@/lib/book-covers";
+import { toCoverDesign } from "@/lib/stored-cover";
+import { elementImages } from "@/lib/cover-elements";
+import { parseStoredElements } from "@/lib/cover-elements-schema";
 import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { ok, err, type Result } from "@/server/result";
 import { recipeRepository } from "@/server/repositories/recipe.repository";
@@ -41,6 +43,8 @@ export type CreateCookbookInput = {
   coverFocalX?: string;
   coverFocalY?: string;
   coverZoom?: string;
+  /** The placed elements as one JSON string — see `coverElementsFieldSchema`. */
+  coverElements?: string;
 };
 
 
@@ -63,6 +67,7 @@ function composedCover(parsed: {
   coverFocalX?: number;
   coverFocalY?: number;
   coverZoom?: number;
+  coverElements: CoverDesign["coverElements"];
 }) {
   return {
     coverStyle: parsed.coverStyle,
@@ -74,6 +79,7 @@ function composedCover(parsed: {
     coverFocalX: clampFraction(parsed.coverFocalX ?? DEFAULT_COVER_DESIGN.coverFocalX),
     coverFocalY: clampFraction(parsed.coverFocalY ?? DEFAULT_COVER_DESIGN.coverFocalY),
     coverZoom: clampZoom(parsed.coverZoom ?? DEFAULT_COVER_DESIGN.coverZoom),
+    coverElements: parsed.coverElements,
   };
 }
 
@@ -245,8 +251,9 @@ async function requireOwner(
  * Rename a cookbook, change its description, or swap its cover. Reuses the
  * create validation.
  *
- * `orphanedCover` is the file this write just detached — the previous cover,
- * when the update replaced or cleared it. Deleting it is the caller's job, not
+ * `orphanedCovers` are the files this write just detached — the previous
+ * background photo when the update replaced or cleared it, and any photo
+ * element that was taken off the cover. Deleting it is the caller's job, not
  * this function's: talking to blob storage from here would put a network call
  * inside the layer whose whole point is that it can be unit-tested by calling
  * it. The Server Action deletes it, best-effort.
@@ -256,7 +263,7 @@ export async function updateCookbook(
   cookbookId: string,
   input: CreateCookbookInput,
 ): Promise<
-  Result<{ id: string; orphanedCover: string | null }, CookbookAdminError>
+  Result<{ id: string; orphanedCovers: string[] }, CookbookAdminError>
 > {
   const allowed = await requireOwner(userId, cookbookId);
   if (!allowed.ok) return allowed;
@@ -270,7 +277,6 @@ export async function updateCookbook(
 
   const nextCover = parsed.data.coverImageUrl ?? null;
   const previous = await cookbookRepository.findCover(cookbookId);
-  const previousCover = previous?.coverImageUrl ?? null;
 
   await cookbookRepository.update(cookbookId, {
     title: parsed.data.title,
@@ -287,9 +293,30 @@ export async function updateCookbook(
     id: cookbookId,
     // Only when it actually changed: saving the form without touching the
     // cover must not delete the cover the cookbook still uses.
-    orphanedCover:
-      previousCover && previousCover !== nextCover ? previousCover : null,
+    orphanedCovers: orphanedFiles(
+      [
+        previous?.coverImageUrl ?? null,
+        ...elementImages(parseStoredElements(previous?.coverElements)),
+      ],
+      [nextCover, ...elementImages(parsed.data.coverElements)],
+    ),
   });
+}
+
+/**
+ * The files a cover used before a save and doesn't after it.
+ *
+ * Compared as sets, so a photo that only moved — from the background to an
+ * element, or from one element to the other — is never deleted while
+ * something still points at it.
+ */
+export function orphanedFiles(
+  before: (string | null)[],
+  after: (string | null)[],
+): string[] {
+  const kept = new Set(after.filter((url): url is string => !!url));
+  const gone = before.filter((url): url is string => !!url && !kept.has(url));
+  return [...new Set(gone)];
 }
 
 /**
@@ -372,7 +399,7 @@ export async function restoreCookbook(
  * cookbook can't be deleted at all; it has to be archived first.
  *
  * `orphanedImages` are the blob files the deleted rows pointed at, for the
- * caller to remove — the same split as `updateCookbook`'s `orphanedCover`.
+ * caller to remove — the same split as `updateCookbook`'s `orphanedCovers`.
  */
 export async function deleteCookbookForever(
   userId: string,
@@ -386,6 +413,7 @@ export async function deleteCookbookForever(
 
   const urls = [
     images.coverImageUrl,
+    ...elementImages(parseStoredElements(images.coverElements)),
     ...images.recipes.map((recipe) => recipe.coverImageUrl),
   ];
   return ok({ orphanedImages: urls.filter((url): url is string => !!url) });

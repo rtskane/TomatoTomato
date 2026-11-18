@@ -11,7 +11,8 @@ import { cookbookRepository } from "@/server/repositories/cookbook.repository";
 import { inviteRepository } from "@/server/repositories/invite.repository";
 import { canManageMembers } from "@/server/permissions";
 import { newUrlToken } from "@/server/tokens";
-import { toCoverDesign, type CoverDesign } from "@/lib/book-covers";
+import type { CoverDesign } from "@/lib/book-covers";
+import { toCoverDesign } from "@/lib/stored-cover";
 import { ok, err, type Result } from "@/server/result";
 import type { CookbookRole } from "@/generated/prisma/enums";
 

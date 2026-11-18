@@ -30,8 +30,9 @@ export default async function SetupCoverPage({
 
       <h1 className="mt-4 text-title-1">Design the cover</h1>
       <p className="mt-2 text-subheadline text-foreground-secondary">
-        Pick the cloth, set the title, add a photo — or leave it as it is and
-        change it whenever you like.
+        Pick the cloth, then add text, photos, shapes and stickers and drag
+        them where you want them — or leave it as it is and change it whenever
+        you like.
       </p>
 
       <div className="mt-8">

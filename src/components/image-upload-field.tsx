@@ -58,6 +58,79 @@ const PREVIEWS: Record<
   },
 };
 
+/**
+ * The upload itself, without the field around it — checked, timed out and
+ * reported exactly as the field does, for anything else that needs to put an
+ * image in the blob store (the cover editor's "Add photo", for one).
+ *
+ * `onUploaded` receives the stored URL; it is not called on failure, and
+ * `error` says why in words meant for the person choosing the photo.
+ */
+export function useImageUpload(
+  folder: ImageFolder,
+  {
+    onUploaded,
+    onUploadingChange,
+  }: {
+    onUploaded: (url: string) => void;
+    onUploadingChange?: (uploading: boolean) => void;
+  },
+) {
+  const [error, setError] = useState<string | null>(null);
+  const [percentage, setPercentage] = useState(0);
+  const [uploading, setUploading] = useState(false);
+
+  function setBusy(busy: boolean) {
+    setUploading(busy);
+    onUploadingChange?.(busy);
+  }
+
+  async function uploadFile(file: File) {
+    setError(null);
+
+    // Checked here for a fast, clear message, and again in the token the
+    // server issues — this one is a courtesy, that one is the rule.
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setError("Choose a JPEG, PNG, WebP, AVIF or GIF.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError("That image is larger than 8 MB.");
+      return;
+    }
+
+    setBusy(true);
+    setPercentage(0);
+
+    try {
+      const blob = await upload(uploadPathname(folder, file.name), file, {
+        access: "public",
+        handleUploadUrl: UPLOAD_ROUTE,
+        abortSignal: AbortSignal.timeout(TIMEOUT_MS),
+        onUploadProgress: (progress) => setPercentage(progress.percentage),
+      });
+      onUploaded(blob.url);
+    } catch (cause) {
+      // The API's own messages are about tokens and stores, which means
+      // nothing to someone choosing a photo. A timeout gets its own wording
+      // because "try again" is bad advice when the last attempt hung.
+      const timedOut = cause instanceof Error && cause.name === "TimeoutError";
+      setError(
+        timedOut
+          ? "That upload timed out. Check your connection and try again."
+          : "That didn't upload. Try again?",
+      );
+      // Whatever it was, it is worth having in the console: the friendly text
+      // above is deliberately uninformative to anyone debugging.
+      console.error(`[${folder}] upload failed`, cause);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { uploadFile, uploading, percentage, error, setError };
+}
+
 export default function ImageUploadField({
   folder,
   value,
@@ -86,63 +159,20 @@ export default function ImageUploadField({
    */
   heading?: string | null;
 }) {
-  const [error, setError] = useState<string | null>(null);
-  const [percentage, setPercentage] = useState(0);
-  const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const errorId = useId();
   const preview = PREVIEWS[folder];
-
-  function setBusy(busy: boolean) {
-    setUploading(busy);
-    onUploadingChange?.(busy);
-  }
+  const { uploadFile, uploading, percentage, error, setError } = useImageUpload(
+    folder,
+    { onUploaded: onChange, onUploadingChange },
+  );
 
   async function handleFile(file: File) {
-    setError(null);
-
-    // Checked here for a fast, clear message, and again in the token the
-    // server issues — this one is a courtesy, that one is the rule.
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setError("Choose a JPEG, PNG, WebP, AVIF or GIF.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("That image is larger than 8 MB.");
-      return;
-    }
-
-    setBusy(true);
-    setPercentage(0);
-
-    try {
-      const blob = await upload(uploadPathname(folder, file.name), file, {
-        access: "public",
-        handleUploadUrl: UPLOAD_ROUTE,
-        abortSignal: AbortSignal.timeout(TIMEOUT_MS),
-        onUploadProgress: (progress) => setPercentage(progress.percentage),
-      });
-      onChange(blob.url);
-    } catch (cause) {
-      // The API's own messages are about tokens and stores, which means
-      // nothing to someone choosing a photo. A timeout gets its own wording
-      // because "try again" is bad advice when the last attempt hung.
-      const timedOut = cause instanceof Error && cause.name === "TimeoutError";
-      setError(
-        timedOut
-          ? "That upload timed out. Check your connection and try again."
-          : "That didn't upload. Try again?",
-      );
-      // Whatever it was, it is worth having in the console: the friendly text
-      // above is deliberately uninformative to anyone debugging.
-      console.error(`[${folder}] upload failed`, cause);
-    } finally {
-      setBusy(false);
-      // Let the same file be chosen again after a failure — without this the
-      // input holds it and the change event never fires twice.
-      if (inputRef.current) inputRef.current.value = "";
-    }
+    await uploadFile(file);
+    // Let the same file be chosen again after a failure — without this the
+    // input holds it and the change event never fires twice.
+    if (inputRef.current) inputRef.current.value = "";
   }
 
   return (

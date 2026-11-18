@@ -34,9 +34,6 @@ export default function SetupCoverForm({
         title={title}
         design={design}
         onUploadingChange={setUploading}
-        // More room than the settings dialog can give it: this screen has the
-        // page to itself, and the cover is the whole subject of it.
-        previewClassName="w-40 sm:w-52"
       />
 
       {state.error ? (

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOnboardedUser } from "@/lib/user";
-import { deleteCoverImage } from "@/server/blob";
+import { deleteImages } from "@/server/blob";
 import { updateCookbook } from "@/server/services/cookbook.service";
 import { setupPath } from "@/lib/setup-steps";
 
@@ -43,13 +43,14 @@ export async function saveSetupCoverAction(
     coverFocalX: String(formData.get("coverFocalX") ?? ""),
     coverFocalY: String(formData.get("coverFocalY") ?? ""),
     coverZoom: String(formData.get("coverZoom") ?? ""),
+    coverElements: String(formData.get("coverElements") ?? ""),
   });
 
   if (!result.ok) return { error: result.error.message };
 
   // Swapping or removing a cover leaves the old file behind. Best-effort, and
   // never fails the save that already succeeded.
-  await deleteCoverImage(result.value.orphanedCover);
+  await deleteImages(result.value.orphanedCovers);
 
   revalidatePath("/dashboard");
   revalidatePath(`/cookbooks/${cookbookId}`);

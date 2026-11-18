@@ -7,6 +7,8 @@
 // Framework-free (no next/*, no react) so the designer, the server components
 // and the unit tests can all import it.
 
+import type { CoverElement } from "@/lib/cover-elements";
+
 /** How a cover presents itself. Mirrors the `CoverStyle` enum in schema.prisma. */
 export const COVER_STYLES = ["TITLED", "PLAIN", "PHOTO"] as const;
 export type CoverStyle = (typeof COVER_STYLES)[number];
@@ -131,6 +133,8 @@ export type CoverDesign = {
   coverFocalX: number;
   coverFocalY: number;
   coverZoom: number;
+  /** What has been placed on top of the cloth, bottom of the stack first. */
+  coverElements: CoverElement[];
 };
 
 /** What a cookbook nobody has designed looks like. */
@@ -144,6 +148,7 @@ export const DEFAULT_COVER_DESIGN: Omit<CoverDesign, "coverColor"> = {
   coverFocalX: 0.5,
   coverFocalY: 0.5,
   coverZoom: 1,
+  coverElements: [],
 };
 
 export type BookCoverPalette = {
@@ -329,41 +334,4 @@ export function resolveCoverColor(id: string, stored?: number | null): number {
  */
 export function paletteFor(color: number): BookCoverPalette {
   return BOOK_COVERS[color - 1] ?? BOOK_COVERS[0];
-}
-
-/** A cookbook row's cover columns, exactly as the database stores them. */
-export type StoredCover = {
-  id: string;
-  coverImageUrl: string | null;
-  coverColor: number | null;
-  coverStyle: CoverDesign["coverStyle"];
-  coverTexture: CoverDesign["coverTexture"];
-  coverTitleFont: CoverDesign["coverTitleFont"];
-  coverTitleSize: CoverDesign["coverTitleSize"];
-  coverTitlePosition: CoverDesign["coverTitlePosition"];
-  coverFocalX: number;
-  coverFocalY: number;
-  coverZoom: number;
-};
-
-/**
- * The stored cover columns, as the shape a view can render.
- *
- * `toCoverDesign` is called at every read boundary, so `resolveCoverColor` and
- * the clamps happen in exactly one place and no view ever receives a null
- * colour or a focal point outside the picture.
- */
-export function toCoverDesign(row: StoredCover): CoverDesign {
-  return {
-    coverColor: resolveCoverColor(row.id, row.coverColor),
-    coverStyle: row.coverStyle,
-    coverImageUrl: row.coverImageUrl,
-    coverTexture: row.coverTexture,
-    coverTitleFont: row.coverTitleFont,
-    coverTitleSize: row.coverTitleSize,
-    coverTitlePosition: row.coverTitlePosition,
-    coverFocalX: clampFraction(row.coverFocalX),
-    coverFocalY: clampFraction(row.coverFocalY),
-    coverZoom: clampZoom(row.coverZoom),
-  };
 }

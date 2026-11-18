@@ -35,6 +35,7 @@ export const accountRepository = {
           select: {
             id: true,
             coverImageUrl: true,
+            coverElements: true,
             members: {
               where: { userId: { not: userId } },
               orderBy: { createdAt: "asc" },

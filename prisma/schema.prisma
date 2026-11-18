@@ -182,6 +182,21 @@ model Cookbook {
   coverFocalY Float @default(0.5)
   coverZoom   Float @default(1)
 
+  /// What has been placed on top of the cover — text boxes, photos, shapes and
+  /// stickers, each free to move, resize and rotate. See lib/cover-elements.ts
+  /// for the shape, which is validated with zod on every write and every read.
+  ///
+  /// A `Json` column, which is the opposite trade from the typed columns
+  /// above, and for the opposite reason. Those describe the cloth: a fixed set
+  /// of choices, each a single value. This is an ordered list of differently
+  /// shaped things, where the order *is* the stacking — a table of elements
+  /// would need a position column, a type discriminator and a nullable column
+  /// for every field any one type has, all to be read back whole every time a
+  /// cover is drawn. Nothing ever queries inside it.
+  ///
+  /// Defaulted to empty, which draws exactly the cover that existed before.
+  coverElements Json @default("[]")
+
   /// The "anyone with this link can join" link, as the token in its URL — or
   /// null when the owner hasn't turned it on (or has turned it off).
   ///

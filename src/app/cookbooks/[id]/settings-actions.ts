@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOnboardedUser } from "@/lib/user";
-import { deleteCoverImage, deleteImages } from "@/server/blob";
+import { deleteImages } from "@/server/blob";
 import {
   updateCookbook,
   archiveCookbook,
@@ -57,6 +57,7 @@ export async function updateCookbookAction(
     coverFocalX: String(formData.get("coverFocalX") ?? ""),
     coverFocalY: String(formData.get("coverFocalY") ?? ""),
     coverZoom: String(formData.get("coverZoom") ?? ""),
+    coverElements: String(formData.get("coverElements") ?? ""),
   };
 
   const result = await updateCookbook(user.id, cookbookId, values);
@@ -66,7 +67,7 @@ export async function updateCookbookAction(
   // rather than in the service keeps the network call out of the layer that is
   // meant to be testable without one; it is best-effort, and never fails the
   // save that already succeeded.
-  await deleteCoverImage(result.value.orphanedCover);
+  await deleteImages(result.value.orphanedCovers);
 
   revalidatePath(`/cookbooks/${cookbookId}`);
   // The title is what the dashboard lists this cookbook by.

@@ -74,6 +74,7 @@ describe("updateCookbookAction", () => {
       coverFocalX: "",
       coverFocalY: "",
       coverZoom: "",
+      coverElements: "",
     });
   });
 
