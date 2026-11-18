@@ -46,7 +46,76 @@ export type CoverDesign = {
   coverFocalX: number;
   coverFocalY: number;
   coverZoom: number;
+  /**
+   * What has been placed on the cover, bottom of the stack first. Draw these
+   * over the cloth (or photo), in order.
+   *
+   * When one of them is the title (`role: "title"`), the cover's name is drawn
+   * *there* and the title plate is not drawn at all — even though `coverStyle`
+   * is still TITLED. A client that doesn't draw elements yet can ignore this
+   * field and keep drawing the plate: it will show the right name on the right
+   * cloth, just not where its owner put it.
+   */
+  coverElements: CoverElement[];
 };
+
+/** A colour from the cover palette (by index) or white. */
+export type CoverElementColor =
+  | "cover-1"
+  | "cover-2"
+  | "cover-3"
+  | "cover-4"
+  | "cover-5"
+  | "cover-6"
+  | "cover-7"
+  | "cover-8"
+  | "white";
+
+/**
+ * Where an element sits. `x`/`y` are its *centre* as fractions of the cover's
+ * width and height; `w` is its width as a fraction of the cover's width;
+ * `rotation` is degrees clockwise about the centre.
+ */
+type PlacedOnCover = { id: string; x: number; y: number; w: number; rotation: number };
+
+export type CoverElement =
+  | (PlacedOnCover & {
+      type: "text";
+      /** Present on the one element that shows the cookbook's title; ignore `text` then. */
+      role?: "title";
+      text: string;
+      font: "SERIF" | "SANS" | "MONO";
+      /**
+       * Type size as a percentage of the cover's width. The title is drawn
+       * smaller than this for a long name — see `titleScale` in
+       * lib/cover-elements.ts.
+       */
+      size: number;
+      color: CoverElementColor;
+      align: "left" | "center" | "right";
+      bold: boolean;
+      italic: boolean;
+    })
+  | (PlacedOnCover & {
+      type: "photo";
+      url: string;
+      /** Height as a fraction of the cover's height. */
+      h: number;
+      mask: "rect" | "rounded" | "circle";
+    })
+  | (PlacedOnCover & {
+      type: "shape";
+      shape: "rect" | "circle" | "triangle" | "line" | "frame";
+      h: number;
+      color: CoverElementColor;
+      /** Outline rather than fill, for rect and circle. A frame is always a thin outline. */
+      outline: boolean;
+    })
+  | (PlacedOnCover & {
+      type: "sticker";
+      /** Square: height follows from `w`. */
+      sticker: "tomato" | "lemon" | "chili" | "herb" | "whisk" | "spoon" | "heart" | "star";
+    });
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/me · POST /api/v1/me/onboarding

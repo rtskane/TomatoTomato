@@ -58,48 +58,34 @@ const PREVIEWS: Record<
   },
 };
 
-export default function ImageUploadField({
-  folder,
-  value,
-  onChange,
-  onUploadingChange,
-  showPreview = true,
-  heading = "Cover",
-}: {
-  /** Which kind of image this is — decides where it's stored and its shape. */
-  folder: ImageFolder;
-  value: string;
-  onChange: (url: string) => void;
-  onUploadingChange?: (uploading: boolean) => void;
-  /**
-   * Draw the little thumbnail beside the button.
-   *
-   * Off inside the cover designer, which shows the picture on a full book
-   * preview a few pixels away — two previews of one image, at two sizes,
-   * disagreeing about whether it is cropped is worse than none.
-   */
-  showPreview?: boolean;
-  /**
-   * The field's own heading, or null to omit it — the cover designer already
-   * has a heading over the whole cover section, and a second one directly
-   * under it reads as a nested field that isn't there.
-   */
-  heading?: string | null;
-}) {
+/**
+ * The upload itself, without the field around it — checked, timed out and
+ * reported exactly as the field does, for anything else that needs to put an
+ * image in the blob store (the cover editor's "Add photo", for one).
+ *
+ * `onUploaded` receives the stored URL; it is not called on failure, and
+ * `error` says why in words meant for the person choosing the photo.
+ */
+export function useImageUpload(
+  folder: ImageFolder,
+  {
+    onUploaded,
+    onUploadingChange,
+  }: {
+    onUploaded: (url: string) => void;
+    onUploadingChange?: (uploading: boolean) => void;
+  },
+) {
   const [error, setError] = useState<string | null>(null);
   const [percentage, setPercentage] = useState(0);
   const [uploading, setUploading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const inputId = useId();
-  const errorId = useId();
-  const preview = PREVIEWS[folder];
 
   function setBusy(busy: boolean) {
     setUploading(busy);
     onUploadingChange?.(busy);
   }
 
-  async function handleFile(file: File) {
+  async function uploadFile(file: File) {
     setError(null);
 
     // Checked here for a fast, clear message, and again in the token the
@@ -123,7 +109,7 @@ export default function ImageUploadField({
         abortSignal: AbortSignal.timeout(TIMEOUT_MS),
         onUploadProgress: (progress) => setPercentage(progress.percentage),
       });
-      onChange(blob.url);
+      onUploaded(blob.url);
     } catch (cause) {
       // The API's own messages are about tokens and stores, which means
       // nothing to someone choosing a photo. A timeout gets its own wording
@@ -139,10 +125,45 @@ export default function ImageUploadField({
       console.error(`[${folder}] upload failed`, cause);
     } finally {
       setBusy(false);
-      // Let the same file be chosen again after a failure — without this the
-      // input holds it and the change event never fires twice.
-      if (inputRef.current) inputRef.current.value = "";
     }
+  }
+
+  return { uploadFile, uploading, percentage, error, setError };
+}
+
+export default function ImageUploadField({
+  folder,
+  value,
+  onChange,
+  onUploadingChange,
+  heading = "Cover",
+}: {
+  /** Which kind of image this is — decides where it's stored and its shape. */
+  folder: ImageFolder;
+  value: string;
+  onChange: (url: string) => void;
+  onUploadingChange?: (uploading: boolean) => void;
+  /**
+   * The field's own heading, or null to omit it — for a form that already
+   * has a heading over this part of it, where a second one directly under it
+   * reads as a nested field that isn't there.
+   */
+  heading?: string | null;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
+  const errorId = useId();
+  const preview = PREVIEWS[folder];
+  const { uploadFile, uploading, percentage, error, setError } = useImageUpload(
+    folder,
+    { onUploaded: onChange, onUploadingChange },
+  );
+
+  async function handleFile(file: File) {
+    await uploadFile(file);
+    // Let the same file be chosen again after a failure — without this the
+    // input holds it and the change event never fires twice.
+    if (inputRef.current) inputRef.current.value = "";
   }
 
   return (
@@ -157,27 +178,25 @@ export default function ImageUploadField({
       ) : null}
 
       <div className={`flex items-start gap-4 ${heading ? "mt-2" : ""}`}>
-        {showPreview ? (
-          /* The preview doubles as the empty state, so the row doesn't reflow
-             when a picture arrives. */
-          <div
-            className={`relative ${preview.aspect} ${preview.width} shrink-0 overflow-hidden rounded-md border border-border bg-background-control`}
-          >
-            {value ? (
-              <Image
-                src={value}
-                alt=""
-                fill
-                sizes={preview.sizes}
-                className="object-cover"
-              />
-            ) : (
-              <span className="flex h-full items-center justify-center text-caption-2 text-foreground-muted">
-                {preview.empty}
-              </span>
-            )}
-          </div>
-        ) : null}
+        {/* The preview doubles as the empty state, so the row doesn't reflow
+            when a picture arrives. */}
+        <div
+          className={`relative ${preview.aspect} ${preview.width} shrink-0 overflow-hidden rounded-md border border-border bg-background-control`}
+        >
+          {value ? (
+            <Image
+              src={value}
+              alt=""
+              fill
+              sizes={preview.sizes}
+              className="object-cover"
+            />
+          ) : (
+            <span className="flex h-full items-center justify-center text-caption-2 text-foreground-muted">
+              {preview.empty}
+            </span>
+          )}
+        </div>
 
         <div className="min-w-0">
           <label

@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireOnboardedUser } from "@/lib/user";
-import { deleteCoverImage, deleteImages } from "@/server/blob";
+import { deleteImages } from "@/server/blob";
+import { coverFieldsFrom } from "@/lib/cover-fields";
 import {
   updateCookbook,
   archiveCookbook,
@@ -18,20 +19,8 @@ import {
 
 export type UpdateCookbookState = {
   error?: string;
-  values?: {
-    title: string;
-    description: string;
-    coverImageUrl: string;
-    coverColor: string;
-    coverStyle: string;
-    coverTexture: string;
-    coverTitleFont: string;
-    coverTitleSize: string;
-    coverTitlePosition: string;
-    coverFocalX: string;
-    coverFocalY: string;
-    coverZoom: string;
-  };
+  /** What was typed, handed back so a refused save doesn't lose it. */
+  values?: { title: string; description: string };
 };
 
 export async function updateCookbookAction(
@@ -44,29 +33,23 @@ export async function updateCookbookAction(
   const values = {
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
-    coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
-    // Posted by the cover designer's radios. Empty when the request didn't
-    // come from it at all, which the schema reads as "unchosen" rather than
-    // as an error — see createCookbookSchema.
-    coverColor: String(formData.get("coverColor") ?? ""),
-    coverStyle: String(formData.get("coverStyle") ?? ""),
-    coverTexture: String(formData.get("coverTexture") ?? ""),
-    coverTitleFont: String(formData.get("coverTitleFont") ?? ""),
-    coverTitleSize: String(formData.get("coverTitleSize") ?? ""),
-    coverTitlePosition: String(formData.get("coverTitlePosition") ?? ""),
-    coverFocalX: String(formData.get("coverFocalX") ?? ""),
-    coverFocalY: String(formData.get("coverFocalY") ?? ""),
-    coverZoom: String(formData.get("coverZoom") ?? ""),
   };
 
-  const result = await updateCookbook(user.id, cookbookId, values);
+  // The cover arrives as the hidden fields the settings form holds for it.
+  // Every one is empty when the request didn't come from that form at all,
+  // which the schema reads as "not said" rather than as an error — see
+  // createCookbookSchema.
+  const result = await updateCookbook(user.id, cookbookId, {
+    ...values,
+    ...coverFieldsFrom(formData),
+  });
   if (!result.ok) return { error: result.error.message, values };
 
   // Swapping or removing a cover leaves the old file behind. Deleting it here
   // rather than in the service keeps the network call out of the layer that is
   // meant to be testable without one; it is best-effort, and never fails the
   // save that already succeeded.
-  await deleteCoverImage(result.value.orphanedCover);
+  await deleteImages(result.value.orphanedCovers);
 
   revalidatePath(`/cookbooks/${cookbookId}`);
   // The title is what the dashboard lists this cookbook by.

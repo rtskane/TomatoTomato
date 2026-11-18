@@ -2,6 +2,8 @@ import {
   accountRepository,
   type AccountDeletion,
 } from "@/server/repositories/account.repository";
+import { elementImages } from "@/lib/cover-elements";
+import { parseStoredElements } from "@/lib/cover-elements-schema";
 
 // Deleting an account. Framework-free — Clerk and blob storage are the
 // caller's business — so the rules below are unit-testable directly.
@@ -55,6 +57,7 @@ export function planAccountDeletion(
       deleteCookbookIds.push(cookbook.id);
       orphanedImages.push(
         cookbook.coverImageUrl,
+        ...elementImages(parseStoredElements(cookbook.coverElements)),
         ...cookbook.recipes.map((r) => r.coverImageUrl),
       );
     }

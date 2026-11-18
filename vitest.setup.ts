@@ -28,3 +28,14 @@ if (typeof HTMLDialogElement !== "undefined") {
     };
   }
 }
+
+// jsdom does no layout, so it has no ResizeObserver either. The cover editor
+// uses one to size its selection frame; with nothing ever resizing here, an
+// observer that never fires is exactly what a real one would do.
+if (typeof window !== "undefined" && typeof window.ResizeObserver === "undefined") {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

@@ -58,7 +58,11 @@ export default function ModalDialog({
         ref={dialogRef}
         // Escape and the close button both fire `close`; syncing state here
         // means every dismissal path runs through one place.
-        onClose={() => setOpen(false)}
+        onClose={(e) => {
+          // Only this dialog's own close: React also delivers the `close` of
+          // any dialog opened from inside this one.
+          if (e.target === e.currentTarget) setOpen(false);
+        }}
         // Clicking the backdrop targets the dialog itself — anything inside it
         // reports that child as the target instead.
         onClick={(e) => {

@@ -77,6 +77,8 @@ describe("createCookbookSchema", () => {
       // Settled by the schema even though the payload never mentioned it —
       // a cover has to render as something.
       coverStyle: "TITLED",
+      // Likewise "nothing placed on it".
+      coverElements: [],
     });
   });
 

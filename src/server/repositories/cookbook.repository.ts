@@ -7,6 +7,8 @@ import {
   type CoverTitleSize,
   type CoverTitlePosition,
 } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
+import type { CoverElement } from "@/lib/cover-elements";
 import { liveRecipe } from "./recipe.repository";
 
 // The ONLY module that talks to Prisma for the Cookbook table. Mirrors the
@@ -25,7 +27,17 @@ type CookbookCoverInput = {
   coverFocalX: number;
   coverFocalY: number;
   coverZoom: number;
+  coverElements: CoverElement[];
 };
+
+/**
+ * The elements as Prisma's JSON input wants them. A validated element list is
+ * plain data — numbers, strings, booleans — but its TypeScript type has no
+ * index signature, which is all `InputJsonValue` is complaining about.
+ */
+function asJson(elements: CoverElement[]): Prisma.InputJsonValue {
+  return elements as unknown as Prisma.InputJsonValue;
+}
 
 type CreateCookbookInput = CookbookCoverInput & {
   ownerId: string;
@@ -70,6 +82,7 @@ export const coverColumns = {
   coverFocalX: true,
   coverFocalY: true,
   coverZoom: true,
+  coverElements: true,
 } as const;
 
 // Note the membership lookups below use `findFirst`, not `findUnique`, even
@@ -90,12 +103,13 @@ export const cookbookRepository = {
    * relations. Prisma runs a nested create in one transaction, so a cookbook can
    * never exist without its owner's membership row.
    */
-  create({ ownerId, title, description, ...cover }: CreateCookbookInput) {
+  create({ ownerId, title, description, coverElements, ...cover }: CreateCookbookInput) {
     return prisma.cookbook.create({
       data: {
         title,
         description,
         ...cover,
+        coverElements: asJson(coverElements),
         ownerId,
         members: { create: { userId: ownerId, role: CookbookRole.OWNER } },
       },
@@ -247,10 +261,13 @@ export const cookbookRepository = {
     });
   },
 
-  update(cookbookId: string, { title, description, ...cover }: UpdateCookbookInput) {
+  update(
+    cookbookId: string,
+    { title, description, coverElements, ...cover }: UpdateCookbookInput,
+  ) {
     return prisma.cookbook.update({
       where: { id: cookbookId },
-      data: { title, description, ...cover },
+      data: { title, description, ...cover, coverElements: asJson(coverElements) },
       select: { id: true },
     });
   },
@@ -259,14 +276,15 @@ export const cookbookRepository = {
    * The cover a cookbook currently has, read before an update overwrites it.
    *
    * Replacing or clearing a cover leaves the old file sitting in blob storage
-   * paying rent forever, so the service hands the orphaned URL back to its
+   * paying rent forever, so the service hands the orphaned URLs back to its
    * caller to delete. Reading it needs its own query because `update` returns
-   * the row as it is *after* the write.
+   * the row as it is *after* the write. The elements are read too, because
+   * their photos are uploaded files just like the background one.
    */
   findCover(cookbookId: string) {
     return prisma.cookbook.findUnique({
       where: { id: cookbookId },
-      select: { coverImageUrl: true },
+      select: { coverImageUrl: true, coverElements: true },
     });
   },
 
@@ -303,6 +321,7 @@ export const cookbookRepository = {
       where: { id: cookbookId, ownerId, archivedAt: { not: null } },
       select: {
         coverImageUrl: true,
+        coverElements: true,
         recipes: { select: { coverImageUrl: true } },
       },
     });

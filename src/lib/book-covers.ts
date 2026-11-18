@@ -1,11 +1,13 @@
 // The cover palette, shared by everything that draws a cookbook as a book: the
 // shelf paints a whole book with it, the list a thumbnail-sized chip, and the
-// cover designer both a row of swatches and a live preview. One cookbook has to
-// be the same colour in all four places, so there is one table and no second
-// copy of it.
+// cover editor both a row of swatches and the book being edited. One cookbook
+// has to be the same colour in all four places, so there is one table and no
+// second copy of it.
 //
-// Framework-free (no next/*, no react) so the designer, the server components
+// Framework-free (no next/*, no react) so the editor, the server components
 // and the unit tests can all import it.
+
+import type { CoverElement } from "@/lib/cover-elements";
 
 /** How a cover presents itself. Mirrors the `CoverStyle` enum in schema.prisma. */
 export const COVER_STYLES = ["TITLED", "PLAIN", "PHOTO"] as const;
@@ -18,12 +20,17 @@ export function isCoverStyle(value: string): value is CoverStyle {
 // ---------------------------------------------------------------------------
 // The composed cover
 //
-// Everything below is a *finite vocabulary*, which is the whole design premise:
-// a cover is composed from named choices rather than laid out freehand. That is
-// what lets one component draw the same cover at 240px on the shelf, 128px in
-// the designer and 36px in a list row and have all three agree — every value
-// here resolves to something relative (a percentage of the cover's own width,
-// or a fraction of the photograph), never a pixel.
+// Everything below is a *finite vocabulary*: the cloth is composed from named
+// choices rather than laid out freehand. That is what lets one component draw
+// the same cover at 240px on the shelf, larger in the editor and 36px in a
+// list row and have all three agree — every value here resolves to something
+// relative (a percentage of the cover's own width, or a fraction of the
+// photograph), never a pixel.
+//
+// What is laid out freehand sits on top of it: the placed elements in
+// lib/cover-elements.ts, the cookbook's name among them. The title font, size
+// and position below belong to the older, fixed title *plate*, which is still
+// how a cover nobody has edited since shows its name.
 // ---------------------------------------------------------------------------
 
 export const COVER_TEXTURES = ["NONE", "GINGHAM", "GRID"] as const;
@@ -131,6 +138,8 @@ export type CoverDesign = {
   coverFocalX: number;
   coverFocalY: number;
   coverZoom: number;
+  /** What has been placed on top of the cloth, bottom of the stack first. */
+  coverElements: CoverElement[];
 };
 
 /** What a cookbook nobody has designed looks like. */
@@ -144,6 +153,7 @@ export const DEFAULT_COVER_DESIGN: Omit<CoverDesign, "coverColor"> = {
   coverFocalX: 0.5,
   coverFocalY: 0.5,
   coverZoom: 1,
+  coverElements: [],
 };
 
 export type BookCoverPalette = {
@@ -329,41 +339,4 @@ export function resolveCoverColor(id: string, stored?: number | null): number {
  */
 export function paletteFor(color: number): BookCoverPalette {
   return BOOK_COVERS[color - 1] ?? BOOK_COVERS[0];
-}
-
-/** A cookbook row's cover columns, exactly as the database stores them. */
-export type StoredCover = {
-  id: string;
-  coverImageUrl: string | null;
-  coverColor: number | null;
-  coverStyle: CoverDesign["coverStyle"];
-  coverTexture: CoverDesign["coverTexture"];
-  coverTitleFont: CoverDesign["coverTitleFont"];
-  coverTitleSize: CoverDesign["coverTitleSize"];
-  coverTitlePosition: CoverDesign["coverTitlePosition"];
-  coverFocalX: number;
-  coverFocalY: number;
-  coverZoom: number;
-};
-
-/**
- * The stored cover columns, as the shape a view can render.
- *
- * `toCoverDesign` is called at every read boundary, so `resolveCoverColor` and
- * the clamps happen in exactly one place and no view ever receives a null
- * colour or a focal point outside the picture.
- */
-export function toCoverDesign(row: StoredCover): CoverDesign {
-  return {
-    coverColor: resolveCoverColor(row.id, row.coverColor),
-    coverStyle: row.coverStyle,
-    coverImageUrl: row.coverImageUrl,
-    coverTexture: row.coverTexture,
-    coverTitleFont: row.coverTitleFont,
-    coverTitleSize: row.coverTitleSize,
-    coverTitlePosition: row.coverTitlePosition,
-    coverFocalX: clampFraction(row.coverFocalX),
-    coverFocalY: clampFraction(row.coverFocalY),
-    coverZoom: clampZoom(row.coverZoom),
-  };
 }

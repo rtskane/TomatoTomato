@@ -492,6 +492,27 @@ describe("deleteCookbookForever", () => {
     });
   });
 
+  // A photo placed on the cover is an uploaded file like the background one,
+  // and would otherwise sit in the store forever once its cookbook is gone.
+  it("hands back the photos placed on the cover, too", async () => {
+    const placed = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/placed.jpg";
+    findArchivedImages.mockResolvedValue({
+      coverImageUrl: null,
+      coverElements: [
+        { id: "p1", type: "photo", x: 0.5, y: 0.5, w: 0.4, h: 0.3, rotation: 0, url: placed, mask: "rect" },
+        { id: "s1", type: "sticker", x: 0.5, y: 0.5, w: 0.3, rotation: 0, sticker: "lemon" },
+      ],
+      recipes: [{ coverImageUrl: "https://blob/soup.jpg" }],
+    });
+
+    const result = await deleteCookbookForever("owner1", "cb1");
+
+    expect(result).toEqual({
+      ok: true,
+      value: { orphanedImages: [placed, "https://blob/soup.jpg"] },
+    });
+  });
+
   // The lookup is scoped to the owner's *archived* cookbooks, so a live one,
   // or someone else's, is refused before anything is deleted.
   it("refuses a live cookbook or someone else's without deleting", async () => {
@@ -615,6 +636,69 @@ const BLOB = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/a.jp
 const BLOB_2 = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/b.jpg";
 
 describe("createCookbook — cover", () => {
+  // A new cookbook is created with its cover already designed: the name and
+  // whatever was placed arrive in the same call.
+  it("stores what was placed on the cover, the title among it", async () => {
+    create.mockResolvedValue({ id: "cb1" });
+    const title = {
+      id: "title",
+      type: "text",
+      role: "title",
+      x: 0.525,
+      y: 0.5,
+      w: 0.7,
+      rotation: 0,
+      text: "",
+      font: "SERIF",
+      size: 8.3,
+      color: "white",
+      align: "center",
+      bold: false,
+      italic: false,
+    };
+
+    const result = await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverStyle: "TITLED",
+      coverElements: JSON.stringify([title]),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(create.mock.calls[0][0]).toMatchObject({
+      coverStyle: "TITLED",
+      coverElements: [title],
+    });
+  });
+
+  it("refuses a cover with two titles, and creates nothing", async () => {
+    const title = (id: string) => ({
+      id,
+      type: "text",
+      role: "title",
+      x: 0.5,
+      y: 0.5,
+      w: 0.7,
+      rotation: 0,
+      text: "",
+      font: "SERIF",
+      size: 8,
+      color: "white",
+      align: "center",
+      bold: false,
+      italic: false,
+    });
+
+    const result = await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverElements: JSON.stringify([title("a"), title("b")]),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("stores the cover it was given", async () => {
     create.mockResolvedValue({ id: "cb1" });
 
@@ -668,7 +752,7 @@ describe("updateCookbook — cover", () => {
 
     expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.orphanedCover).toBeNull();
+    if (result.ok) expect(result.value.orphanedCovers).toEqual([]);
   });
 
   // The old file would otherwise sit in the store forever, paid for and
@@ -683,7 +767,7 @@ describe("updateCookbook — cover", () => {
     });
 
     expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB_2);
-    if (result.ok) expect(result.value.orphanedCover).toBe(BLOB);
+    if (result.ok) expect(result.value.orphanedCovers).toEqual([BLOB]);
   });
 
   it("reports the removed cover when the cover is cleared", async () => {
@@ -696,7 +780,7 @@ describe("updateCookbook — cover", () => {
     });
 
     expect(update.mock.calls[0][1].coverImageUrl).toBeNull();
-    if (result.ok) expect(result.value.orphanedCover).toBe(BLOB);
+    if (result.ok) expect(result.value.orphanedCovers).toEqual([BLOB]);
   });
 
   // The dangerous case: renaming a cookbook must not delete the picture it
@@ -711,7 +795,7 @@ describe("updateCookbook — cover", () => {
     });
 
     expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB);
-    if (result.ok) expect(result.value.orphanedCover).toBeNull();
+    if (result.ok) expect(result.value.orphanedCovers).toEqual([]);
   });
 
   it("refuses a cover hosted somewhere else, and writes nothing", async () => {
@@ -738,6 +822,84 @@ describe("updateCookbook — cover", () => {
     expect(result.ok).toBe(false);
     expect(findCover).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Placed elements — their photos are uploaded files like the background one
+// ---------------------------------------------------------------------------
+
+describe("updateCookbook — placed elements", () => {
+  beforeEach(() => {
+    findMembership.mockResolvedValue({ role: "OWNER" });
+    update.mockResolvedValue({ id: "cb1" });
+  });
+
+  function photo(url: string, id = "p1") {
+    return { id, type: "photo", x: 0.5, y: 0.5, w: 0.4, h: 0.3, rotation: 0, url, mask: "rect" };
+  }
+
+  it("stores the elements it was given, validated", async () => {
+    const sticker = { id: "s1", type: "sticker", x: 0.2, y: 0.3, w: 0.25, rotation: 370, sticker: "lemon" };
+
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverElements: JSON.stringify([sticker]),
+    });
+
+    expect(result.ok).toBe(true);
+    // 370° is the same turn as 10°, and is stored as such.
+    expect(update.mock.calls[0][1].coverElements).toEqual([{ ...sticker, rotation: 10 }]);
+  });
+
+  it("refuses elements that aren't valid JSON, and writes nothing", async () => {
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverElements: "[{",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("refuses a placed photo hosted somewhere else", async () => {
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverElements: JSON.stringify([photo("https://evil.example.com/x.jpg")]),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("reports a placed photo that was taken off the cover", async () => {
+    findCover.mockResolvedValue({ coverImageUrl: null, coverElements: [photo(BLOB)] });
+
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverElements: "[]",
+    });
+
+    if (result.ok) expect(result.value.orphanedCovers).toEqual([BLOB]);
+  });
+
+  // Moving a picture from the background onto the cloth as an element must
+  // not delete the file it is still drawn from.
+  it("orphans nothing when a photo only moves from the background to an element", async () => {
+    findCover.mockResolvedValue({ coverImageUrl: BLOB, coverElements: [] });
+
+    const result = await updateCookbook("owner1", "cb1", {
+      title: "Baking",
+      description: "",
+      coverImageUrl: "",
+      coverElements: JSON.stringify([photo(BLOB)]),
+    });
+
+    if (result.ok) expect(result.value.orphanedCovers).toEqual([]);
   });
 });
 
@@ -834,7 +996,7 @@ describe("updateCookbook — the designed cover", () => {
 
     expect(update.mock.calls[0][1].coverImageUrl).toBe(BLOB);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.orphanedCover).toBeNull();
+    if (result.ok) expect(result.value.orphanedCovers).toEqual([]);
   });
 });
 

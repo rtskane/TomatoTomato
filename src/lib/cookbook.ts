@@ -10,6 +10,7 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
 } from "@/lib/book-covers";
+import { coverElementsFieldSchema } from "@/lib/cover-elements-schema";
 
 // Validation for cookbook input. Lives in lib/ (not the service) so the same
 // rules are importable from anywhere — including, later, a client-side check.
@@ -151,6 +152,7 @@ export const createCookbookSchema = z
     coverFocalX: coverFocalSchema,
     coverFocalY: coverFocalSchema,
     coverZoom: coverZoomSchema,
+    coverElements: coverElementsFieldSchema,
   })
   /**
    * Settle the style, so nothing downstream has to reason about the two ways

@@ -208,6 +208,7 @@ describe("DEFAULT_COVER_DESIGN", () => {
       coverFocalX: 0.5,
       coverFocalY: 0.5,
       coverZoom: 1,
+      coverElements: [],
     });
   });
 });
