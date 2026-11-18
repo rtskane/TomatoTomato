@@ -87,7 +87,23 @@ describe("updateCookbookAction", () => {
     const state = await updateCookbookAction("cb1", {}, formOf({ title: "" }));
 
     expect(state.error).toBe("Give your cookbook a title.");
-    expect(state.values?.title).toBe("");
+    // What was typed — the name and the description. The cover isn't echoed:
+    // the form holds it as state, which a refused save doesn't touch.
+    expect(state.values).toEqual({ title: "", description: "" });
+  });
+
+  it("passes the cover's fields through as the form posted them", async () => {
+    await updateCookbookAction(
+      "cb1",
+      {},
+      formOf({ title: "New name", coverColor: "6", coverStyle: "PLAIN", coverElements: "[]" }),
+    );
+
+    expect(updateCookbook.mock.calls[0][2]).toMatchObject({
+      coverColor: "6",
+      coverStyle: "PLAIN",
+      coverElements: "[]",
+    });
   });
 
   it("refreshes the dashboard, which lists cookbooks by title", async () => {

@@ -70,7 +70,7 @@ enum CoverTitleFont {
 
 /// Sizes, not points. The rendered size is a percentage of the cover's own
 /// width (see TITLE_SIZES in lib/book-covers.ts) — a cover has to read at
-/// 240px on the shelf and 128px in the designer, so anything stored in pixels
+/// 240px on the shelf and 36px in a list row, so anything stored in pixels
 /// would be wrong at one of them.
 enum CoverTitleSize {
   SMALL
@@ -163,6 +163,11 @@ model Cookbook {
   //
   // Every default below reproduces how covers looked before this existed, so
   // no cookbook changes appearance when the columns appear.
+  //
+  // The three title columns describe the fixed title *plate*. A cover that has
+  // been through the editor carries its title as a placed element instead (see
+  // `coverElements`), and the plate is not drawn for it — but these still hold
+  // what a client that can't draw elements should fall back to.
 
   coverTexture       CoverTexture       @default(NONE)
   coverTitleFont     CoverTitleFont     @default(SERIF)

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import CoverElementView from "@/components/cover-element";
+import { titleElement } from "@/lib/cover-elements";
 import {
   paletteFor,
   clampFraction,
@@ -100,8 +101,18 @@ export default function BookCover({
   // away on write, so reaching it here means older data or a direct database
   // edit — either way the cloth is a better answer than an empty board.
   const showPhoto = design.coverStyle === "PHOTO" && Boolean(design.coverImageUrl);
+  const elements = design.coverElements ?? [];
+  // The title plate is how covers showed their title before the title could
+  // be placed by hand. A cover that carries a title element draws the title
+  // there instead, so the plate is only for covers nobody has redesigned
+  // since. (Such a cover is still stored as TITLED: that is what tells a
+  // client that can't draw elements to show the title the old way.)
   const showTitle =
-    !showPhoto && design.coverStyle !== "PLAIN" && spec.frame !== null && spec.showTitle;
+    !showPhoto &&
+    design.coverStyle !== "PLAIN" &&
+    spec.frame !== null &&
+    spec.showTitle &&
+    !titleElement(elements);
 
   const weave = TEXTURES[design.coverTexture]?.className ?? null;
 
@@ -190,10 +201,10 @@ export default function BookCover({
 
       {/* Placed elements, above everything else on the board and in the
           order they are stored: later is higher. */}
-      {(design.coverElements ?? [])
+      {elements
         .filter((element) => spec.showTitle || element.type !== "text")
         .map((element) => (
-          <CoverElementView key={element.id} element={element} sizes={sizes} />
+          <CoverElementView key={element.id} element={element} title={title} sizes={sizes} />
         ))}
     </div>
   );

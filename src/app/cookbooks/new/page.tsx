@@ -1,30 +1,27 @@
 import { requireOnboardedUser } from "@/lib/user";
 import SetupProgress from "@/components/setup-progress";
-import { createCookbookAction } from "./actions";
-import CookbookForm from "./cookbook-form";
+import NewCookbook from "./new-cookbook";
 
-// Container: owns auth, wires the Server Action into the presentational form.
-// requireOnboardedUser redirects signed-out visitors to sign-in and
-// un-onboarded users to /onboarding.
+// Container: owns auth. requireOnboardedUser redirects signed-out visitors to
+// sign-in and un-onboarded users to /onboarding.
 //
-// Step one of three. It asks for the one thing a cookbook can't exist without
-// and then creates it — the cover and the invitations are separate screens
-// operating on a real cookbook, not held state.
+// Step one of two: name the cookbook and choose its cover, together, because
+// the name is printed on the cover and each is easier to settle while looking
+// at the other. Nothing is created until both are — see `createCookbookAction`.
 export default async function NewCookbookPage() {
   await requireOnboardedUser();
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <SetupProgress current="name" />
-
+    // No bottom padding on a phone: the page ends in the create bar, which
+    // sticks to the bottom of the screen and carries its own.
+    <div className="mx-auto max-w-4xl px-4 pt-10 sm:pb-10">
+      <SetupProgress current="cover" />
       <h1 className="mt-4 text-title-1">New cookbook</h1>
       <p className="mt-2 text-subheadline text-foreground-secondary">
-        Give it a name. You&rsquo;ll design the cover and invite people next.
+        Name it and give it a cover. You can change both whenever you like.
       </p>
 
-      <div className="mt-8">
-        <CookbookForm action={createCookbookAction} />
-      </div>
+      <NewCookbook />
     </div>
   );
 }

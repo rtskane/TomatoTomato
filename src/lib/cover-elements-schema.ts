@@ -8,13 +8,15 @@ import {
   MAX_TEXT_SIZE,
   MIN_EXTENT,
   MIN_TEXT_SIZE,
+  MIN_THICKNESS,
   PHOTO_MASKS,
   SHAPE_KINDS,
   STICKER_IDS,
   TEXT_ALIGNS,
   TEXT_FONTS,
+  foldAngle,
+  limitSentence,
   type CoverElement,
-  type ElementType,
 } from "@/lib/cover-elements";
 
 // ---------------------------------------------------------------------------
@@ -39,8 +41,7 @@ const rotation = z
   .catch(0)
   .transform((v) => {
     if (!Number.isFinite(v)) return 0;
-    const folded = ((((v + 180) % 360) + 360) % 360) - 180;
-    return Math.round(folded * 10) / 10;
+    return Math.round(foldAngle(v) * 10) / 10;
   });
 
 const placed = {
@@ -56,6 +57,7 @@ const extent = clamped(MIN_EXTENT, MAX_EXTENT, 0.3);
 const textSchema = z.object({
   ...placed,
   type: z.literal("text"),
+  role: z.literal("title").optional(),
   text: z.string().max(120, "Keep text on the cover to 120 characters."),
   font: z.enum(TEXT_FONTS, "That font doesn't exist."),
   size: clamped(MIN_TEXT_SIZE, MAX_TEXT_SIZE, 8),
@@ -77,7 +79,7 @@ const shapeSchema = z.object({
   ...placed,
   type: z.literal("shape"),
   shape: z.enum(SHAPE_KINDS, "That shape doesn't exist."),
-  h: extent,
+  h: clamped(MIN_THICKNESS, MAX_EXTENT, 0.3),
   color: z.enum(ELEMENT_COLORS, "That colour doesn't exist."),
   outline: z.boolean().catch(false),
 });
@@ -95,29 +97,23 @@ export const coverElementSchema = z.discriminatedUnion("type", [
   stickerSchema,
 ]);
 
-const PLURALS: Record<ElementType, string> = {
-  text: "text boxes",
-  photo: "photos",
-  shape: "shapes",
-  sticker: "stickers",
-};
-
 export const coverElementsSchema = z
   .array(coverElementSchema)
   // An empty text box draws nothing and can't be grabbed again, so it is
-  // dropped rather than stored as an invisible obstacle.
+  // dropped rather than stored as an invisible obstacle. The title is the
+  // exception: its words are the cookbook's name, not its own `text`.
   .transform((elements) =>
-    elements.filter((e) => e.type !== "text" || e.text.trim() !== ""),
+    elements.filter((e) => e.type !== "text" || e.role === "title" || e.text.trim() !== ""),
   )
   .superRefine((elements, ctx) => {
     for (const type of ELEMENT_TYPES) {
       const count = elements.filter((e) => e.type === type).length;
       if (count > LIMITS[type]) {
-        ctx.addIssue({
-          code: "custom",
-          message: `A cover can hold up to ${LIMITS[type]} ${PLURALS[type]}.`,
-        });
+        ctx.addIssue({ code: "custom", message: limitSentence(type) });
       }
+    }
+    if (elements.filter((e) => e.type === "text" && e.role === "title").length > 1) {
+      ctx.addIssue({ code: "custom", message: "A cover can show its title once." });
     }
     if (new Set(elements.map((e) => e.id)).size !== elements.length) {
       ctx.addIssue({ code: "custom", message: "That cover can't be saved." });

@@ -253,10 +253,10 @@ async function requireOwner(
  *
  * `orphanedCovers` are the files this write just detached — the previous
  * background photo when the update replaced or cleared it, and any photo
- * element that was taken off the cover. Deleting it is the caller's job, not
+ * element that was taken off the cover. Deleting them is the caller's job, not
  * this function's: talking to blob storage from here would put a network call
  * inside the layer whose whole point is that it can be unit-tested by calling
- * it. The Server Action deletes it, best-effort.
+ * it. The Server Action deletes them, best-effort.
  */
 export async function updateCookbook(
   userId: string,

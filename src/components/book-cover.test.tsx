@@ -211,3 +211,72 @@ describe("BookCover — sizes", () => {
     expect(container.firstElementChild!.className).toContain("w-32");
   });
 });
+
+describe("BookCover — the title as a placed element", () => {
+  const title = {
+    id: "title",
+    type: "text" as const,
+    role: "title" as const,
+    x: 0.5,
+    y: 0.3,
+    w: 0.7,
+    rotation: 0,
+    text: "",
+    font: "SANS" as const,
+    size: 10,
+    color: "white" as const,
+    align: "left" as const,
+    bold: true,
+    italic: false,
+  };
+
+  // The element draws the cookbook's name, not its own text — which is what
+  // lets a rename reach the cover.
+  it("draws the cookbook's name where the element is", () => {
+    renderCover({ title: "Sunday Roasts", design: { coverElements: [title] } });
+
+    const drawn = screen.getByText("Sunday Roasts");
+    expect(drawn).toHaveAttribute("data-element-id", "title");
+    expect(drawn).toHaveStyle({ top: "30%", textAlign: "left" });
+  });
+
+  // TITLED is still what such a cover is stored as, so the plate has to stand
+  // down by itself: one name on the cover, not two.
+  it("doesn't also draw the title plate", () => {
+    renderCover({ design: { coverStyle: "TITLED", coverElements: [title] } });
+    expect(screen.getAllByText("Weeknight Dinners")).toHaveLength(1);
+  });
+
+  it("sets a long name smaller so its box still holds it", () => {
+    const { rerender } = renderCover({ title: "Dinner", design: { coverElements: [title] } });
+    expect(screen.getByText("Dinner")).toHaveStyle({ fontSize: "10cqw" });
+
+    const long = "x".repeat(80);
+    rerender(<BookCover title={long} design={coverDesign(2, { coverElements: [title] })} />);
+    expect(screen.getByText(long)).toHaveStyle({ fontSize: "5.5cqw" });
+  });
+
+  it("is left off the chip with the rest of the type", () => {
+    renderCover({ size: "chip", design: { coverElements: [title] } });
+    expect(screen.queryByText("Weeknight Dinners")).toBeNull();
+  });
+
+  it("draws a frame as a fine rule", () => {
+    const frame = {
+      id: "frame",
+      type: "shape" as const,
+      shape: "frame" as const,
+      x: 0.5,
+      y: 0.5,
+      w: 0.8,
+      h: 0.9,
+      rotation: 0,
+      color: "white" as const,
+      outline: true,
+    };
+    const { container } = renderCover({ design: { coverStyle: "PLAIN", coverElements: [frame] } });
+    const drawn = container.querySelector<HTMLElement>('[data-element-id="frame"]')!;
+    expect(drawn.style.border).toContain("0.5cqw");
+    expect(drawn.style.backgroundColor).toBe("");
+  });
+});

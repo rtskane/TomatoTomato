@@ -1,10 +1,11 @@
 // What can be placed on top of a cover: text boxes, photos, shapes and
 // stickers, each free to move, resize and rotate.
 //
-// The cloth underneath is still the composed cover from lib/book-covers.ts —
-// colour, weave, title plate, background photo. Elements are the freeform
-// layer above it, kept deliberately small (see LIMITS) so a cover stays
-// something you design in a minute rather than a page-layout program.
+// The cloth underneath comes from lib/book-covers.ts — colour and weave.
+// Elements are the freeform layer above it, the cookbook's own name among
+// them (see "The title" below), kept deliberately small (see LIMITS) so a
+// cover stays something you design in a minute rather than a page-layout
+// program.
 //
 // Framework-free, like book-covers.ts, so the editor, the server and the tests
 // all share one definition of what an element is. No zod in here, for the
@@ -24,6 +25,13 @@
 // about it, so neither gesture has to move the element to keep it in place.
 // ---------------------------------------------------------------------------
 
+/**
+ * The middle of the board's usable face, across. A little right of 0.5: the
+ * spine takes the first 5% of the width, so anything meant to look centred is
+ * centred here.
+ */
+export const BOARD_CENTRE_X = 0.525;
+
 export const ELEMENT_TYPES = ["text", "photo", "shape", "sticker"] as const;
 export type ElementType = (typeof ELEMENT_TYPES)[number];
 
@@ -41,8 +49,36 @@ export const LIMITS: Record<ElementType, number> = {
   sticker: 8,
 };
 
+/** What each kind is called in the plural, for saying how many a cover holds. */
+export const ELEMENT_PLURALS: Record<ElementType, string> = {
+  text: "text boxes",
+  photo: "photos",
+  shape: "shapes",
+  sticker: "stickers",
+};
+
+/** "A cover holds up to 8 stickers." — said by the editor and by the server alike. */
+export function limitSentence(type: ElementType): string {
+  return `A cover holds up to ${LIMITS[type]} ${ELEMENT_PLURALS[type]}.`;
+}
+
 export const MIN_EXTENT = 0.04;
+/**
+ * How thin a shape may be. Lower than `MIN_EXTENT` because a rule *is* thin:
+ * a line starts at 1.2% of the board's height, and holding it to the general
+ * minimum would save it three times as thick as it was drawn.
+ */
+export const MIN_THICKNESS = 0.008;
 export const MAX_EXTENT = 1.5;
+/**
+ * How thick the drawn line of a hollow shape is, as a fraction of the board's
+ * width: the fine rule of a frame, and the bolder one of an outlined
+ * rectangle or circle. One definition, because the book draws the line and
+ * the editor has to know where it is to tell a press on it from a press in
+ * the empty middle.
+ */
+export const FRAME_LINE = 0.005;
+export const OUTLINE_LINE = 0.016;
 export const MIN_TEXT_SIZE = 3;
 export const MAX_TEXT_SIZE = 24;
 
@@ -100,7 +136,7 @@ export const TEXT_FONT_STYLES: Record<TextFont, { label: string; className: stri
 export const TEXT_ALIGNS = ["left", "center", "right"] as const;
 export type TextAlign = (typeof TEXT_ALIGNS)[number];
 
-export const SHAPE_KINDS = ["rect", "circle", "triangle", "line"] as const;
+export const SHAPE_KINDS = ["rect", "circle", "triangle", "line", "frame"] as const;
 export type ShapeKind = (typeof SHAPE_KINDS)[number];
 
 export const SHAPE_LABELS: Record<ShapeKind, string> = {
@@ -108,6 +144,7 @@ export const SHAPE_LABELS: Record<ShapeKind, string> = {
   circle: "Circle",
   triangle: "Triangle",
   line: "Line",
+  frame: "Frame",
 };
 
 export const PHOTO_MASKS = ["rect", "rounded", "circle"] as const;
@@ -149,6 +186,12 @@ type Placed = {
 
 export type TextElement = Placed & {
   type: "text";
+  /**
+   * `"title"` ties this text box to the cookbook's name: it draws whatever the
+   * cookbook is called and ignores `text`, so renaming the cookbook renames
+   * its cover. A cover has at most one. Absent on every other text box.
+   */
+  role?: "title";
   text: string;
   font: TextFont;
   /** Type size as a percentage of the board's width (cqw). */
@@ -172,7 +215,10 @@ export type ShapeElement = Placed & {
   shape: ShapeKind;
   h: number;
   color: ElementColor;
-  /** Outline rather than fill. Rectangles and circles only. */
+  /**
+   * Outline rather than fill. Rectangles and circles only — a frame is always
+   * a (thin) outline and ignores this.
+   */
   outline: boolean;
 };
 
@@ -186,6 +232,58 @@ export type CoverElement = TextElement | PhotoElement | ShapeElement | StickerEl
 
 export function hasOutline(shape: ShapeKind): boolean {
   return shape === "rect" || shape === "circle";
+}
+
+/** Any angle as the same turn within -180..180 (exclusive of 180), so equal rotations compare equal. */
+export function foldAngle(degrees: number): number {
+  return ((((degrees + 180) % 360) + 360) % 360) - 180;
+}
+
+// ---------------------------------------------------------------------------
+// The title
+//
+// The cookbook's name is a text box like any other — moved, sized and styled
+// the same way — except that its words come from the cookbook. That is what
+// lets a rename reach the cover, and what lets the name be edited from the
+// cover.
+// ---------------------------------------------------------------------------
+
+// A plain boolean rather than a type predicate: a predicate's "no" branch
+// would tell the compiler the element isn't a text box at all, which is wrong
+// for every text box that isn't the title.
+export function isTitle(element: CoverElement): boolean {
+  return element.type === "text" && element.role === "title";
+}
+
+export function titleElement(elements: readonly CoverElement[]): TextElement | null {
+  for (const element of elements) {
+    if (element.type === "text" && element.role === "title") return element;
+  }
+  return null;
+}
+
+/** Titles this long or shorter are drawn at the size the element says. */
+const TITLE_FULL_SIZE_UNTIL = 20;
+/** The longest a title can be (see `cookbookTitleSchema`), and its scale. */
+const TITLE_LONGEST = 80;
+const TITLE_SMALLEST_SCALE = 0.55;
+
+/**
+ * How much to shrink the title's type for a long name.
+ *
+ * A template is laid out around a name of ordinary length, and the same box
+ * has to hold "Dinner" and an eighty-character family history without the
+ * second one running off the bottom of the board. So the type steps down as
+ * the name grows — smoothly, so typing one more letter never makes it jump.
+ *
+ * Applied where the element is drawn, not stored: the element keeps the size
+ * its owner chose, and a later, shorter name gets that size back.
+ */
+export function titleScale(title: string): number {
+  const length = title.trim().length;
+  if (length <= TITLE_FULL_SIZE_UNTIL) return 1;
+  const t = Math.min(1, (length - TITLE_FULL_SIZE_UNTIL) / (TITLE_LONGEST - TITLE_FULL_SIZE_UNTIL));
+  return 1 - t * (1 - TITLE_SMALLEST_SCALE);
 }
 
 /** Every uploaded file the elements point at — for cleaning up after them. */

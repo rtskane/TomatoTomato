@@ -83,7 +83,7 @@ describe("coverElementsSchema — limits", () => {
     const result = coverElementsSchema.safeParse(stickers);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toBe("A cover can hold up to 8 stickers.");
+      expect(result.error.issues[0].message).toBe("A cover holds up to 8 stickers.");
     }
   });
 
@@ -126,5 +126,68 @@ describe("parseStoredElements — reading a row", () => {
   it("treats anything but a list as nothing placed", () => {
     expect(parseStoredElements(null)).toEqual([]);
     expect(parseStoredElements({ not: "a list" })).toEqual([]);
+  });
+});
+
+describe("coverElementsSchema — the title", () => {
+  const title = (id = "title") => text({ id, role: "title", text: "" });
+
+  // Its words are the cookbook's name, not its own `text` — so the rule that
+  // drops an empty text box must not take the title with it.
+  it("keeps the title though it has no words of its own", () => {
+    const [el] = coverElementsSchema.parse([title()]);
+    expect(el).toMatchObject({ type: "text", role: "title" });
+  });
+
+  it("refuses a second title", () => {
+    const result = coverElementsSchema.safeParse([title("a"), title("b")]);
+    expect(result.success).toBe(false);
+  });
+
+  it("refuses a role it doesn't know", () => {
+    expect(coverElementsSchema.safeParse([text({ role: "subtitle" })]).success).toBe(false);
+  });
+
+  it("leaves an ordinary text box without a role", () => {
+    const [el] = coverElementsSchema.parse([text()]);
+    expect("role" in el).toBe(false);
+  });
+});
+
+describe("coverElementsSchema — the frame", () => {
+  it("is a shape like any other", () => {
+    const frame = {
+      id: "f",
+      type: "shape",
+      shape: "frame",
+      x: 0.5,
+      y: 0.5,
+      w: 0.8,
+      h: 0.9,
+      rotation: 0,
+      color: "white",
+      outline: true,
+    };
+    expect(coverElementsSchema.parse([frame])).toEqual([frame]);
+  });
+});
+
+describe("coverElementsSchema — a thin rule", () => {
+  // The line the editor draws is 1.2% of the board tall. Clamping it to the
+  // general minimum saved it three times as thick as it was drawn.
+  it("is stored as thin as it was drawn", () => {
+    const line = {
+      id: "l",
+      type: "shape",
+      shape: "line",
+      x: 0.5,
+      y: 0.5,
+      w: 0.7,
+      h: 0.012,
+      rotation: 0,
+      color: "white",
+      outline: false,
+    };
+    expect(coverElementsSchema.parse([line])[0]).toMatchObject({ h: 0.012 });
   });
 });

@@ -492,6 +492,27 @@ describe("deleteCookbookForever", () => {
     });
   });
 
+  // A photo placed on the cover is an uploaded file like the background one,
+  // and would otherwise sit in the store forever once its cookbook is gone.
+  it("hands back the photos placed on the cover, too", async () => {
+    const placed = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/placed.jpg";
+    findArchivedImages.mockResolvedValue({
+      coverImageUrl: null,
+      coverElements: [
+        { id: "p1", type: "photo", x: 0.5, y: 0.5, w: 0.4, h: 0.3, rotation: 0, url: placed, mask: "rect" },
+        { id: "s1", type: "sticker", x: 0.5, y: 0.5, w: 0.3, rotation: 0, sticker: "lemon" },
+      ],
+      recipes: [{ coverImageUrl: "https://blob/soup.jpg" }],
+    });
+
+    const result = await deleteCookbookForever("owner1", "cb1");
+
+    expect(result).toEqual({
+      ok: true,
+      value: { orphanedImages: [placed, "https://blob/soup.jpg"] },
+    });
+  });
+
   // The lookup is scoped to the owner's *archived* cookbooks, so a live one,
   // or someone else's, is refused before anything is deleted.
   it("refuses a live cookbook or someone else's without deleting", async () => {
@@ -615,6 +636,69 @@ const BLOB = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/a.jp
 const BLOB_2 = "https://abc123.public.blob.vercel-storage.com/cookbook-covers/b.jpg";
 
 describe("createCookbook — cover", () => {
+  // A new cookbook is created with its cover already designed: the name and
+  // whatever was placed arrive in the same call.
+  it("stores what was placed on the cover, the title among it", async () => {
+    create.mockResolvedValue({ id: "cb1" });
+    const title = {
+      id: "title",
+      type: "text",
+      role: "title",
+      x: 0.525,
+      y: 0.5,
+      w: 0.7,
+      rotation: 0,
+      text: "",
+      font: "SERIF",
+      size: 8.3,
+      color: "white",
+      align: "center",
+      bold: false,
+      italic: false,
+    };
+
+    const result = await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverStyle: "TITLED",
+      coverElements: JSON.stringify([title]),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(create.mock.calls[0][0]).toMatchObject({
+      coverStyle: "TITLED",
+      coverElements: [title],
+    });
+  });
+
+  it("refuses a cover with two titles, and creates nothing", async () => {
+    const title = (id: string) => ({
+      id,
+      type: "text",
+      role: "title",
+      x: 0.5,
+      y: 0.5,
+      w: 0.7,
+      rotation: 0,
+      text: "",
+      font: "SERIF",
+      size: 8,
+      color: "white",
+      align: "center",
+      bold: false,
+      italic: false,
+    });
+
+    const result = await createCookbook("u1", {
+      title: "Baking",
+      description: "",
+      coverElements: JSON.stringify([title("a"), title("b")]),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("stores the cover it was given", async () => {
     create.mockResolvedValue({ id: "cb1" });
 

@@ -5,6 +5,8 @@ import BookCover from "@/components/book-cover";
 import { clampFraction, type CoverDesign } from "@/lib/book-covers";
 import type { CoverElement } from "@/lib/cover-elements";
 import {
+  isHollow,
+  onOutline,
   scaleElement,
   snapAngle,
   snapToMiddle,
@@ -26,8 +28,8 @@ import {
  *
  * A drag changes the cover on every pointer move, but only the finished drag
  * is one step of undo. So gestures report twice: `onLiveChange` as they go,
- * `onCommit` with the list as it was *before* the gesture once it ends. The
- * designer decides what counts as a change worth remembering.
+ * `onCommit` once they end. The editor decides what counts as a change worth
+ * remembering.
  */
 
 const NUDGE = 0.01;
@@ -96,8 +98,8 @@ export default function CoverCanvas({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onLiveChange: (elements: CoverElement[]) => void;
-  /** A gesture finished; `before` is the list as it stood when it began. */
-  onCommit: (before: CoverElement[]) => void;
+  /** A gesture finished — whether or not it changed anything. */
+  onCommit: () => void;
   onDelete: (id: string) => void;
   /** A double-click on a text box: go and edit its words. */
   onEditText: (id: string) => void;
@@ -148,13 +150,45 @@ export default function CoverCanvas({
 
   // ---- Pressing the cover ------------------------------------------------
 
+  /**
+   * Which element a press is on: the topmost one under the pointer, looking
+   * *through* the empty middle of a frame or an outlined shape to whatever is
+   * beneath it. Without that, a frame the size of the cover would shield
+   * everything under it from ever being picked up.
+   */
+  function elementAt(clientX: number, clientY: number, target: EventTarget): CoverElement | null {
+    const rect = board();
+    // jsdom has no hit-testing; there the event's own target is the answer.
+    const under =
+      typeof document.elementsFromPoint === "function"
+        ? document.elementsFromPoint(clientX, clientY)
+        : [target as Element];
+
+    const seen = new Set<string>();
+    for (const node of under) {
+      const hit = node.closest<HTMLElement>("[data-element-id]");
+      const id = hit?.dataset.elementId;
+      if (!hit || !id || seen.has(id) || !stageRef.current?.contains(hit)) continue;
+      seen.add(id);
+
+      const element = elements.find((e) => e.id === id);
+      if (!element) continue;
+
+      if (rect && element.type === "shape" && isHollow(element)) {
+        const c = centreOf(element, rect);
+        if (!onOutline(element, clientX - c.x, clientY - c.y, rect)) continue;
+      }
+      return element;
+    }
+    return null;
+  }
+
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
     const rect = board();
     if (!rect) return;
 
-    const hit = (event.target as HTMLElement).closest<HTMLElement>("[data-element-id]");
-    const element = hit ? elements.find((e) => e.id === hit.dataset.elementId) : null;
+    const element = elementAt(event.clientX, event.clientY, event.target);
 
     if (element) {
       // No text selection or native image drag mid-gesture — but that also
@@ -187,7 +221,7 @@ export default function CoverCanvas({
       },
       () => {
         setGuides({ x: false, y: false });
-        onCommit(before);
+        onCommit();
       },
     );
   }
@@ -224,7 +258,7 @@ export default function CoverCanvas({
         const factor = Math.hypot(e.clientX - c.x, e.clientY - c.y) / startDistance;
         onLiveChange(updateElement(before, start.id, scaleElement(start, factor)));
       },
-      () => onCommit(before),
+      onCommit,
     );
   }
 
@@ -253,7 +287,7 @@ export default function CoverCanvas({
         const extent = (2 * Math.abs(along)) / axis.size;
         onLiveChange(updateElement(before, start.id, stretchElement(start, axis.key, extent)));
       },
-      () => onCommit(before),
+      onCommit,
     );
   }
 
@@ -273,7 +307,7 @@ export default function CoverCanvas({
         const degrees = (Math.atan2(e.clientY - c.y, e.clientX - c.x) * 180) / Math.PI + 90;
         onLiveChange(updateElement(before, start.id, { rotation: snapAngle(degrees) }));
       },
-      () => onCommit(before),
+      onCommit,
     );
   }
 
@@ -302,13 +336,13 @@ export default function CoverCanvas({
             y: clampFraction(selected.y + arrow[1] * step),
           }),
         );
-        onCommit(elements);
+        onCommit();
       } else if (SCALE_KEYS[event.key]) {
         event.preventDefault();
         onLiveChange(
           updateElement(elements, selected.id, scaleElement(selected, SCALE_KEYS[event.key])),
         );
-        onCommit(elements);
+        onCommit();
       } else if (event.key === "[" || event.key === "]") {
         event.preventDefault();
         const turn = event.key === "]" ? TURN : -TURN;
@@ -317,7 +351,7 @@ export default function CoverCanvas({
             rotation: snapAngle(selected.rotation + turn),
           }),
         );
-        onCommit(elements);
+        onCommit();
       } else if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
         onDelete(selected.id);
@@ -361,8 +395,7 @@ export default function CoverCanvas({
         tabIndex={focusable ? 0 : -1}
         onPointerDown={handlePointerDown}
         onDoubleClick={(event) => {
-          const hit = (event.target as HTMLElement).closest<HTMLElement>("[data-element-id]");
-          const element = elements.find((e) => e.id === hit?.dataset.elementId);
+          const element = elementAt(event.clientX, event.clientY, event.target);
           if (element?.type === "text") onEditText(element.id);
         }}
         onKeyDown={handleKeyDown}
@@ -373,7 +406,7 @@ export default function CoverCanvas({
         <BookCover
           title={title.trim() || "Untitled cookbook"}
           design={design}
-          sizes="320px"
+          sizes="(min-width: 768px) 448px, 80vw"
           className="aspect-3/4 w-full shadow-md"
         />
       </div>

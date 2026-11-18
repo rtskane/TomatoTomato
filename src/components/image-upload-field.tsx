@@ -136,7 +136,6 @@ export default function ImageUploadField({
   value,
   onChange,
   onUploadingChange,
-  showPreview = true,
   heading = "Cover",
 }: {
   /** Which kind of image this is — decides where it's stored and its shape. */
@@ -145,17 +144,9 @@ export default function ImageUploadField({
   onChange: (url: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
   /**
-   * Draw the little thumbnail beside the button.
-   *
-   * Off inside the cover designer, which shows the picture on a full book
-   * preview a few pixels away — two previews of one image, at two sizes,
-   * disagreeing about whether it is cropped is worse than none.
-   */
-  showPreview?: boolean;
-  /**
-   * The field's own heading, or null to omit it — the cover designer already
-   * has a heading over the whole cover section, and a second one directly
-   * under it reads as a nested field that isn't there.
+   * The field's own heading, or null to omit it — for a form that already
+   * has a heading over this part of it, where a second one directly under it
+   * reads as a nested field that isn't there.
    */
   heading?: string | null;
 }) {
@@ -187,27 +178,25 @@ export default function ImageUploadField({
       ) : null}
 
       <div className={`flex items-start gap-4 ${heading ? "mt-2" : ""}`}>
-        {showPreview ? (
-          /* The preview doubles as the empty state, so the row doesn't reflow
-             when a picture arrives. */
-          <div
-            className={`relative ${preview.aspect} ${preview.width} shrink-0 overflow-hidden rounded-md border border-border bg-background-control`}
-          >
-            {value ? (
-              <Image
-                src={value}
-                alt=""
-                fill
-                sizes={preview.sizes}
-                className="object-cover"
-              />
-            ) : (
-              <span className="flex h-full items-center justify-center text-caption-2 text-foreground-muted">
-                {preview.empty}
-              </span>
-            )}
-          </div>
-        ) : null}
+        {/* The preview doubles as the empty state, so the row doesn't reflow
+            when a picture arrives. */}
+        <div
+          className={`relative ${preview.aspect} ${preview.width} shrink-0 overflow-hidden rounded-md border border-border bg-background-control`}
+        >
+          {value ? (
+            <Image
+              src={value}
+              alt=""
+              fill
+              sizes={preview.sizes}
+              className="object-cover"
+            />
+          ) : (
+            <span className="flex h-full items-center justify-center text-caption-2 text-foreground-muted">
+              {preview.empty}
+            </span>
+          )}
+        </div>
 
         <div className="min-w-0">
           <label

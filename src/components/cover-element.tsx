@@ -1,8 +1,11 @@
 import Image from "next/image";
 import { Sticker } from "@/components/cover-stickers";
 import {
+  FRAME_LINE,
+  OUTLINE_LINE,
   colorCss,
   hasOutline,
+  titleScale,
   TEXT_FONT_STYLES,
   type CoverElement,
 } from "@/lib/cover-elements";
@@ -23,9 +26,12 @@ import {
  */
 export default function CoverElementView({
   element,
+  title,
   sizes,
 }: {
   element: CoverElement;
+  /** The cookbook's name — what the title element draws instead of its own text. */
+  title: string;
   /** The cover's own `sizes`, for sizing a photo's download. */
   sizes?: string;
 }) {
@@ -43,23 +49,30 @@ export default function CoverElementView({
   };
 
   switch (element.type) {
-    case "text":
+    case "text": {
+      // The title draws the cookbook's name, stepped down for a long one so
+      // the box a template gave it still holds it.
+      const linked = element.role === "title";
+      const size = linked ? element.size * titleScale(title) : element.size;
       return (
         <p
           {...common}
           className={`absolute leading-[1.15] break-words whitespace-pre-wrap ${
+            linked ? "text-balance" : ""
+          } ${
             TEXT_FONT_STYLES[element.font]?.className ?? "font-serif"
           } ${element.bold ? "font-bold" : "font-normal"} ${element.italic ? "italic" : ""}`}
           style={{
             ...box,
-            fontSize: `${element.size}cqw`,
+            fontSize: `${size}cqw`,
             color: colorCss(element.color),
             textAlign: element.align,
           }}
         >
-          {element.text}
+          {linked ? title : element.text}
         </p>
       );
+    }
 
     case "photo":
       return (
@@ -89,6 +102,21 @@ export default function CoverElementView({
 
     case "shape": {
       const color = colorCss(element.color);
+      // A frame is the debossed rule round a title: always a line, and a fine
+      // one, where an outlined rectangle is a bold band.
+      if (element.shape === "frame") {
+        return (
+          <div
+            {...common}
+            className="absolute rounded-[0.8cqw]"
+            style={{
+              ...box,
+              height: `${element.h * 100}%`,
+              border: `${FRAME_LINE * 100}cqw solid ${color}`,
+            }}
+          />
+        );
+      }
       const outline = element.outline && hasOutline(element.shape);
       return (
         <div
@@ -98,7 +126,7 @@ export default function CoverElementView({
             ...box,
             height: `${element.h * 100}%`,
             ...(outline
-              ? { border: `1.6cqw solid ${color}` }
+              ? { border: `${OUTLINE_LINE * 100}cqw solid ${color}` }
               : { backgroundColor: color }),
             ...(element.shape === "triangle"
               ? { clipPath: "polygon(50% 0, 100% 100%, 0 100%)" }

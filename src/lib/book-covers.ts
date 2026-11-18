@@ -1,10 +1,10 @@
 // The cover palette, shared by everything that draws a cookbook as a book: the
 // shelf paints a whole book with it, the list a thumbnail-sized chip, and the
-// cover designer both a row of swatches and a live preview. One cookbook has to
-// be the same colour in all four places, so there is one table and no second
-// copy of it.
+// cover editor both a row of swatches and the book being edited. One cookbook
+// has to be the same colour in all four places, so there is one table and no
+// second copy of it.
 //
-// Framework-free (no next/*, no react) so the designer, the server components
+// Framework-free (no next/*, no react) so the editor, the server components
 // and the unit tests can all import it.
 
 import type { CoverElement } from "@/lib/cover-elements";
@@ -20,12 +20,17 @@ export function isCoverStyle(value: string): value is CoverStyle {
 // ---------------------------------------------------------------------------
 // The composed cover
 //
-// Everything below is a *finite vocabulary*, which is the whole design premise:
-// a cover is composed from named choices rather than laid out freehand. That is
-// what lets one component draw the same cover at 240px on the shelf, 128px in
-// the designer and 36px in a list row and have all three agree — every value
-// here resolves to something relative (a percentage of the cover's own width,
-// or a fraction of the photograph), never a pixel.
+// Everything below is a *finite vocabulary*: the cloth is composed from named
+// choices rather than laid out freehand. That is what lets one component draw
+// the same cover at 240px on the shelf, larger in the editor and 36px in a
+// list row and have all three agree — every value here resolves to something
+// relative (a percentage of the cover's own width, or a fraction of the
+// photograph), never a pixel.
+//
+// What is laid out freehand sits on top of it: the placed elements in
+// lib/cover-elements.ts, the cookbook's name among them. The title font, size
+// and position below belong to the older, fixed title *plate*, which is still
+// how a cover nobody has edited since shows its name.
 // ---------------------------------------------------------------------------
 
 export const COVER_TEXTURES = ["NONE", "GINGHAM", "GRID"] as const;

@@ -2,11 +2,13 @@
 
 import { useActionState, useState } from "react";
 import ModalDialog from "@/components/modal-dialog";
-import CoverDesigner from "@/components/cover-designer";
+import BookCover from "@/components/book-cover";
+import CoverEditor from "@/components/cover-editor";
 import InlineConfirm from "@/components/inline-confirm";
 import type { UpdateCookbookState, ArchiveCookbookState } from "./settings-actions";
 import type { ArchiveImpact } from "@/server/services/cookbook.service";
 import type { CoverDesign } from "@/lib/book-covers";
+import { COVER_FIELD_NAMES, coverFields } from "@/lib/cover-fields";
 
 // Renaming a cookbook and archiving it. Owner-only — the page decides whether
 // to render this at all.
@@ -76,17 +78,33 @@ export default function SettingsDialog({
 }: {
   title: string;
   description: string | null;
-  /** Already resolved, so the designer opens on the cover the shelf shows. */
+  /** Already resolved, so the editor opens on the cover the shelf shows. */
   design: CoverDesign;
   updateAction: UpdateAction;
   archiveAction: ArchiveAction;
   impact: ArchiveImpact;
 }) {
-  const [state, submit, pending] = useActionState(updateAction, {});
-  // A mirror of the title input, so the cover preview renames itself as the
-  // cookbook does. The input itself stays uncontrolled.
-  const [liveTitle, setLiveTitle] = useState(state.values?.title ?? title);
-  const [uploading, setUploading] = useState(false);
+  // The name and the cover are state rather than fields read off the DOM: the
+  // editor changes both, over the top of this dialog, and hands them back.
+  // They post through the title input and the hidden fields below.
+  const [liveTitle, setLiveTitle] = useState(title);
+  const [cover, setCover] = useState(design);
+  const [editing, setEditing] = useState(false);
+  // Whether the cover on screen is one the save hasn't seen yet — said out
+  // loud, because closing the editor looks finished and isn't.
+  const [coverChanged, setCoverChanged] = useState(false);
+  const fields = coverFields(cover);
+
+  const [state, submit, pending] = useActionState(
+    async (previous: UpdateCookbookState, formData: FormData) => {
+      const next = await updateAction(previous, formData);
+      // Only once it is actually saved: a refused save (a blank title, say)
+      // leaves the new cover still waiting, and the note has to keep saying so.
+      if (!next.error) setCoverChanged(false);
+      return next;
+    },
+    {},
+  );
 
   return (
     <ModalDialog
@@ -122,7 +140,7 @@ export default function SettingsDialog({
               id="title"
               name="title"
               required
-              defaultValue={state.values?.title ?? title}
+              value={liveTitle}
               onChange={(e) => setLiveTitle(e.target.value)}
               className={fieldClass}
             />
@@ -144,11 +162,36 @@ export default function SettingsDialog({
             />
           </div>
 
-          <CoverDesigner
-            title={liveTitle}
-            design={design}
-            onUploadingChange={setUploading}
-          />
+          <div>
+            <span className="block text-subheadline font-medium">Cover</span>
+            <div className="mt-2 flex items-center gap-4">
+              <div aria-hidden className="shrink-0">
+                <BookCover
+                  title={liveTitle.trim() || "Untitled cookbook"}
+                  design={cover}
+                  sizes="96px"
+                  className="aspect-3/4 w-24 shadow-md"
+                />
+              </div>
+              <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="rounded-md border border-border-strong px-3 py-1.5 text-subheadline font-medium hover:bg-background-secondary"
+                >
+                  Edit cover
+                </button>
+                {coverChanged ? (
+                  <p role="status" className="mt-2 text-caption-1 text-foreground-secondary">
+                    Cover changed. Save changes to keep it.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            {COVER_FIELD_NAMES.map((name) => (
+              <input key={name} type="hidden" name={name} value={fields[name]} />
+            ))}
+          </div>
 
           {state.error ? (
             <p role="alert" className="text-subheadline text-error">
@@ -158,7 +201,7 @@ export default function SettingsDialog({
 
           <button
             type="submit"
-            disabled={pending || uploading}
+            disabled={pending}
             className="rounded-md bg-accent px-4 py-2 text-subheadline font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
           >
             {pending ? "Saving…" : "Save changes"}
@@ -169,6 +212,23 @@ export default function SettingsDialog({
           <ArchiveSection action={archiveAction} impact={impact} />
         </div>
       </div>
+
+      {/* Outside the form: the editor has its own name field and buttons,
+          and none of them should be this form's. It opens over the dialog. */}
+      {editing ? (
+        <CoverEditor
+          title={liveTitle}
+          design={cover}
+          onClose={(result) => {
+            setLiveTitle(result.title);
+            if (result.design !== cover) {
+              setCover(result.design);
+              setCoverChanged(true);
+            }
+            setEditing(false);
+          }}
+        />
+      ) : null}
     </ModalDialog>
   );
 }
